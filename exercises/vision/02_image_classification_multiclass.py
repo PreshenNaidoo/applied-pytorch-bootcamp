@@ -162,9 +162,7 @@ from common.training_checks import check_threshold, print_pass_or_try_again
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-@dataclass
 
-        #raise NotImplementedError("Return raw logits with shape [batch_size, num_classes].")
 
 
 # Build the train, validation, and test loaders.
@@ -176,39 +174,18 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 # Labels must stay as integer class ids with dtype `torch.long`.
 def load_dataloaders(config: MulticlassImageConfig) -> dict[str, DataLoader]:
 
-    fashionmnist_train = torchvision.datasets.FashionMNIST(root=config.data_root, train=True, download=True)
-    fashionmnist_test = torchvision.datasets.FashionMNIST(root=config.data_root, train=False, download=True)
+    raise NotImplementedError("Return train, val, and test loaders for FashionMNIST.")
 
-    print(fashionmnist_train.data.shape)
-    print(type(fashionmnist_test.targets))
 
-    data = np.concat([fashionmnist_train.data, fashionmnist_test.data])
-    targets = np.concat([fashionmnist_train.targets, fashionmnist_test.targets])
 
-    data=np.expand_dims(data, axis=-1)
 
-    num_train, num_val = int(data.shape[0] * 0.6), int(data.shape[0] * 0.2)
 
-    x_train, y_train = torch.tensor(data[:num_train], dtype=torch.float), torch.tensor(targets[:num_train], dtype=torch.long) #long same as int64
-    x_val, y_val = torch.tensor(data[num_train:num_train+num_val], dtype=torch.float), torch.tensor(targets[num_train:num_train+num_val], dtype=torch.long)
-    x_test, y_test = torch.tensor(data[num_train+num_val:], dtype=torch.float), torch.tensor(targets[num_train+num_val:], dtype=torch.long)
 
-    x_train = x_train.permute(0, 3, 1, 2)
-    x_val = x_val.permute(0, 3, 1, 2)
-    x_test = x_test.permute(0, 3, 1, 2)
 
-    x_train = x_train / 255.0
-    x_val = x_val / 255.0
-    x_test = x_test / 255.0
 
-    train_ds = TensorDataset(x_train, y_train)
-    val_ds = TensorDataset(x_val, y_val)
-    test_ds = TensorDataset(x_test, y_test)
 
-    return {"train": DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True),
-            "val": DataLoader(dataset=val_ds, batch_size=config.batch_size),
-            "test": DataLoader(dataset=test_ds, batch_size=config.batch_size)}
 
+@dataclass
 class MulticlassImageConfig:
     """Settings for the multiclass image classification exercise."""
 
@@ -248,17 +225,9 @@ class MulticlassImageCNN(nn.Module):
 
     def __init__(self, input_channels: int, hidden_channels: int, num_classes: int) -> None:
         super().__init__()
-        self.input_channels = input_channels
-        self.hidden_channels = hidden_channels
-        self.num_classes = num_classes
+        raise NotImplementedError("Build a small multiclass CNN with conv layers, pooling, flatten, and a classifier head.")
 
-        self.conv1 = nn.Conv2d(in_channels = input_channels, out_channels=hidden_channels, kernel_size=3, padding='same')
-        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.conv2 = nn.Conv2d(in_channels=hidden_channels, out_channels=hidden_channels*2, kernel_size=3, padding='same')
-        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.fc1 = nn.Linear(in_features=7*7*(hidden_channels*2), out_features=num_classes)
 
-        #raise NotImplementedError("Build a small multiclass CNN with conv layers, pooling, flatten, and a classifier head.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return raw class logits.
@@ -268,22 +237,13 @@ class MulticlassImageCNN(nn.Module):
         - shape: `[batch_size, num_classes]`
         """
 
-        x = self.conv1(x)
-        x = F.relu(x)
-        x = self.pool1(x)
-
-        x = self.conv2(x)
-        x = F.relu(x)
-        x = self.pool2(x)
-
-        x = x.flatten(start_dim=1, end_dim=-1)
-
-        x = self.fc1(x)
-
-        return x
+        raise NotImplementedError("Return raw logits with shape [batch_size, num_classes].")
 
 
-    #raise NotImplementedError("Return train, val, and test loaders for FashionMNIST.")
+
+
+
+
 
 
 # Build the model, loss, and optimizer.
@@ -294,14 +254,9 @@ class MulticlassImageCNN(nn.Module):
 # Use `nn.CrossEntropyLoss`.
 def build_training_objects(config: MulticlassImageConfig) -> tuple[nn.Module, nn.Module, torch.optim.Optimizer]:
 
-    model = MulticlassImageCNN(input_channels=config.image_channels, hidden_channels=config.hidden_channels, num_classes=config.num_classes)
-    model.to(device)
+    raise NotImplementedError("Return the CNN, CrossEntropyLoss, and optimizer.")
 
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(lr=config.learning_rate, params=model.parameters())
 
-    return model, loss_fn, optimizer
-    #raise NotImplementedError("Return the CNN, CrossEntropyLoss, and optimizer.")
 
 
 # Run one full training epoch.
@@ -319,34 +274,13 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
 ) -> dict[str, float]:
 
-    model.train()
-
-    losses, accs = [], []
-
-    for x_data, y_targets in loader:
-        x_data = x_data.to(device)
-        y_targets = y_targets.to(device)
-
-        optimizer.zero_grad()
-
-        logits = model(x_data)
-        loss = loss_fn(logits, y_targets)
-        loss.backward()
-        optimizer.step()
-
-        losses.append(loss.item())
-
-        preds = torch.argmax(logits, dim=1).float()
-        correct = (preds == y_targets).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss": mean_loss, "accuracy": mean_acc}
+    raise NotImplementedError("Return the mean train loss and mean train accuracy for one full epoch.")
 
 
-    #raise NotImplementedError("Return the mean train loss and mean train accuracy for one full epoch.")
+
+
+
+
 
 
 # Run one full evaluation pass.
@@ -363,29 +297,11 @@ def train_one_epoch(
 @torch.no_grad()
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[str, float]:
 
-    model.eval()
-    losses, accs = [],[]
+    raise NotImplementedError("Return the mean loss and mean accuracy for the loader you evaluate.")
 
-    for x_data, y_targets in loader:
 
-        x_data = x_data.to(device)
-        y_targets = y_targets.to(device)
 
-        logits = model(x_data)
-        loss = loss_fn(logits, y_targets)
 
-        losses.append(loss)
-
-        preds = torch.argmax(logits, axis=1).float()
-        correct = (preds == y_targets).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss": mean_loss, "accuracy": mean_acc}
-
-    #raise NotImplementedError("Return the mean loss and mean accuracy for the loader you evaluate.")
 
 
 # Run the full training flow.
@@ -396,23 +312,11 @@ def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[s
 # - `val_accuracy`
 def run_training(config: MulticlassImageConfig) -> dict[str, float]:
 
-    loaders = load_dataloaders(config)
-    model, loss_fn, optimizer = build_training_objects(config)
-
-    train_dict=None
-    val_dict=None
-    for i in range(config.epochs):
-
-        train_dict = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-        val_dict = evaluate(model, loaders["val"], loss_fn)
-
-        if i % 10 == 0:
-            print(f"Epoch {i} -> loss: {train_dict['loss']}, acc {train_dict['accuracy']}, val_loss: {val_dict['loss']}, val_acc: {val_dict['accuracy']}")
-
-    return {"train_loss": train_dict['loss'], "train_accuracy": train_dict['accuracy'], "val_loss":val_dict['loss'], "val_accuracy":val_dict['accuracy']}
+    raise NotImplementedError("Run the full training flow and return the final train and val metrics.")
 
 
-    #raise NotImplementedError("Run the full training flow and return the final train and val metrics.")
+
+
 
 
 def check_metrics(metrics: dict[str, float], target: float) -> bool:

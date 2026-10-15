@@ -118,10 +118,7 @@ class TensorBasicsConfig:
 # - include at least one flat tensor with exactly 6 values
 # - that 6-value tensor will be useful for the reshape task below
 def load_practice_tensors() -> dict[str, torch.Tensor]:
-    dict = {}
-    dict['tensor 1'] = torch.tensor([1,2,3])
-    dict['tensor 2'] = torch.tensor([1,2,3,4,5,6])
-    return dict
+    raise NotImplementedError("Create and return the practice tensors.")
 
 
 
@@ -151,7 +148,7 @@ class AutogradPracticeModule(nn.Module):
 # - for example, you might return the first 2 values or the last 2 values
 # - the main goal is to practice indexing and slicing, not to guess a hidden trick
 def run_indexing_and_slicing_task(base_tensor: torch.Tensor) -> torch.Tensor:
-    return base_tensor[1:4]
+    raise NotImplementedError("Return a small slice of the input tensor.")
 
 
 # TODO: Reshape the flat tensor into the expected 2D shape.
@@ -160,7 +157,7 @@ def run_indexing_and_slicing_task(base_tensor: torch.Tensor) -> torch.Tensor:
 # - right now that shape is (2, 3)
 # - so the input tensor must have exactly 6 total values
 def run_reshape_task(flat_tensor: torch.Tensor) -> torch.Tensor:
-    return flat_tensor.reshape((2,3))
+    raise NotImplementedError("Reshape the flat tensor to the expected matrix shape.")
 
 
 # TODO: Use broadcasting to add these tensors and return the result.
@@ -168,7 +165,7 @@ def run_reshape_task(flat_tensor: torch.Tensor) -> torch.Tensor:
 # - choose shapes that can broadcast cleanly
 # - a common simple example is a matrix plus a length-matching row vector
 def run_broadcasting_task(left: torch.Tensor, right: torch.Tensor) -> torch.Tensor:
-    return left + right
+    raise NotImplementedError("Add the tensors using broadcasting.")
 
 
 # TODO: Return reduction results such as sum and mean.
@@ -176,7 +173,7 @@ def run_broadcasting_task(left: torch.Tensor, right: torch.Tensor) -> torch.Tens
 # - start with all-values sum and all-values mean
 # - you can add dimension-based reductions later if you want
 def run_reduction_task(values: torch.Tensor) -> dict[str, torch.Tensor]:
-    return {'sum': values.sum(), 'mean':values.mean()}
+    raise NotImplementedError("Return the sum and mean of the tensor.")
 
 
 # TODO: Multiply two matrices and return the result.
@@ -184,14 +181,11 @@ def run_reduction_task(values: torch.Tensor) -> dict[str, torch.Tensor]:
 # - choose shapes where the inner dimensions match
 # - example: (2, 3) @ (3, 2) works, but (2, 3) @ (2, 3) does not
 def run_matrix_multiplication_task(left: torch.Tensor, right: torch.Tensor) -> torch.Tensor:
-    return torch.matmul(left, right)
+    raise NotImplementedError("Return the matrix multiplication result.")
 
 
 def run_autograd_task() -> float:
-    x = torch.tensor(3.0, requires_grad=True)
-    y = x ** 2
-    y.backward()
-    return float(x.grad.item())
+    raise NotImplementedError("Compute and return the gradient for the autograd example.")
 
 # TODO: Use the functions above and return a small summary dictionary.
 # Beginner hint:
@@ -201,34 +195,13 @@ def run_autograd_task() -> float:
 # - use check_gradient(...) with config.expected_gradient
 # - return a small dictionary such as {"shape_ok": ..., "gradient_ok": ...}
 def run_tensor_task_suite(config: TensorBasicsConfig) -> dict[str, float | bool]:
-    practice_tensors = load_practice_tensors()
+    raise NotImplementedError("Run the tensor tasks and return the summary checks.")
 
-    base_tensor = practice_tensors["tensor 2"]
-    reshaped = run_reshape_task(base_tensor)
-    sliced = run_indexing_and_slicing_task(base_tensor)
 
-    left_for_broadcast = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
-    right_for_broadcast = torch.tensor([10.0, 20.0, 30.0])
-    broadcasted = run_broadcasting_task(left_for_broadcast, right_for_broadcast)
 
-    reductions = run_reduction_task(base_tensor.float())
 
-    left_for_matmul = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
-    right_for_matmul = torch.tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
-    matmul_result = run_matrix_multiplication_task(left_for_matmul, right_for_matmul)
 
-    gradient = run_autograd_task()
 
-    summary: dict[str, float | bool] = {
-        "shape_ok": check_shape(tuple(reshaped.shape), config.expected_matrix_shape),
-        "gradient_ok": check_gradient(gradient, config.expected_gradient),
-        "slice_has_values": bool(sliced.numel() > 0),
-        "broadcast_has_expected_shape": bool(tuple(broadcasted.shape) == (2, 3)),
-        "sum_is_scalar": bool(reductions["sum"].ndim == 0),
-        "mean_is_scalar": bool(reductions["mean"].ndim == 0),
-        "matmul_has_expected_shape": bool(tuple(matmul_result.shape) == (2, 2)),
-    }
-    return summary
 
 
 # TODO: Use this if you want one place to print extra details later.
@@ -236,7 +209,7 @@ def run_tensor_task_suite(config: TensorBasicsConfig) -> dict[str, float | bool]
 # - this can read the summary from run_tensor_task_suite
 # - you can keep it simple and just return the same dictionary at first
 def evaluate_tensor_task_suite(summary: dict[str, float | bool]) -> dict[str, float | bool]:
-    return summary
+    raise NotImplementedError("Return the evaluation summary.")
 
 
 def check_shape(actual_shape: tuple[int, ...], expected_shape: tuple[int, ...]) -> bool:

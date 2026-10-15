@@ -206,6 +206,7 @@ from common.training_checks import check_threshold, print_pass_or_try_again
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
+@dataclass
 class MiniTransformerClassifierConfig:
     """Settings for the mini transformer text-classifier exercise."""
 
@@ -245,7 +246,6 @@ def describe_encoder_shapes(config: MiniTransformerClassifierConfig) -> dict[str
     }
 
 
-        #raise NotImplementedError("Run the mini transformer encoder and return raw class logits.")
 
 
 # Load the text split plus the vocabulary pieces you need.
@@ -268,23 +268,11 @@ def describe_encoder_shapes(config: MiniTransformerClassifierConfig) -> dict[str
 # - the pad id is a special filler token so shorter examples can sit in the same batch as longer ones
 def load_text_artifacts(config: MiniTransformerClassifierConfig) -> dict[str, object]:
 
-    data = hf_datasets.load_dataset(path=config.dataset_name)
-    train_data = data["train"]
-    test_data = data["test"]
+    raise NotImplementedError("Return the AG News split plus the training-text vocabulary and pad token id.")
 
-    train_list = list(train_data["text"])
-    train_labels_list = list(train_data["label"])
 
-    test_texts = list(test_data["text"])
-    test_labels = list(test_data["label"])
 
-    num_train = int(len(train_labels_list) * 0.80)
-    train_texts, train_labels = train_list[:num_train], train_labels_list[:num_train]
-    val_texts, val_labels = train_list[num_train:], train_labels_list[num_train:]
 
-    return {"train_texts": train_texts,"train_labels": train_labels,
-            "val_texts": val_texts,"val_labels": val_labels,
-            "test_texts": test_texts,"test_labels": test_labels}
 
 
 class TokenDataset(torch.utils.data.Dataset):
@@ -332,7 +320,6 @@ class TokenDataset(torch.utils.data.Dataset):
 
 
 
-@dataclass
 
 # Build the train, validation, and test dataloaders.
 # Return a dict with exactly these keys:
@@ -356,31 +343,10 @@ class TokenDataset(torch.utils.data.Dataset):
 # - the real lengths tell you where the true text ends and where padding begins
 def load_dataloaders(config: MiniTransformerClassifierConfig) -> dict[str, DataLoader]:
 
-    data_dict = load_text_artifacts(config)
-    train_texts = data_dict["train_texts"]
+    raise NotImplementedError("Return train, val, and test dataloaders for the mini transformer text classifier.")
 
-    vocabulary = {"[PAD]":0, "[UNK]":1}
-    index = 2
-    for text in train_texts:
-        words_list = [word.strip(string.punctuation) for word in text.split()]
-        for word in words_list:
-            if not word:
-                continue
-            if word not in vocabulary:
-                vocabulary[word] = index
-                index+=1
-            if index == config.max_vocab_size:
-                break
-        if index == config.max_vocab_size:
-            break
 
-    train_ds = TokenDataset(texts=data_dict["train_texts"], labels=data_dict["train_labels"], vocabulary_dict=vocabulary, max_length=config.max_length)
-    val_ds = TokenDataset(data_dict["val_texts"], data_dict["val_labels"], vocabulary, config.max_length)
-    test_ds = TokenDataset(data_dict["test_texts"], data_dict["test_labels"], vocabulary, config.max_length)
 
-    return {"train": torch.utils.data.DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True),
-            "val": torch.utils.data.DataLoader(dataset=val_ds, batch_size=config.batch_size),
-            "test": torch.utils.data.DataLoader(dataset=test_ds, batch_size=config.batch_size)}
 
 
 
@@ -389,9 +355,7 @@ class MiniTransformerTextClassifier(nn.Module):
 
     def __init__(self, vocab_size: int, pad_id: int, config: MiniTransformerClassifierConfig) -> None:
         super().__init__()
-        self.vocab_size = vocab_size
-        self.pad_id = pad_id
-        self.config = config
+        raise NotImplementedError( "Build token embeddings, positional embeddings, encoder blocks, a pooling step, and the classifier head." )
         # Beginner-friendly build order:
         # 1. token embedding layer
         # 2. positional embedding layer
@@ -454,21 +418,11 @@ class MiniTransformerTextClassifier(nn.Module):
         # - positional embedding table shape: `[max_length, embed_dim]`
         # They are different tables because one stores token meaning and the other stores position meaning.
 
-        self.token_embed = nn.Embedding(num_embeddings=vocab_size, embedding_dim=config.embed_dim, padding_idx=pad_id)
-        self.positional_embed = nn.Embedding(num_embeddings=config.max_length, embedding_dim=config.embed_dim)
-
-        self.transformer_encoder_layer = nn.TransformerEncoderLayer(d_model=config.embed_dim, nhead=config.num_heads, 
-                                                                    dim_feedforward=config.mlp_dim, batch_first=True)
-
-        self.transformer_enc = nn.TransformerEncoder(encoder_layer=self.transformer_encoder_layer, 
-                                                    num_layers=config.num_layers)
-
-        self.classifier_head = nn.Linear(in_features = config.embed_dim, out_features=config.num_classes)
 
 
-        # raise NotImplementedError(
-        #     "Build token embeddings, positional embeddings, encoder blocks, a pooling step, and the classifier head."
-        # )
+
+
+
 
     def forward(self, token_ids: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
         """Return raw class logits with shape `[batch_size, num_classes]`.
@@ -497,37 +451,23 @@ class MiniTransformerTextClassifier(nn.Module):
         - if you average over them, the text summary gets watered down by fake information
         """
 
-        batch_size, max_length = token_ids.shape[0], token_ids.shape[1]  #batch_size=32, max_length=64
+        raise NotImplementedError("Run the mini transformer encoder and return raw class logits.")
 
-        token_embeddings = self.token_embed(token_ids)  # (32, 64, 128)
         
-        positions = torch.arange(start=0, end=max_length, device=token_ids.device)  # (64)
-        position_ids = positions.unsqueeze(0).expand(size=(batch_size, max_length)) # (32, 64)
 
-        positional_embeddings = self.positional_embed(position_ids)                 # (32, 64, 128)
 
-        embeddings = token_embeddings + positional_embeddings                       # (32, 64, 128)
 
-        x = self.transformer_enc(embeddings)                                        # (32, 64, 128)
         
-        mask = positions.unsqueeze(dim=0) < lengths.unsqueeze(dim=1)                # (32, 64)
-
-        masked_embeddings = embeddings * mask.unsqueeze(dim=2)                      # (32, 64, 128) * (32, 64)
-
-        summed = masked_embeddings.sum(dim=1)
-        pooled = summed / lengths.unsqueeze(dim=1)                                  #(32, 64) / (32, 1)
-
-        x = self.classifier_head(pooled)
-
-        return x
 
 
-   # raise NotImplementedError("Return the AG News split plus the training-text vocabulary and pad token id.")
+
+
+
+
 
 import string
 
 
-    #raise NotImplementedError("Return train, val, and test dataloaders for the mini transformer text classifier.")
 
 
 # Build the model, loss, and optimizer.
@@ -542,14 +482,9 @@ def build_training_objects(config: MiniTransformerClassifierConfig) -> tuple[nn.
     # - loss_fn: `nn.CrossEntropyLoss()`
     # - optimizer: something simple like `torch.optim.Adam(...)`
 
-    model = MiniTransformerTextClassifier(vocab_size = config.max_vocab_size, pad_id=0, config=config)
-    model.to(device)
+    raise NotImplementedError("Return the mini transformer text classifier, CrossEntropyLoss, and optimizer.")
 
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(lr=config.learning_rate, params=model.parameters())
 
-    return model, loss_fn, optimizer
-    #raise NotImplementedError("Return the mini transformer text classifier, CrossEntropyLoss, and optimizer.")
 
 
 # Run one full training epoch.
@@ -578,37 +513,11 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
 ) -> dict[str, float]:
 
-    model.train()
+    raise NotImplementedError("Return the mean train loss and mean train accuracy for one full epoch.")
 
-    losses, accuracies = [], []
 
-    for data_dict in loader:
-        token_ids = data_dict["token_ids"]
-        labels = data_dict["labels"]
-        lengths = data_dict["lengths"]
 
-        token_ids = token_ids.to(device)
-        labels = labels.to(device)
-        lengths = lengths.to(device)
 
-        optimizer.zero_grad()
-
-        logits = model(token_ids, lengths)
-        loss = loss_fn(logits, labels)
-        loss.backward()
-        optimizer.step()
-
-        losses.append(loss.item())
-
-        preds = logits.argmax(dim=1).float()
-        correct = (preds == labels).float()
-        accuracies.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accuracies).mean().item()
-
-    return {"loss":mean_loss, "accuracy": mean_acc}
-    #raise NotImplementedError("Return the mean train loss and mean train accuracy for one full epoch.")
 
 
 # Run one full evaluation pass.
@@ -627,34 +536,12 @@ def train_one_epoch(
 @torch.no_grad()
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[str, float]:
 
-    model.eval()
+    raise NotImplementedError("Return the mean loss and mean accuracy for the loader you evaluate.")
 
-    losses, accs = [], []
 
-    for data_dict in loader:
-        token_ids = data_dict["token_ids"]
-        labels = data_dict["labels"]
-        lengths = data_dict["lengths"]
-
-        token_ids = token_ids.to(device)
-        labels = labels.to(device)
-        lengths = lengths.to(device)
-
-        logits = model(token_ids, lengths)
-        loss = loss_fn(logits, labels)
-
-        losses.append(loss.item())
-
-        preds = logits.argmax(dim=1).float()
-        correct = (preds == labels).float()
-        accs.append(correct.mean().float())
 
     
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
 
-    return {"loss":mean_loss, "accuracy": mean_acc}
-    #raise NotImplementedError("Return the mean loss and mean accuracy for the loader you evaluate.")
 
 
 # Run the full training flow.
@@ -668,23 +555,11 @@ def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[s
 # This is the final epoch summary, not a history list.
 def run_training(config: MiniTransformerClassifierConfig) -> dict[str, float]:
 
-    loaders = load_dataloaders(config)
-    model, loss_fn, optimizer = build_training_objects(config)
+    raise NotImplementedError("Run the full mini transformer training flow and return the final train and val metrics.")
 
-    for i in range(config.epochs):
 
-        train_dict = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-        val_dict = evaluate(model, loaders["val"], loss_fn)
 
-        print(f"Epoch {i} -> loss: {train_dict['loss']}, acc: {train_dict['accuracy']}, val_loss: {val_dict['loss']}, val_acc: {val_dict['accuracy']}")
 
-    test_dict = evaluate(model, loaders["test"], loss_fn)
-    print(f"Test results -> loss: {test_dict['loss']}, accuracy: {test_dict['accuracy']}")
-
-    return {"train_loss": train_dict["loss"], "train_accuracy": train_dict["accuracy"],
-            "val_loss": val_dict["loss"], "val_accuracy": val_dict["accuracy"]}
-
-    #raise NotImplementedError("Run the full mini transformer training flow and return the final train and val metrics.")
 
 
 

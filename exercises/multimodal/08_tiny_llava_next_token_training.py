@@ -222,39 +222,13 @@ def build_vlm_text_dataset(config: TinyLLaVANextTokenConfig) -> list[VLMTextExam
     # - Images come from the dataset and are stored as tensors.
     # - The answer should be text here, not a class id.
 
-    from datasets import load_dataset
+    raise NotImplementedError("Build VLM text training examples.")
 
-    transform = torchvision.transforms.Compose([
-        torchvision.transforms.Resize((config.image_size, config.image_size)),
-        torchvision.transforms.ToTensor(),
-    ])
 
-    data = load_dataset(config.hf_dataset_name, split=f"train[:{config.sample_size}]")
 
-    examples: list[VLMTextExample] = []
 
-    for row in data:
-        image = row["image"].convert("RGB")
-        image_tensor = transform(image)
 
-        question = str(row["question"]).lower().strip()
-        answer = str(row["multiple_choice_answer"]).lower().strip()
 
-        if not question or not answer:
-            continue
-
-        examples.append({
-            "image": image_tensor,
-            "question": question,
-            "answer": answer,
-        })
-
-        if len(examples) >= config.sample_size:
-            break
-
-    return examples
-
-    # raise NotImplementedError("Build VLM text training examples.")
 
 
 def build_token_vocabulary(examples: list[VLMTextExample]) -> dict[str, int]:
@@ -287,20 +261,11 @@ def build_token_vocabulary(examples: list[VLMTextExample]) -> dict[str, int]:
     # Check:
     # - The vocabulary must contain `<answer>` and `<eos>`.
 
-    token_to_id = {"<pad>": 0, "<unk>": 1, "<answer>": 2, "<eos>": 3}
-    words: set[str] = set()
+    raise NotImplementedError("Build tiny tokenizer vocabulary.")
 
-    for example in examples:
-        words.update(example["question"].lower().split())
-        words.update(example["answer"].lower().split())
 
-    for word in sorted(words):
-        if word not in token_to_id:
-            token_to_id[word] = len(token_to_id)
 
-    return token_to_id
 
-    # raise NotImplementedError("Build tiny tokenizer vocabulary.")
 
 
 def encode_prompt_and_answer(example: VLMTextExample, token_to_id: dict[str, int], config: TinyLLaVANextTokenConfig) -> tuple[torch.Tensor, torch.Tensor]:
@@ -352,34 +317,17 @@ def encode_prompt_and_answer(example: VLMTextExample, token_to_id: dict[str, int
     # Check:
     # - `input_ids.shape == labels.shape == (config.max_text_length,)`
 
-    question = example["question"]
-    answer = example["answer"]
+    raise NotImplementedError("Encode one question-answer pair with ignored prompt labels.")
 
-    unk_id = token_to_id["<unk>"]
-    pad_id = token_to_id["<pad>"]
-    answer_markerid = token_to_id["<answer>"]
-    eos_id = token_to_id["<eos>"]
 
-    question_token_ids = [token_to_id.get(word, unk_id) for word in question.lower().strip().split()]
-    answer_token_ids = [token_to_id.get(word, unk_id) for word in answer.lower().strip().split()]
 
-    full_ids = question_token_ids + [answer_markerid] + answer_token_ids + [eos_id]
 
-    full_ids = full_ids[:config.max_text_length]    # no padding yet
     
-    input_ids = torch.full(size=[config.max_text_length,], fill_value=pad_id, dtype=torch.long) #padding
-    input_ids[:len(full_ids)] = torch.tensor(full_ids, dtype=torch.long)
 
-    labels = torch.full(size=[config.max_text_length,], fill_value=config.ignore_index, dtype=torch.long) # -100
 
-    answer_start_pos = len(question_token_ids) + 1 # first answer token position
-    answer_end_pos = len(full_ids)
     # Shift targets left for next-token training:
     # at `<answer>`, predict the first answer token; at each answer token, predict the next one.
-    labels[answer_start_pos - 1 : answer_end_pos - 1] = input_ids[answer_start_pos:answer_end_pos]
 
-    return input_ids, labels
-    #raise NotImplementedError("Encode one question-answer pair with ignored prompt labels.")
 
 
 class TinyVLMNextTokenDataset(Dataset):
@@ -434,15 +382,10 @@ class TinyVLMImageEncoder(nn.Module):
         # Check:
         # - Forward should return `[batch_size, config.hidden_size]`.
 
-        self.conv2d_1 = nn.Conv2d(in_channels=3, out_channels=16, kernel_size=3, stride=1, padding="same")
-        self.maxpool2d = nn.MaxPool2d(kernel_size=2)
+        raise NotImplementedError("Build tiny VLM image encoder.")
 
-        self.conv2d_2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding="same")
-        self.adaptive_avgpool2d = nn.AdaptiveAvgPool2d(output_size=(1,1))
 
-        self.linear = nn.Linear(in_features = 32, out_features=config.hidden_size)
 
-        #raise NotImplementedError("Build tiny VLM image encoder.")
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         """Encode images into one vector each."""
@@ -452,18 +395,11 @@ class TinyVLMImageEncoder(nn.Module):
         # 3. Run the final linear layer.
         # 4. Return image vectors shaped `[B, hidden_size]`.
 
-        x = nn.functional.relu(self.conv2d_1(images))   # [B, 16, 48, 48]
-        x = self.maxpool2d(x)                           # [B, 16, 24, 24]
+        raise NotImplementedError("Encode images.")
 
-        x = nn.functional.relu(self.conv2d_2(x))        # [B, 32, 24, 24]
-        x = self.adaptive_avgpool2d(x)                  # [B, 32, 1, 1]
 
-        x = torch.flatten(x, start_dim=1)               # [B, 32]
 
-        features = self.linear(x)                       # [B, hidden_size]
 
-        return features
-        #raise NotImplementedError("Encode images.")
 
 
 class TinyVLMTextEncoder(nn.Module):
@@ -494,9 +430,8 @@ class TinyVLMTextEncoder(nn.Module):
         # - Forward should not apply softmax.
         # - It should only return embeddings.
 
-        self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=config.hidden_size)
+        raise NotImplementedError("Build tiny VLM text encoder.")
 
-        #raise NotImplementedError("Build tiny VLM text encoder.")
 
     def forward(self, input_ids: torch.Tensor) -> torch.Tensor:
         """Embed token ids."""
@@ -504,10 +439,8 @@ class TinyVLMTextEncoder(nn.Module):
         # 1. Pass `input_ids` to the embedding layer.
         # 2. Return `[batch_size, text_length, hidden_size]`.
 
-        text_embeddings = self.embedding(input_ids)     # [B, text_length, hidden_size]
-        return text_embeddings
+        raise NotImplementedError("Embed input token ids.")
 
-        #raise NotImplementedError("Embed input token ids.")
 
 
 class TinyVLMTransformerDecoder(nn.Module):
@@ -545,10 +478,8 @@ class TinyVLMTransformerDecoder(nn.Module):
         # Check:
         # - Keep `batch_first=True` so tensors stay `[B, sequence_length, hidden_size]`.
 
-        self.transformerEncoderLayer = nn.TransformerEncoderLayer(d_model = config.hidden_size, nhead=2, batch_first=True)
-        self.transformerEncoder = nn.TransformerEncoder(encoder_layer=self.transformerEncoderLayer, num_layers=2)
+        raise NotImplementedError("Build tiny VLM transformer decoder.")
 
-        #raise NotImplementedError("Build tiny VLM transformer decoder.")
 
     def forward(self, combined_embeddings: torch.Tensor) -> torch.Tensor:
         """Run the combined visual and text embeddings through the transformer."""
@@ -558,9 +489,8 @@ class TinyVLMTransformerDecoder(nn.Module):
 
         #combined_embeddings is [B, sequence_length, hidden_size]
 
-        return self.transformerEncoder(combined_embeddings)         # return same shape [B, sequence_length, hidden_size]
+        raise NotImplementedError("Decode visual and text embeddings.")
 
-        #raise NotImplementedError("Decode visual and text embeddings.")
 
 
 class TinyLLaVADecoder(nn.Module):
@@ -602,15 +532,9 @@ class TinyLLaVADecoder(nn.Module):
         # - The output head width must equal `vocab_size`.
         # - The visual projector must produce `num_visual_tokens * hidden_size` values.
 
-        self.config = config
+        raise NotImplementedError("Build tiny image-conditioned decoder.")
 
-        self.image_encoder = TinyVLMImageEncoder(config)
-        self.visual_projector = nn.Linear(config.hidden_size, config.num_visual_tokens * config.hidden_size)
-        self.text_encoder = TinyVLMTextEncoder(vocab_size, config)
-        self.decoder = TinyVLMTransformerDecoder(config)
-        self.output_head = nn.Linear(config.hidden_size, vocab_size)
 
-        #raise NotImplementedError("Build tiny image-conditioned decoder.")
 
     def forward(self, images: torch.Tensor, input_ids: torch.Tensor) -> torch.Tensor:
         """Return logits for text positions."""
@@ -640,25 +564,14 @@ class TinyLLaVADecoder(nn.Module):
         # Check:
         # - Return shape must match labels: `[batch_size, text_length, vocab_size]`.
 
-        batch_size, text_length = input_ids.shape           # input_ids: [batch_size, sequence_length]
+        raise NotImplementedError("Run image-conditioned next-token forward pass.")
         
-        visual_features = self.image_encoder(images)        # [batch_size, hidden_size]
 
-        projected_features = self.visual_projector(visual_features)  # [batch_size, num_visual_tokens * hidden_size]
-        projected_features = torch.reshape(projected_features,       # [batch_size, num_visual_tokens, hidden_size]
-                                            shape=[batch_size, self.config.num_visual_tokens, self.config.hidden_size])
 
-        text_embeddings = self.text_encoder(input_ids)      # [batch_size, sequence_length, hidden_size]
 
-        combined_embeddings = torch.cat([projected_features, text_embeddings], dim=1)  # [batch_size, sequence_length+num_visual_tokens, hidden_size]
 
-        decoder_output = self.decoder(combined_embeddings)
-        decoder_output = decoder_output[:, self.config.num_visual_tokens:, :]           # [B, text_length, hidden_size]
 
-        output = self.output_head(decoder_output)                   # [B, text_length, vocab_size]
 
-        return output
-        #raise NotImplementedError("Run image-conditioned next-token forward pass.")
 
 
 def compute_next_token_loss(logits: torch.Tensor, labels: torch.Tensor, ignore_index: int) -> torch.Tensor:
@@ -687,14 +600,9 @@ def compute_next_token_loss(logits: torch.Tensor, labels: torch.Tensor, ignore_i
     # Check:
     # - Question-label positions should not affect the loss.
 
-    batch_size, text_length, vocab_size = logits.shape
-    flattened_logits = logits.reshape(shape=[batch_size*text_length, vocab_size])
-    flattened_labels = labels.reshape(shape=[batch_size*text_length])
+    raise NotImplementedError("Compute next-token loss with ignored prompt labels.")
 
-    loss = torch.nn.functional.cross_entropy(flattened_logits, flattened_labels, ignore_index=ignore_index)
 
-    return loss
-    #raise NotImplementedError("Compute next-token loss with ignored prompt labels.")
 
 
 def train_one_epoch(model: TinyLLaVADecoder, loader: DataLoader, optimizer: torch.optim.Optimizer, config: TinyLLaVANextTokenConfig) -> float:
@@ -720,30 +628,11 @@ def train_one_epoch(model: TinyLLaVADecoder, loader: DataLoader, optimizer: torc
     # Check:
     # - Return mean loss as a Python float.
 
-    total_loss = 0
-    total_examples = 0
+    raise NotImplementedError("Train one next-token VLM epoch.")
 
-    model.train()
 
-    for data in loader:
-        images = data["images"].to(device)
-        input_ids = data["input_ids"].to(device)
-        labels = data["labels"].to(device)
 
-        optimizer.zero_grad()
 
-        logits = model(images, input_ids)
-        loss = compute_next_token_loss(logits, labels, ignore_index=config.ignore_index)
-        loss.backward()
-        optimizer.step()
-
-        batch_size = labels.shape[0]
-        total_loss += loss.item() * batch_size
-        total_examples+=batch_size
-
-    return total_loss/total_examples
-
-    #raise NotImplementedError("Train one next-token VLM epoch.")
 
 
 def generate_answer(model: TinyLLaVADecoder, image: torch.Tensor, question: str, token_to_id: dict[str, int], config: TinyLLaVANextTokenConfig) -> str:
@@ -770,48 +659,11 @@ def generate_answer(model: TinyLLaVADecoder, image: torch.Tensor, question: str,
     # Check:
     # - The returned value should be a string, not token ids.
 
-    id_to_token = {token_id: token for token, token_id in token_to_id.items()}
-    unk_id = token_to_id["<unk>"]
-    pad_id = token_to_id["<pad>"]
-    answer_marker_id = token_to_id["<answer>"]
-    eos_id = token_to_id["<eos>"]
+    raise NotImplementedError("Generate a short answer from image and question.")
 
-    question_ids = [token_to_id.get(word, unk_id) for word in question.lower().strip().split()]
-    question_ids = question_ids[: config.max_text_length - 1]
-    token_ids = question_ids + [answer_marker_id]
-    generated_words: list[str] = []
 
-    model.eval()
-    with torch.no_grad():
-        for _ in range(config.max_answer_tokens):
-            input_ids = torch.full((config.max_text_length,), pad_id, dtype=torch.long)  # [max_text_length]
-            current_ids = token_ids[:config.max_text_length]
-            input_ids[:len(current_ids)] = torch.tensor(current_ids, dtype=torch.long)
 
-            batch_images = image.unsqueeze(0).to(device)             # [1, 3, image_size, image_size]
-            batch_input_ids = input_ids.unsqueeze(0).to(device)      # [1, max_text_length]
 
-            logits = model(batch_images, batch_input_ids)            # [1, max_text_length, vocab_size]
-
-            #read logits for the current last non-pad position.
-            next_position = min(len(current_ids) - 1, config.max_text_length - 1)
-            next_token_logits = logits[0, next_position, :]             # [vocab_size]
-            next_token_id = int(torch.argmax(next_token_logits, dim=-1).item())
-
-            if next_token_id == eos_id:
-                break
-
-            next_token = id_to_token.get(next_token_id, "<unk>")
-            if next_token not in {"<pad>", "<unk>", "<answer>", "<eos>"}:
-                generated_words.append(next_token)
-
-            if len(token_ids) >= config.max_text_length:
-                break
-            token_ids.append(next_token_id)
-
-    return " ".join(generated_words)
-
-    # raise NotImplementedError("Generate a short answer from image and question.")
 
 
 def evaluate_exact_match(model: TinyLLaVADecoder, examples: list[VLMTextExample], token_to_id: dict[str, int], config: TinyLLaVANextTokenConfig) -> float:
@@ -834,18 +686,10 @@ def evaluate_exact_match(model: TinyLLaVADecoder, examples: list[VLMTextExample]
     # Check:
     # - Return a float between `0.0` and `1.0`.
 
-    correct = 0
+    raise NotImplementedError("Evaluate sample answers.")
 
-    for example in examples:
-        prediction = generate_answer(model, example["image"], example["question"], token_to_id, config)
-        target = example["answer"]
 
-        if prediction.strip().lower() == target.strip().lower():
-            correct += 1
 
-    return correct / len(examples)
-
-    # raise NotImplementedError("Evaluate sample answers.")
 
 
 def save_next_token_visuals(losses: list[float], samples: list[str], config: TinyLLaVANextTokenConfig) -> tuple[str, str]:
@@ -875,31 +719,14 @@ def save_next_token_visuals(losses: list[float], samples: list[str], config: Tin
     # Check:
     # - The sample file should let you inspect whether answers improved.
 
-    import matplotlib
+    raise NotImplementedError("Save next-token training visuals.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
 
-    loss_curve_path = config.output_dir / "203_next_token_loss.png"
-    sample_path = config.output_dir / "203_next_token_samples.txt"
 
-    plt.figure(figsize=(6, 4))
-    plt.plot(range(1, len(losses) + 1), losses, marker="o")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.title("Next-token training loss")
-    plt.tight_layout()
-    plt.savefig(loss_curve_path)
-    plt.close()
 
-    sample_text = "\n".join(samples)
-    sample_path.write_text(sample_text, encoding="utf-8")
 
-    return str(loss_curve_path), str(sample_path)
 
-    # raise NotImplementedError("Save next-token training visuals.")
 
 
 def run_exercise(config: TinyLLaVANextTokenConfig) -> NextTokenMetrics:

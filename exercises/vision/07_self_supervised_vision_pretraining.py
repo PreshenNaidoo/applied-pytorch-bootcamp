@@ -162,6 +162,7 @@ from common.reproducibility import set_seed
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
+@dataclass
 class SelfSupervisedConfig:
     """Settings for the self-supervised vision exercise."""
 
@@ -198,7 +199,6 @@ def describe_ssl_workflow(config: SelfSupervisedConfig) -> dict[str, object]:
     }
 
 
-        #raise NotImplementedError("Return raw class logits from the linear probe.")
 
 
 
@@ -235,7 +235,6 @@ class PlainDataset(torch.utils.data.Dataset):
 
 
 
-@dataclass
 # Build the pretraining loader and the probe loaders.
 # Return a dict with exactly these keys:
 # - `pretrain`
@@ -262,26 +261,11 @@ class PlainDataset(torch.utils.data.Dataset):
 # - only the self-supervised pretraining stage uses two augmented views
 def load_dataloaders(config: SelfSupervisedConfig) -> dict[str, DataLoader]:
 
-    unlabelled_data = torchvision.datasets.STL10(config.data_root, split="unlabeled", download=True)
-    train_data = torchvision.datasets.STL10(root=config.data_root, split="train", download=True)
-    test_data = torchvision.datasets.STL10(root=config.data_root, split="test", download=True)
+    raise NotImplementedError("Return the unlabeled pretraining loader and the labeled probe loaders.")
 
-    resize_tf = torchvision.transforms.RandomResizedCrop(size = config.image_size, scale=(0.7, 1))
-    color_tf = torchvision.transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1)
-    flip_tf = torchvision.transforms.RandomHorizontalFlip()
-    gray_tf = torchvision.transforms.RandomGrayscale(p=0.1)
-    to_tf = torchvision.transforms.ToTensor()
-    unlabelled_transform = torchvision.transforms.Compose([resize_tf, color_tf, flip_tf, gray_tf, to_tf])
 
-    plain_transform = torchvision.transforms.Compose([torchvision.transforms.ToTensor()])
 
-    pretrain_ds = ContrastiveDataset(dataset=unlabelled_data, transform=unlabelled_transform)
-    train_ds = PlainDataset(dataset=train_data, transform=plain_transform)
-    test_ds = PlainDataset(dataset=test_data, transform=plain_transform)
 
-    return {"pretrain":torch.utils.data.DataLoader(dataset=pretrain_ds, batch_size=config.batch_size, shuffle=True),
-            "probe_train": torch.utils.data.DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True),
-            "probe_test": torch.utils.data.DataLoader(dataset=test_ds, batch_size=config.batch_size)}
 
 
 
@@ -290,9 +274,7 @@ class SSLPretrainModel(nn.Module):
 
     def __init__(self, input_channels: int, feature_dim: int, projection_dim: int) -> None:
         super().__init__()
-        self.input_channels = input_channels
-        self.feature_dim = feature_dim
-        self.projection_dim = projection_dim
+        raise NotImplementedError("Build the encoder and projection head for self-supervised pretraining.")
         # Beginner-friendly build order:
         # 1. build an encoder that turns an image into one feature vector
         # 2. build a small projection head that maps:
@@ -306,19 +288,9 @@ class SSLPretrainModel(nn.Module):
         # - the encoder output is the more general representation
         # - the projection head output is the one used for the contrastive loss
 
-        self.image_net_weights = torchvision.models.MobileNet_V3_Small_Weights.DEFAULT
-        self.backbone = torchvision.models.mobilenet_v3_small(weights=self.image_net_weights)        
 
-        last_output_size = self.backbone.classifier[0].in_features
-        self.backbone.classifier = nn.Identity()
-        self.feature_head = nn.Linear(in_features=last_output_size, out_features=feature_dim)
 
-        self.projector = nn.Sequential(nn.Linear(in_features = feature_dim, out_features=projection_dim),
-                                       nn.ReLU(inplace=True),
-                                       nn.Linear(in_features=projection_dim, out_features=projection_dim)
-                                      )
 
-        #raise NotImplementedError("Build the encoder and projection head for self-supervised pretraining.")
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         """Return a dict with exactly these keys:
@@ -334,15 +306,11 @@ class SSLPretrainModel(nn.Module):
         - return both because later stages use different parts
         """
 
-        x = self.backbone(x)
-        features = self.feature_head(x)
-
-        projections = self.projector(features)
-
-        return {"features":features, "projections":projections}
+        raise NotImplementedError("Return encoder features and projection features.")
 
 
-        #raise NotImplementedError("Return encoder features and projection features.")
+
+
 
 
 class LinearProbe(nn.Module):
@@ -350,25 +318,21 @@ class LinearProbe(nn.Module):
 
     def __init__(self, feature_dim: int, num_classes: int) -> None:
         super().__init__()
-        self.feature_dim = feature_dim
-        self.num_classes = num_classes
+        raise NotImplementedError("Build a simple linear layer that maps frozen features to class logits.")
         # Beginner-friendly build idea:
         # - a linear probe is just a simple classifier on top of frozen features
         # - simplest path: one `nn.Linear(feature_dim, num_classes)`
         # - it reads encoder features and returns class logits
 
-        self.linear_probe = nn.Linear(in_features=feature_dim, out_features=num_classes)
 
-        #raise NotImplementedError("Build a simple linear layer that maps frozen features to class logits.")
 
     def forward(self, features: torch.Tensor) -> torch.Tensor:
         """Return raw class logits with shape `[batch_size, num_classes]`."""
 
-        return self.linear_probe(features)
+        raise NotImplementedError("Return raw class logits from the linear probe.")
 
 
 
-    #raise NotImplementedError("Return the unlabeled pretraining loader and the labeled probe loaders.")
 
 
 # Build the pretraining model and optimizer.
@@ -376,14 +340,10 @@ class LinearProbe(nn.Module):
 # - model: `nn.Module`
 # - optimizer: `torch.optim.Optimizer`
 def build_pretraining_objects(config: SelfSupervisedConfig) -> tuple[nn.Module, torch.optim.Optimizer]:
-    model = SSLPretrainModel(input_channels=config.image_channels, feature_dim=config.feature_dim, projection_dim=config.projection_dim)
-    model.to(device)
+    raise NotImplementedError("Return the pretraining model and optimizer.")
 
-    optimizer = torch.optim.SGD(params=model.parameters(), lr=config.learning_rate)
 
-    return model, optimizer
 
-    #raise NotImplementedError("Return the pretraining model and optimizer.")
 
 
 def contrastive_loss(projections_a: torch.tensor, projections_b: torch.tensor, temperature: float):
@@ -447,33 +407,11 @@ def pretrain_one_epoch(
     # - use one shared model, not two different models
     # - this stage does not use class labels
 
-    model.train()
+    raise NotImplementedError("Return the mean self-supervised pretraining loss for one full epoch.")
 
-    sum, c = 0,0
-    for view_a, view_b in loader:
-        view_a = view_a.to(device)
-        view_b = view_b.to(device)
 
-        optimizer.zero_grad()
 
-        a_dict = model(view_a)
-        b_dict = model(view_b)
 
-        projections_a = a_dict["projections"]
-        projections_b = b_dict["projections"]
-
-        loss = contrastive_loss(projections_a, projections_b, temperature)
-        loss.backward()
-        optimizer.step()
-
-        sum+=loss.item()
-        c+=1
-
-    mean_loss = sum/c
-
-    return {"loss": mean_loss}
-
-    #raise NotImplementedError("Return the mean self-supervised pretraining loss for one full epoch.")
 
 
 # Build the probe loss and optimizer.
@@ -490,13 +428,8 @@ def pretrain_one_epoch(
 #   - and do not pass encoder parameters to the probe optimizer
 # - the probe is the part you train in this stage, not the encoder
 def build_probe_objects(config: SelfSupervisedConfig) -> tuple[nn.Module, nn.Module, torch.optim.Optimizer]:
-    probe_model = LinearProbe(feature_dim=config.feature_dim, num_classes=config.num_classes)
-    probe_model.to(device)
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(params=probe_model.parameters(), lr=config.learning_rate)
+    raise NotImplementedError("Return the linear probe, CrossEntropyLoss, and optimizer.")
 
-    return probe_model, loss_fn, optimizer
-    #raise NotImplementedError("Return the linear probe, CrossEntropyLoss, and optimizer.")
 
 
 # Run the full two-stage workflow.
@@ -516,81 +449,19 @@ def run_training(config: SelfSupervisedConfig) -> dict[str, float | str]:
     # 6. evaluate the probe on the test split
     # 7. return the final summary
 
-    torch.manual_seed(config.random_state)
+    raise NotImplementedError("Run the full two-stage workflow and return the final summary.")
 
-    loaders = load_dataloaders(config)
-    pretrain_model, pretrain_optimizer = build_pretraining_objects(config)    
 
-    pretrain_dict = None
-    for i in range(config.pretrain_epochs):
-
-        pretrain_dict = pretrain_one_epoch(pretrain_model, loaders["pretrain"], pretrain_optimizer, config.temperature)
-        print(f"Epoch: {i}, contrastive_loss: {pretrain_dict['loss']}")
 
     # Freeze weights for the next stage
-    for param in pretrain_model.parameters():
-        param.requires_grad = False
 
     ########### Probe:
-    probe_model, probe_loss, probe_optimizer = build_probe_objects(config)
-    probe_model.train()
 
-    last_probe_loss = -1
-    for i in range(config.probe_epochs):
-        sum, c = 0,0
-        for images, labels in loaders["probe_train"]:
-            images = images.to(device)
-            labels = labels.to(device)
-
-            with torch.no_grad():
-                out_dict = pretrain_model(images)
-                features = out_dict["features"]
-
-            probe_optimizer.zero_grad()
-
-            logits = probe_model(features)
-            loss = probe_loss(logits, labels)
-            loss.backward()
-            probe_optimizer.step()
-
-            sum+=loss.item()
-            c+=1
-
-        mean_loss = sum/c
-        last_probe_loss = mean_loss
-
-        print(f"Epoch: {i} -> probe_loss: {mean_loss}")
 
     #evaluate probe:
-    probe_model.eval()
-    sum, c = 0, 0
-    accs = []
-    for images, labels in loaders["probe_test"]:
-        images = images.to(device)
-        labels = labels.to(device)
 
-        with torch.no_grad():
-            out_dict = pretrain_model(images)
-            features = out_dict["features"]
-        logits = probe_model(features)
 
-        # loss not necessary here but lets check it anyway for exercises purposes
-        loss = probe_loss(logits, labels)
-        sum+=loss.item()
-        c+=1
 
-        #accuracy
-        preds = torch.argmax(logits, dim=1).float()
-        correct = (preds == labels).float()
-        accs.append(correct.mean().item())
-
-    mean_test_loss = sum/c
-    mean_probe_test_acc = torch.tensor(accs).mean().item()
-
-    print(f"Probe Test: mean_test_loss: {mean_test_loss},  mean_probe_test_acc: {mean_probe_test_acc}")
-
-    return {"pretrain_loss": pretrain_dict['loss'], "probe_train_loss": last_probe_loss, "probe_test_accuracy": mean_probe_test_acc, "success_note":"Ok."}
-    #raise NotImplementedError("Run the full two-stage workflow and return the final summary.")
 
 
 def check_metrics(metrics: dict[str, float | str]) -> bool:

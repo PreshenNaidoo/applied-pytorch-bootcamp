@@ -136,10 +136,8 @@ from common.training_checks import print_pass_or_try_again
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-@dataclass
 
 
-        #raise NotImplementedError("Return raw class logits from the model.")
 
 
 # Build the synthetic dataset and loaders.
@@ -152,23 +150,13 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 # Labels should be integer class tensors with dtype `torch.long`.
 def load_dataloaders(config: TrainingLoopConfig) -> dict[str, DataLoader]:
 
-    x, y = make_classification(n_samples = config.num_samples, n_features=config.num_features,
-                                n_classes=config.num_classes, n_informative=config.num_features//2)
+    raise NotImplementedError("Return train, val, and test loaders for the synthetic dataset.")
 
-    num_train, num_val = int(config.num_samples*0.6), int(config.num_samples*0.2)
 
-    x_train, y_train = torch.tensor(x[:num_train], dtype=torch.float), torch.tensor(y[:num_train], dtype=torch.int64)
-    x_val, y_val = torch.tensor(x[num_train: num_train+num_val], dtype=torch.float), torch.tensor(y[num_train: num_train+num_val], dtype=torch.int64)
-    x_test, y_test = torch.tensor(x[num_train+num_val:], dtype=torch.float), torch.tensor(y[num_train+num_val:], dtype=torch.int64)
 
-    train_ds = TensorDataset(x_train, y_train)
-    val_ds = TensorDataset(x_val, y_val)
-    test_ds = TensorDataset(x_test, y_test)
 
-    return {"train": DataLoader(dataset=train_ds, batch_size = config.batch_size, shuffle=True),
-            "val": DataLoader(dataset=val_ds, batch_size=config.batch_size),
-            "test": DataLoader(dataset=test_ds, batch_size = config.batch_size)}
 
+@dataclass
 class TrainingLoopConfig:
     """Settings for the training loop exercise."""
 
@@ -187,27 +175,17 @@ class VectorClassifier(nn.Module):
 
     def __init__(self, input_dim: int, hidden_dim: int, num_classes: int) -> None:
         super().__init__()
-        self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
-        self.num_classes = num_classes
+        raise NotImplementedError("Build a small classifier, for example Linear -> ReLU -> Linear.")
 
-        self.fc1 = nn.Linear(in_features=input_dim, out_features=hidden_dim)
-        self.fc2 = nn.Linear(in_features=hidden_dim, out_features=hidden_dim//2)
-        self.fc3 = nn.Linear(in_features=hidden_dim//2, out_features=num_classes)
 
-        #raise NotImplementedError("Build a small classifier, for example Linear -> ReLU -> Linear.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return class logits with shape [batch_size, num_classes]."""
 
-        x1 = F.relu(self.fc1(x))
-        x1 = F.relu(self.fc2(x1))
-        out = self.fc3(x1)
-
-        return out
+        raise NotImplementedError("Return raw class logits from the model.")
 
 
-    #raise NotImplementedError("Return train, val, and test loaders for the synthetic dataset.")
+
 
 
 # Build the three training objects.
@@ -221,16 +199,11 @@ class VectorClassifier(nn.Module):
 # - the labels are integer class ids with dtype `torch.long`
 def build_training_objects(config: TrainingLoopConfig) -> tuple[nn.Module, nn.Module, torch.optim.Optimizer]:
 
-    model = VectorClassifier(config.num_features, config.hidden_dim, config.num_classes)
-    model.to(device=device)
+    raise NotImplementedError("Return the model, loss function, and optimizer.")
 
-    loss_fn = nn.CrossEntropyLoss()
 
-    optimizer = torch.optim.SGD(lr = config.learning_rate, params = model.parameters())
 
-    return model, loss_fn, optimizer
 
-    #raise NotImplementedError("Return the model, loss function, and optimizer.")
 
 
 # Run one full training epoch.
@@ -249,31 +222,12 @@ def build_training_objects(config: TrainingLoopConfig) -> tuple[nn.Module, nn.Mo
 def train_one_epoch(model: nn.Module, loader: DataLoader, loss_fn: nn.Module, optimizer: torch.optim.Optimizer) -> dict[str, float]:
     
 
-    losses, accuracies = [], []
+    raise NotImplementedError("Return one epoch of training metrics with loss and accuracy.")
 
-    model.train()
 
-    for x_data, y_targets in loader:
 
-        x_data = x_data.to(device=device)
-        y_targets = y_targets.to(device=device)
 
-        optimizer.zero_grad()
-
-        output = model(x_data)
-        loss = loss_fn(output, y_targets)
-        loss.backward()
-        optimizer.step()
-
-        losses.append(loss.item())
-        accuracies.append(multiclass_accuracy_from_logits(output, y_targets))
-
-    mean_loss = torch.tensor(losses).mean()
-    mean_acc = torch.tensor(accuracies).mean()
-
-    return {"loss":mean_loss, "accuracy": mean_acc}
     
-    #raise NotImplementedError("Return one epoch of training metrics with loss and accuracy.")
 
 
 # Run one full validation epoch.
@@ -290,28 +244,13 @@ def train_one_epoch(model: nn.Module, loader: DataLoader, loss_fn: nn.Module, op
 @torch.no_grad()
 def validate_one_epoch(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[str, float]:
 
-    model.eval()
-
-    losses, accuracies = [], []
-
-    for x_data, y_targets in loader:
-
-        x_data = x_data.to(device=device)
-        y_targets = y_targets.to(device=device)
-
-        output = model(x_data)
-        loss = loss_fn(output, y_targets)
-
-        losses.append(loss.item())
-        accuracies.append(multiclass_accuracy_from_logits(output, y_targets))
-
-    mean_loss = torch.tensor(losses).mean()
-    mean_acc = torch.tensor(accuracies).mean()    
-
-    return {"loss": mean_loss, "accuracy": mean_acc}
+    raise NotImplementedError("Return one epoch of validation metrics with loss and accuracy.")
 
 
-    #raise NotImplementedError("Return one epoch of validation metrics with loss and accuracy.")
+
+
+
+
 
 
 # Run several epochs and keep the history.
@@ -326,21 +265,10 @@ def validate_one_epoch(model: nn.Module, loader: DataLoader, loss_fn: nn.Module)
 # - "val_accuracies"
 def run_training(config: TrainingLoopConfig) -> dict[str, list[float] | float]:
 
-    loaders = load_dataloaders(config)
-    model, loss_fn, optimizer = build_training_objects(config)
+    raise NotImplementedError("Run the full experiment and return metric history lists for train and val.")
 
-    dict_train, dict_val = {}, {}
-    for i in range(config.epochs):
 
-        dict_train = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-        dict_val = validate_one_epoch(model, loaders["val"], loss_fn)
 
-        print(f"Epoch {i} -> loss: {dict_train["loss"]}, acc: {dict_train["accuracy"]}, val_loss: {dict_val["loss"]}, val_acc: {dict_val["accuracy"]}")
-
-    return {"train_losses":dict_train["loss"], "train_accuracies": dict_train["accuracy"],
-            "val_losses":dict_val["loss"], "val_accuracies": dict_val["accuracy"]}
-
-    #raise NotImplementedError("Run the full experiment and return metric history lists for train and val.")
 
 
 

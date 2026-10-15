@@ -188,6 +188,7 @@ from common.training_checks import check_threshold, print_pass_or_try_again
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
+@dataclass
 class SequenceModelConfig:
     """Settings for the RNN/LSTM text exercise."""
 
@@ -231,7 +232,6 @@ def describe_sequence_shapes(config: SequenceModelConfig) -> dict[str, object]:
     }
 
 
-        #raise NotImplementedError("Run the sequence model and return raw class logits.")
 
 
 # Load the raw text split and vocabulary pieces you need.
@@ -250,25 +250,11 @@ def describe_sequence_shapes(config: SequenceModelConfig) -> dict[str, object]:
 # - keep one special pad token id so shorter sequences can be padded to one batch shape
 def load_text_artifacts(config: SequenceModelConfig) -> dict[str, object]:
 
-    data = hf_datasets.load_dataset("ag_news")
-    train_data = data["train"]
-    test_data = data["test"]
+    raise NotImplementedError("Return the AG News split plus the training-text vocabulary and pad token id.")
 
-    train_list = list(train_data["text"])
-    train_labels_list = list(train_data["label"])
 
-    test_texts = list(test_data["text"])
-    test_labels = list(test_data["label"])
 
-    num_train = int(len(train_labels_list) * 0.8)
-    train_texts = train_list[:num_train]
-    train_labels = train_labels_list[:num_train]
-    val_texts = train_list[num_train:]
-    val_labels = train_labels_list[num_train:]
 
-    return {"train_texts": train_texts,"train_labels": train_labels,
-            "val_texts": val_texts,"val_labels": val_labels,
-            "test_texts": test_texts,"test_labels": test_labels}
 
 
 class TokenDataset(torch.utils.data.Dataset):
@@ -315,7 +301,6 @@ class TokenDataset(torch.utils.data.Dataset):
 
 
 
-@dataclass
 
 # Build the train, validation, and test dataloaders.
 # Return a dict with exactly these keys:
@@ -370,9 +355,7 @@ class SequenceTextClassifier(nn.Module):
 
     def __init__(self, vocab_size: int, pad_id: int, config: SequenceModelConfig) -> None:
         super().__init__()
-        self.vocab_size = vocab_size
-        self.pad_id = pad_id
-        self.config = config
+        raise NotImplementedError( "Build the embedding layer, one LSTM or RNN, and the classifier head. Return raw logits." )
         # Beginner-friendly build order:
         # 1. embedding layer
         # 2. one sequence model
@@ -384,13 +367,7 @@ class SequenceTextClassifier(nn.Module):
         # - `nn.LSTM(embedding_dim, hidden_dim, batch_first=True)`
         # - `nn.Linear(hidden_dim, num_classes)`
 
-        self.embed = nn.Embedding(num_embeddings=vocab_size, embedding_dim=config.embedding_dim, padding_idx=pad_id)
-        self.lstm = nn.LSTM(input_size=config.embedding_dim, hidden_size=config.hidden_dim, num_layers=config.num_layers, batch_first=True)
-        self.classification_head = nn.Linear(in_features=config.hidden_dim, out_features=config.num_classes)
 
-        # raise NotImplementedError(
-        #     "Build the embedding layer, one LSTM or RNN, and the classifier head. Return raw logits."
-        # )
 
     def forward(self, token_ids: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
         """Return raw class logits with shape `[batch_size, num_classes]`.
@@ -421,19 +398,13 @@ class SequenceTextClassifier(nn.Module):
         # token_ids shape is (32, 40)
         # lengths: shape [batch_size]
 
-        embeddings = self.embed(token_ids)
-
-        packed = nn.utils.rnn.pack_padded_sequence(input=embeddings, lengths=lengths.cpu(), batch_first=True, enforce_sorted=False)
-
-        packed_output, (hidden, cell) = self.lstm(packed)
-        final_hidden = hidden[-1]
-
-        logits = self.classification_head(final_hidden)
-
-        return logits
+        raise NotImplementedError("Run the sequence model and return raw class logits.")
 
 
-    #raise NotImplementedError("Return the AG News split plus the training-text vocabulary and pad token id.")
+
+
+
+
 
 
 import string
@@ -452,16 +423,11 @@ def build_training_objects(config: SequenceModelConfig) -> tuple[nn.Module, nn.M
     # - loss_fn: `nn.CrossEntropyLoss()`
     # - optimizer: something simple like `torch.optim.Adam(...)`
 
-    model = SequenceTextClassifier(vocab_size = config.max_vocab_size, pad_id=0, config=config)
-    model = model.to(device)
+    raise NotImplementedError("Return the sequence model, CrossEntropyLoss, and optimizer.")
 
-    loss_fn = nn.CrossEntropyLoss()
 
-    optimizer = torch.optim.Adam(lr = config.learning_rate, params = model.parameters())
 
-    return model, loss_fn, optimizer
 
-    #raise NotImplementedError("Return the sequence model, CrossEntropyLoss, and optimizer.")
 
 
 # Run one full training epoch.
@@ -486,35 +452,12 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
 ) -> dict[str, float]:
 
-    model.train()
-
-    losses, accs = [],[]
-    for batch_token_ids, lengths, targets in loader:
-
-        batch_token_ids = batch_token_ids.to(device)
-        lengths = lengths.to(device)
-        targets = targets.to(device)
-
-        optimizer.zero_grad()
-
-        logits = model(batch_token_ids, lengths)
-        loss = loss_fn(logits, targets)
-        loss.backward()
-        optimizer.step()
-
-        losses.append(loss.item())
-
-        preds = logits.argmax(dim=1).float()
-        correct = (preds == targets).float()
-        accs.append(correct.mean().item())
+    raise NotImplementedError("Return the mean train loss and mean train accuracy for one full epoch.")
 
 
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
 
-    return {"loss":mean_loss, "accuracy":mean_acc}
 
-    #raise NotImplementedError("Return the mean train loss and mean train accuracy for one full epoch.")
+
 
 
 # Run one full evaluation pass.
@@ -533,29 +476,11 @@ def train_one_epoch(
 @torch.no_grad()
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[str, float]:
 
-    model.eval()
+    raise NotImplementedError("Return the mean loss and mean accuracy for the loader you evaluate.")
 
-    losses, accs = [], []
-    for batch_token_ids, lengths, targets in loader:
 
-        batch_token_ids = batch_token_ids.to(device)
-        lengths = lengths.to(device)
-        targets = targets.to(device)
 
-        logits = model(batch_token_ids, lengths)
-        loss = loss_fn(logits, targets)
-        losses.append(loss.item())
-
-        preds = logits.argmax(dim=1).float()
-        correct = (preds == targets).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss": mean_loss, "accuracy":mean_acc}
     
-    # raise NotImplementedError("Return the mean loss and mean accuracy for the loader you evaluate.")
 
 
 # Run the full training flow.
@@ -569,28 +494,13 @@ def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[s
 # This is the final epoch summary, not a history list.
 def run_training(config: SequenceModelConfig) -> dict[str, float]:
 
-    torch.manual_seed(config.random_state)
+    raise NotImplementedError("Run the full RNN/LSTM training flow and return the final train and val metrics.")
 
-    loaders = load_dataloaders(config)
-    model, loss_fn, optimizer = build_training_objects(config)
 
-    train_dict = {}
-    val_dict = {}
 
-    for i in range(config.epochs):
 
-        train_dict = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-        val_dict = evaluate(model, loaders["val"], loss_fn)
 
-        print(f"Epoch {i} -> loss: {train_dict['loss']}, acc: {train_dict['accuracy']}, val_loss: {val_dict['loss']}, val_acc: {val_dict['accuracy']}")
 
-    test_dict = evaluate(model, loaders["test"], loss_fn)
-    print(f"Test results -> loss: {test_dict['loss']}, accuracy: {test_dict['accuracy']}")
-
-    return {"train_loss": train_dict["loss"], "train_accuracy": train_dict["accuracy"],
-            "val_loss": val_dict["loss"], "val_accuracy": val_dict["accuracy"]}
-
-    #raise NotImplementedError("Run the full RNN/LSTM training flow and return the final train and val metrics.")
 
 
 

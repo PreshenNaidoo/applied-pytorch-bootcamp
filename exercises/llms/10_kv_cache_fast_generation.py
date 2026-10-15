@@ -165,16 +165,8 @@ def make_toy_hidden_states(config: KVCacheConfig) -> torch.Tensor:
     # Concrete shape with the default config:
     # [2, 12, 32]
 
-    gen = torch.Generator().manual_seed(config.random_state)
-    hidden_state = torch.randn(
-        config.batch_size,
-        config.sequence_length,
-        config.model_dim,
-        generator=gen,
-    )
+    raise NotImplementedError("Return hidden states with shape [batch, sequence_length, model_dim].")
 
-    return hidden_state
-    #raise NotImplementedError("Return hidden states with shape [batch, sequence_length, model_dim].")
 
 # Build the decoder causal mask.
 # This is the same "no looking ahead" rule you saw in the related exercise.
@@ -205,12 +197,8 @@ def build_causal_mask(sequence_length: int) -> torch.Tensor:
     # - below diagonal should be True
     # - above diagonal should be False
 
-    ones = torch.ones(size=(sequence_length, sequence_length), dtype=bool)
-    causal_mask = torch.tril(ones)
-    causal_mask = causal_mask.unsqueeze(dim=0).unsqueeze(dim=0)
+    raise NotImplementedError("Return a mask that blocks future tokens.")
     
-    return causal_mask
-    #raise NotImplementedError("Return a mask that blocks future tokens.")
 
 # Create the starting cache value.
 # Return:
@@ -231,8 +219,7 @@ def init_empty_cache() -> dict[str, torch.Tensor] | None:
     # On the first step, create a dictionary that stores the first real key and value.
     #
     # After that, each step appends to those tensors.
-    return None
-    #raise NotImplementedError("Return the starting cache state.")
+    raise NotImplementedError("Return the starting cache state.")
 
 # Beginner hints for the attention module:
 # - generation adds one new token at a time, so old tokens do not need their keys and values recomputed
@@ -251,7 +238,7 @@ class CachedSelfAttention(nn.Module):
     # - output projection
     def __init__(self, config: KVCacheConfig) -> None:
         super().__init__()
-        self.config = config
+        raise NotImplementedError("Build Q, K, V, and output projections.")
         # Build four linear layers:
         # - query projection: turns hidden states into queries
         # - key projection: turns hidden states into keys
@@ -282,17 +269,8 @@ class CachedSelfAttention(nn.Module):
         # config.model_dim must divide cleanly by config.num_heads.
         # head_dim = model_dim // num_heads
 
-        if config.model_dim % config.num_heads != 0:
-            raise ValueError("Model dimension should be exactly divisible by num_heads.")
 
-        self.head_dim = config.model_dim // config.num_heads
-        self.num_heads = config.num_heads
         
-        self.query = nn.Linear(in_features=config.model_dim, out_features=config.model_dim)
-        self.key = nn.Linear(in_features=config.model_dim, out_features=config.model_dim)
-        self.value = nn.Linear(in_features=config.model_dim, out_features=config.model_dim)
-        self.proj = nn.Linear(in_features=config.model_dim, out_features=config.model_dim)       
-        #raise NotImplementedError("Build Q, K, V, and output projections.")
 
     # Run attention with or without a cache.
     # Input:
@@ -455,53 +433,26 @@ class CachedSelfAttention(nn.Module):
         # - updated cache dictionary with keys "key" and "value"
 
 
-        batch_size, sequence_length, model_dim = x.shape  # (2, 12, 32)
+        raise NotImplementedError("Run attention and update the KV cache if one is given.")
 
         # step 1, 2, 3:
 
-        query = self.query(x)
-        key = self.key(x)
-        value = self.value(x)
 
-        query = query.unsqueeze(dim=2).reshape(batch_size, sequence_length, self.num_heads, self.head_dim)  # (2, 12, 4, 8)
-        key = key.unsqueeze(dim=2).reshape(batch_size, sequence_length, self.num_heads, self.head_dim)      # (2, 12, 4, 8)
-        value = value.unsqueeze(dim=2).reshape(batch_size, sequence_length, self.num_heads, self.head_dim)  # (2, 12, 4, 8)
 
-        query = query.permute(dims=(0,2,1,3))       # (2, 4, 12, 8)
-        key = key.permute(dims=(0,2,1,3))           # (2, 4, 12, 8)
-        value = value.permute(dims=(0,2,1,3))       # (2, 4, 12, 8)
 
         # Step 4: Update the cache.
-        if cache is None:
-            key_all = key
-            value_all = value
-        else:
-            key_all = torch.cat([cache["key"], key], dim=2)
-            value_all = torch.cat([cache["value"], value], dim=2)
 
-        updated_cache = {"key": key_all, "value": value_all} 
 
         # key_all is shape [batch_size, num_heads, cached_length, head_dim]
 
         #step 5, 6, 7, 8, 9:   
-        scores = torch.matmul(query, key_all.transpose(dim0=2, dim1=3)) # (2, 4, 1, 8) @ (2, 4, 8, cached_length) = (2, 4, 1, cached_length) this could be 12 or 1 if 1 token is sent in i.e. the new token
-        scores/=sqrt(self.head_dim)
 
-        mask = build_causal_mask(sequence_length)
-        mask = mask.to(x.device)        
-        scores = scores.masked_fill(~mask, float("-inf"))
 
-        weights = scores.softmax(dim=-1)
 
-        output = torch.matmul(weights, value_all)  # (2, 4, 1, cached_length) @ (2, 4, cached_length, 8) = (2, 4, 1, 8)
 
-        output = output.permute(dims=(0, 2, 1, 3)).reshape(batch_size, sequence_length, model_dim)
 
         #step 10:
-        proj = self.proj(output)
 
-        return proj, updated_cache
-        #raise NotImplementedError("Run attention and update the KV cache if one is given.")
 
 # Run attention over the full sequence at once.
 # Return a summary of:
@@ -539,14 +490,10 @@ def run_without_cache(model: CachedSelfAttention, hidden_states: torch.Tensor) -
     # - output_shape
     # - work_estimate
 
-    output, _ = model(hidden_states, cache=None)
+    raise NotImplementedError("Return output shape and a simple work estimate for no-cache attention.")
 
-    sequence_length = hidden_states.shape[1]
-    work_estimate = sum(range(1, sequence_length + 1))
 
-    return {"output_shape": tuple(output.shape), "work_estimate": work_estimate}
 
-    #raise NotImplementedError("Return output shape and a simple work estimate for no-cache attention.")
 
 # Run attention one token at a time while growing the cache.
 # Return:
@@ -597,34 +544,12 @@ def run_with_cache(model: CachedSelfAttention, hidden_states: torch.Tensor) -> d
     # - final_cache_length
     # - work_estimate
 
-    cache = init_empty_cache()
+    raise NotImplementedError("Return cache shapes and a simple work estimate for cached attention.")
 
-    batch_size, sequence_length, model_dim = hidden_states.shape
 
-    output_shapes = []
-    cache_key_shapes = []
-    cache_value_shapes = []
 
-    for i in range(sequence_length):
-        one_token = hidden_states[:, i:i+1, :]
-        output, updated_cache = model(one_token, cache)
-        cache = updated_cache
 
-        output_shapes.append(tuple(output.shape))
-        cache_key_shapes.append(tuple(cache["key"].shape))
-        cache_value_shapes.append(tuple(cache["value"].shape))
 
-    final_cache_length = cache["key"].shape[2]
-    work_estimate = sequence_length
-
-    return {
-        "output_shapes": output_shapes,
-        "cache_key_shapes": cache_key_shapes,
-        "cache_value_shapes": cache_value_shapes,
-        "final_cache_length": final_cache_length,
-        "work_estimate": work_estimate,
-    }
-    #raise NotImplementedError("Return cache shapes and a simple work estimate for cached attention.")
 
 # Compare no-cache and cached work estimates.
 # Return:
@@ -648,26 +573,11 @@ def compare_cache_work(no_cache: dict[str, object], cached: dict[str, object]) -
     # "The cached path avoids rebuilding keys and values for old tokens.
     #  It only adds one new key and one new value at each generation step."
 
-    no_cache_work = float(no_cache["work_estimate"])
-    cached_work = float(cached["work_estimate"])
+    raise NotImplementedError("Compare work estimates and write a short note.")
 
-    saved_work = no_cache_work - cached_work
-    speedup_ratio = no_cache_work / cached_work
 
-    note = (
-        "The cached path avoids rebuilding keys and values for old tokens. "
-        "It only adds one new key and one new value at each generation step."
-    )
 
-    return {
-        "no_cache_work": no_cache_work,
-        "cached_work": cached_work,
-        "saved_work": saved_work,
-        "speedup_ratio": speedup_ratio,
-        "comparison_note": note,
-    }
 
-    #raise NotImplementedError("Compare work estimates and write a short note.")
 
 # Run the full KV-cache workflow.
 # Return:
@@ -693,44 +603,15 @@ def run_cache_demo(config: KVCacheConfig) -> dict[str, object]:
     # - cache_shape_ok
     # - comparison_note
 
-    model = CachedSelfAttention(config)
-    hidden_states = make_toy_hidden_states(config)
-
-    no_cache = run_without_cache(model, hidden_states)
-    cached = run_with_cache(model, hidden_states)
-    comparison = compare_cache_work(no_cache, cached)
-
-    expected_shapes = describe_cache_shapes(config)
-    final_key_shape = cached["cache_key_shapes"][-1]
-    final_value_shape = cached["cache_value_shapes"][-1]
-
-    expected_key_shape = expected_shapes["cache_key_shape_after_full_generation"]
-    expected_value_shape = expected_shapes["cache_value_shape_after_full_generation"]
-
-    final_cache_length = int(cached["final_cache_length"])
-    expected_cache_length = config.sequence_length
-
-    cache_shape_ok = (
-        final_cache_length == expected_cache_length
-        and final_key_shape == expected_key_shape
-        and final_value_shape == expected_value_shape
-    )
-
-    return {
-        "final_cache_length": final_cache_length,
-        "expected_cache_length": expected_cache_length,
-        "cache_shape_ok": cache_shape_ok,
-        "final_key_shape": final_key_shape,
-        "final_value_shape": final_value_shape,
-        "no_cache_work": comparison["no_cache_work"],
-        "cached_work": comparison["cached_work"],
-        "saved_work": comparison["saved_work"],
-        "speedup_ratio": comparison["speedup_ratio"],
-        "comparison_note": comparison["comparison_note"],
-    }
+    raise NotImplementedError("Run no-cache and cached generation and compare them.")
 
 
-    #raise NotImplementedError("Run no-cache and cached generation and compare them.")
+
+
+
+
+
+
 
 # Check whether the cache demo returned the main proof values.
 # Return:

@@ -315,10 +315,8 @@ def build_bandit(config: BanditConfig) -> list[float]:
     # - For the default config, action `2` is the true best action.
     # - There is no state and no next state in this tiny environment.
 
-    action_prob = list(config.action_probabilities)
+    raise NotImplementedError("Return the local environment reward probabilities.")
 
-    return action_prob
-    #raise NotImplementedError("Return the local environment reward probabilities.")
 
 # Return initial value estimates and action counts.
 # Keep the first version simple:
@@ -365,13 +363,9 @@ def initialize_agent_state(config: BanditConfig) -> BanditAgentState:
     # - All counts should start at `0`.
     # - The agent should not know which action is truly best yet.
 
-    num_actions = len(config.action_probabilities)
-    value_estimates = [0.0] * num_actions
-    action_counts = [0] * num_actions
+    raise NotImplementedError("Return zero-filled value estimates and action counts.")
 
-    return {"value_estimates": value_estimates, "action_counts": action_counts}
 
-    #raise NotImplementedError("Return zero-filled value estimates and action counts.")
 
 # Choose one action with epsilon-greedy.
 # In plain words:
@@ -434,19 +428,9 @@ def choose_action(
     # - With `epsilon=1.0`, the function should always explore.
     # - The return value should be an integer between `0` and `len(value_estimates) - 1`.
 
-    action_index = 0
+    raise NotImplementedError("Return one action index using epsilon-greedy.")
 
-    guess = random.random()
-    if guess < epsilon:
-        # Explore: pick a random action to learn more about it.
-        action_index = random.randint(0, len(value_estimates)-1)
-    else:
-        # Exploit: pick the action with the best learned estimate so far.
-        max_val = max(value_estimates)
-        action_index = value_estimates.index(max_val)
 
-    return action_index
-    #raise NotImplementedError("Return one action index using epsilon-greedy.")
 
 # Sample one reward from the chosen arm.
 # A simple first version can return:
@@ -483,14 +467,9 @@ def sample_reward(action_probability: float) -> float:
     # - The return value should always be `0.0` or `1.0`.
     # - This function should not update value estimates.
 
-    guess = random.random()
+    raise NotImplementedError("Return one sampled reward for the chosen arm.")
 
-    if guess < action_probability:
-        return 1.0
-    else:
-        return 0.0
 
-    #raise NotImplementedError("Return one sampled reward for the chosen arm.")
 
 # Update the estimate of the chosen action.
 # Use the running-average update.
@@ -547,9 +526,7 @@ def update_action_value(
     # - If `old_estimate=0.0`, `reward=1.0`, and `action_count=1`, result should be `1.0`.
     # - If `old_estimate=0.5`, `reward=1.0`, and `action_count=2`, result should be `0.75`.
 
-    new_estimate = old_estimate + (reward - old_estimate) / action_count
-    return new_estimate
-    #raise NotImplementedError("Return the running-average value update.")
+    raise NotImplementedError("Return the running-average value update.")
 
 # Run the full environment experiment.
 # Return a summary with at least:
@@ -615,51 +592,16 @@ def run_bandit_experiment(config: BanditConfig) -> BanditRunSummary:
     # - `mean_reward` should be between `0.0` and `1.0`.
     # - In this tiny environment, there is no next state.
 
-    random.seed(config.random_state)
+    raise NotImplementedError("Run the environment loop and return a summary.")
 
-    environment = build_bandit(config) # This is like the hidden rules of the world that the agent does not know yet.
 
-    state_dict = initialize_agent_state(config)
 
-    total_reward = 0.0
 
-    for i in range(config.num_steps):
-        action_index = choose_action(state_dict["value_estimates"], config.epsilon)
 
-        reward = sample_reward(environment[action_index])
-        state_dict["action_counts"][action_index]+=1        
 
-        old_estimate = state_dict["value_estimates"][action_index]
-        action_count = state_dict["action_counts"][action_index]
 
-        new_estimate = update_action_value(old_estimate=old_estimate, reward=reward, action_count=action_count)
-        state_dict["value_estimates"][action_index] = new_estimate
 
-        total_reward += reward
 
-    mean_reward = total_reward / config.num_steps
-
-    learned_best_action = max(range(len(state_dict["value_estimates"])), key=lambda action_id: state_dict["value_estimates"][action_id])
-    true_best_action = max(range(len(environment)), key=lambda action_id: environment[action_id])
-
-    print("Environment run summary:")
-    print(f"  action counts: {state_dict['action_counts']}")
-    print(f"  value estimates: {[round(value, 3) for value in state_dict['value_estimates']]}")
-    print(f"  total reward: {total_reward:.3f}")
-    print(f"  mean reward: {mean_reward:.3f}")
-    print(f"  learned best action: {learned_best_action}")
-    print(f"  true best action: {true_best_action}")
-
-    return {
-        "action_counts": state_dict["action_counts"],
-        "value_estimates": state_dict["value_estimates"],
-        "mean_reward": mean_reward,
-        "best_action_guess": learned_best_action,
-        "true_best_action": true_best_action,
-        "note": "The agent used rewards from the environment to learn which action looked best.",
-    }
-
-    #raise NotImplementedError("Run the environment loop and return a summary.")
 
 def explain_exploration_vs_exploitation(summary: BanditRunSummary) -> str:
     """Write a short note about exploration and exploitation."""
@@ -693,18 +635,9 @@ def explain_exploration_vs_exploitation(summary: BanditRunSummary) -> str:
     # - Keep the note short and plain.
     # - Do not say the agent used the hidden true probabilities to choose actions.
     # - Say "no next state" if you compare this to full RL.
-    learned_best_action = summary["best_action_guess"]
-    true_best_action = summary["true_best_action"]
-    action_counts = summary["action_counts"]
-    most_chosen_action = max(range(len(action_counts)), key=lambda action: action_counts[action])
+    raise NotImplementedError("Explain the tradeoff in simple words using the run summary.")
 
-    return (
-        f"Exploration tried different actions so the agent could learn from rewards. "
-        f"Exploitation used the best current estimate, so action {most_chosen_action} was chosen most often; "
-        f"the learned best action was {learned_best_action}, and the true best action was {true_best_action}."
-    )
 
-    #raise NotImplementedError("Explain the tradeoff in simple words using the run summary.")
 
 def check_metrics(metrics: BanditRunSummary) -> bool:
     """Return True when the environment summary has the expected keys."""

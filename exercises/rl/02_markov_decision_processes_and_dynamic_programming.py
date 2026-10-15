@@ -444,25 +444,8 @@ def build_tiny_mdp() -> TinyMdp:
     # - Every next state should be in `"states"`.
     # - Terminal states should not need actions.
 
-    return {
-        "states": ["start", "middle", "goal"],
-        "actions": {"start": ["left", "right"], "middle": ["left", "right"]},
-        "transitions": {
-            ("start", "left"): "start",
-            ("start", "right"): "middle",
-            ("middle", "left"): "start",
-            ("middle", "right"): "goal",
-        },
-        "rewards": {
-            ("start", "left"): -0.1,
-            ("start", "right"): 0.0,
-            ("middle", "left"): 0.0,
-            ("middle", "right"): 1.0,
-        },
-        "terminal_states": {"goal"},
-    }
+    raise NotImplementedError("Return states, actions, transitions, rewards, and terminal states.")
 
-    #raise NotImplementedError("Return states, actions, transitions, rewards, and terminal states.")
 
 # Return one simple starting policy.
 # A plain first version can choose one default action per non-terminal state.
@@ -503,14 +486,9 @@ def build_initial_policy(mdp: TinyMdp) -> dict[str, str]:
     # - `set(policy)` should equal `set(mdp["actions"])`.
     # - Every chosen action should be inside that state's action list.
 
-    policy = {}
+    raise NotImplementedError("Return one starting action for each non-terminal state.")
 
-    actions_dict = mdp["actions"]
-    for state, allowed_actions_list in actions_dict.items():
-        policy[state] = allowed_actions_list[0]
 
-    return policy
-    #raise NotImplementedError("Return one starting action for each non-terminal state.")
 
 # Return starting values for all states.
 # A simple first version can use zero for every state.
@@ -548,14 +526,9 @@ def initialize_state_values(mdp: TinyMdp) -> dict[str, float]:
     # - `set(values)` should equal `set(mdp["states"])`.
     # - Terminal state values can start at `0.0`.
 
-    values_dict = {}
+    raise NotImplementedError("Return one starting value per state.")
 
-    states_list = mdp["states"]
-    for state in states_list:
-        values_dict[state] = 0.0
 
-    return values_dict
-    #raise NotImplementedError("Return one starting value per state.")
 
 # Evaluate the current policy.
 # In plain words:
@@ -622,22 +595,10 @@ def evaluate_policy(
     # - With `gamma=0.0`, each non-terminal value should only use immediate reward.
 
     
-    old_values = values.copy()
+    raise NotImplementedError("Return the policy-evaluated state values.")
     
-    reward_table_dict = mdp["rewards"]
-    transitions_dict = mdp["transitions"]
 
-    for i in range(num_steps):
-        new_values = old_values.copy()
-        for state, action in policy.items():
-            reward = reward_table_dict[(state, action)]
-            next_state = transitions_dict[(state, action)]
-            new_values[state] = reward + gamma * old_values[next_state]
 
-        old_values = new_values
-
-    return old_values
-    #raise NotImplementedError("Return the policy-evaluated state values.")
 
 # Improve the policy using the current values.
 # For each state:
@@ -687,24 +648,9 @@ def improve_policy(
     # - Do not create policy entries for terminal states.
     # - Every chosen action should be allowed in `mdp["actions"][state]`.
 
-    new_policy = {}
+    raise NotImplementedError("Return the better action for each non-terminal state.")
 
-    for state, allowed_actions_list in mdp["actions"].items():
-        best_action = ""
-        max_action_score = float("-inf")
-        for action in allowed_actions_list:
-            next_state = mdp["transitions"][(state, action)]
-            reward = mdp["rewards"][(state, action)]
-            action_score = reward + gamma * values[next_state]
 
-            if action_score>max_action_score:
-                max_action_score = action_score
-                best_action = action
-
-        new_policy[state] = best_action
-
-    return new_policy
-    #raise NotImplementedError("Return the better action for each non-terminal state.")
 
 def policy_changed(old_policy: dict[str, str], new_policy: dict[str, str]) -> bool:
     """Return True when the policy changed."""
@@ -734,8 +680,7 @@ def policy_changed(old_policy: dict[str, str], new_policy: dict[str, str]) -> bo
     # Checks:
     # - Same dictionaries should return `False`.
     # - Different actions for any state should return `True`.
-    return old_policy != new_policy
-    #raise NotImplementedError("Return whether any policy action changed.")
+    raise NotImplementedError("Return whether any policy action changed.")
 
 # Run policy iteration:
 # - evaluate policy
@@ -783,51 +728,12 @@ def run_policy_iteration(config: DynamicProgrammingConfig) -> DynamicProgramming
     # - `state_values` should include every state.
     # - `num_improvement_rounds` should be at most `config.improvement_rounds`.
 
-    mdp = build_tiny_mdp()
-    policy = build_initial_policy(mdp)
-    values = initialize_state_values(mdp)
-    rounds_run = 0
+    raise NotImplementedError("Run policy evaluation and improvement until stable or until max rounds.")
 
-    print("Policy iteration start:")
-    print(f"  gamma: {config.gamma}")
-    print(f"  starting policy: {policy}")
-    print(f"  starting values: {values}")
 
-    for i in range(config.improvement_rounds):
-        print(f"\nImprovement round {i + 1}:")
-        print(f"  policy before evaluation: {policy}")
 
-        values = evaluate_policy(mdp, policy, values, config.gamma, config.evaluation_steps)
-        print(f"  values after evaluation: {values}")
 
-        new_policy = improve_policy(mdp, values, config.gamma)
-        print(f"  improved policy: {new_policy}")
 
-        changed = policy_changed(policy, new_policy)
-        print(f"  policy changed: {changed}")
-        rounds_run = i + 1
-
-        if not changed:
-            break
-
-        policy = new_policy
-
-    note = explain_discount_factor(config.gamma)
-
-    print("\nPolicy iteration summary:")
-    print(f"  final policy: {policy}")
-    print(f"  final state values: {values}")
-    print(f"  improvement rounds run: {rounds_run}")
-    print(f"  note: {note}")
-
-    return {
-        "final_policy": policy,
-        "state_values": values,
-        "gamma": config.gamma,
-        "num_improvement_rounds": rounds_run,
-        "note": note,
-    }
-    #raise NotImplementedError("Run policy evaluation and improvement until stable or until max rounds.")
 
 def explain_discount_factor(gamma: float) -> str:
     """Explain the discount factor in simple words."""
@@ -864,12 +770,7 @@ def explain_discount_factor(gamma: float) -> str:
     # Checks:
     # - The returned text should explain `gamma` without using unexplained jargon.
     # - If you use a formula, define every part of it in words.
-    return (
-        f"gamma={gamma} controls how much future reward counts now. "
-        "A smaller gamma focuses more on the reward from the next action, "
-        "while a larger gamma lets later rewards matter more."
-    )
-    #raise NotImplementedError("Write a short note about why future rewards are discounted.")
+    raise NotImplementedError("Write a short note about why future rewards are discounted.")
 
 def check_metrics(metrics: DynamicProgrammingSummary) -> bool:
     """Return True when the DP summary has the expected keys."""

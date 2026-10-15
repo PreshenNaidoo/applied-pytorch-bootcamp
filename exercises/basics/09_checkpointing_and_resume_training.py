@@ -207,7 +207,6 @@ class CheckpointingConfig:
     checkpoint_dir: str = str(BOOTCAMP_ROOT / "outputs" / "checkpoints")
     latest_checkpoint_name: str = "exercise_31_latest.pt"
     best_checkpoint_name: str = "exercise_31_best.pt"
-        #raise NotImplementedError("Return raw logits from the classifier.")
 
 
 def describe_checkpoint_plan(config: CheckpointingConfig) -> dict[str, object]:
@@ -254,24 +253,13 @@ def load_dataloaders(config: CheckpointingConfig) -> dict[str, DataLoader]:
     # - use the same split for the full exercise
     # - the checkpointing idea is the main lesson here, not fancy data handling
 
-    data_wine = datasets.load_wine()
-    features = torch.tensor(data_wine.data, dtype=torch.float)
-    labels = torch.tensor(data_wine.target, dtype=torch.long)
-
-    data_ds = torch.utils.data.TensorDataset(features, labels)
-
-    gen = torch.Generator()
-    gen.manual_seed(config.random_state)
-
-    train_ds, val_ds, test_ds = torch.utils.data.random_split(data_ds, lengths=(0.6, 0.2, 0.2), generator=gen)
-
-    config.num_features = features.shape[1]
-    config.num_classes = int(labels.max().item()) + 1
+    raise NotImplementedError("Return train, val, and test dataloaders.")
 
 
-    return {"train": torch.utils.data.DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True),
-            "val": torch.utils.data.DataLoader(dataset=val_ds, batch_size=config.batch_size),
-            "test": torch.utils.data.DataLoader(dataset=test_ds, batch_size=config.batch_size)}
+
+
+
+
 
 
 
@@ -288,20 +276,14 @@ class CheckpointMLP(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, num_classes: int) -> None:
         super().__init__()
 
-        self.input = nn.Linear(in_features=input_dim, out_features=hidden_dim)
-        self.classification_head = nn.Linear(in_features=hidden_dim, out_features = num_classes)
+        raise NotImplementedError("Build a small MLP classifier.")
 
-        #raise NotImplementedError("Build a small MLP classifier.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return raw class logits with shape `[batch_size, num_classes]`."""
 
-        x = self.input(x)
-        x = F.relu(x)
-        logits = self.classification_head(x)
+        raise NotImplementedError("Return raw logits from the classifier.")
         
-        return logits
-    #raise NotImplementedError("Return train, val, and test dataloaders.")
 
 
 # Build the simple model, loss, and optimizer.
@@ -313,14 +295,9 @@ class CheckpointMLP(nn.Module):
 def build_training_objects(config: CheckpointingConfig) -> tuple[nn.Module, nn.Module, torch.optim.Optimizer]:
     """Return model, loss function, and optimizer."""
 
-    model = CheckpointMLP(input_dim=config.num_features, hidden_dim=config.hidden_dim, num_classes=config.num_classes)
-    model = model.to(device)
+    raise NotImplementedError("Return the model, CrossEntropyLoss, and optimizer.")
 
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(lr=config.learning_rate, params=model.parameters())
 
-    return model, loss_fn, optimizer
-    #raise NotImplementedError("Return the model, CrossEntropyLoss, and optimizer.")
 
 
 # Run one full training epoch.
@@ -341,32 +318,11 @@ def train_one_epoch(
     # - keep batch losses in a list or running average
     # - return one final summary, not one value per batch
 
-    losses, accs = [], []
+    raise NotImplementedError("Return one full epoch of train metrics.")
 
-    model.train()
 
-    for features, labels in loader:
-        features = features.to(device)
-        labels = labels.to(device)
 
-        optimizer.zero_grad()
 
-        logits = model(features)
-        loss = loss_fn(logits, labels)
-        loss.backward()
-        optimizer.step()
-
-        losses.append(loss.item())
-
-        preds = logits.argmax(dim=-1).long()
-        correct = (preds == labels).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss": mean_loss, "accuracy": mean_acc}
-    #raise NotImplementedError("Return one full epoch of train metrics.")
 
 
 # Run one full evaluation pass.
@@ -378,27 +334,11 @@ def train_one_epoch(
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[str, float]:
     """Run one full evaluation pass and return mean loss and accuracy."""
 
-    model.eval()
+    raise NotImplementedError("Return one full evaluation summary.")
 
-    losses, accs = [], []
 
-    for features, labels in loader:
-        features = features.to(device)
-        labels = labels.to(device)
 
-        logits = model(features)
-        loss = loss_fn(logits, labels)
-        losses.append(loss.item())
-
-        preds = logits.argmax(dim=-1).long()
-        correct = (preds == labels).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
     
-    return {"loss": mean_loss, "accuracy": mean_acc}
-    #raise NotImplementedError("Return one full evaluation summary.")
 
 
 # Save one checkpoint file to disk.
@@ -433,21 +373,10 @@ def save_checkpoint(
     # "best_val_accuracy" remembers the best validation score so far
     # "config" stores the settings used for this run
 
-    checkpoint = {
-                "epoch": epoch,
-                "model_state_dict": model.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
-                "best_val_accuracy": best_val_accuracy,
-                "config": asdict(config),
-                }
+    raise NotImplementedError("Save a checkpoint dictionary and return the path.")
 
-    save_path = Path(path)
-    save_path.parent.mkdir(parents=True, exist_ok=True)
 
-    torch.save(checkpoint, save_path)
     
-    return str(save_path)
-    #raise NotImplementedError("Save a checkpoint dictionary and return the path.")
 
 
 # Load a checkpoint into a fresh model and optimizer.
@@ -465,17 +394,9 @@ def load_checkpoint(
     # - this proves the checkpoint really contains enough information
     # - if it only works with the old in-memory objects, resume is not truly tested
 
-    checkpoint = torch.load(path, map_location=device)
+    raise NotImplementedError("Load model state, optimizer state, epoch, and best validation accuracy.")
 
-    model.load_state_dict(checkpoint["model_state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-    return {
-                "epoch": checkpoint["epoch"],
-                "best_val_accuracy": checkpoint["best_val_accuracy"],
-                "checkpoint_path": str(path),
-            }   
-    #raise NotImplementedError("Load model state, optimizer state, epoch, and best validation accuracy.")
 
 
 def run_training(config: CheckpointingConfig) -> dict[str, float | int | str]:
@@ -499,76 +420,16 @@ def run_training(config: CheckpointingConfig) -> dict[str, float | int | str]:
     #
     # `check_metrics(...)` below uses these keys to decide whether the task passed.
 
-    best_val_accuracy = 0.0
-    latest_checkpoint_path = os.path.join(config.checkpoint_dir, config.latest_checkpoint_name)
-    best_checkpoint_path = os.path.join(config.checkpoint_dir, config.best_checkpoint_name)
+    raise NotImplementedError("Run the checkpoint and resume workflow.")
 
-    torch.manual_seed(config.random_state)
 
-    loaders = load_dataloaders(config)
-    model, loss_fn, optimizer = build_training_objects(config)
 
-    for i in range(config.first_train_epochs):
-
-        train_dict = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-        val_dict = evaluate(model, loaders["val"], loss_fn)
-
-        print(f"Epoch {i+1} -> loss: {train_dict['loss']:.5f}, acc: {train_dict['accuracy']:.5f}, val_loss: {val_dict['loss']:.5f}, val_acc: {val_dict['accuracy']:.4f}")
-
-        if val_dict["accuracy"] > best_val_accuracy:
-            best_val_accuracy = val_dict["accuracy"]
-            save_checkpoint(path = best_checkpoint_path,
-                        epoch = i+1,
-                        model = model,
-                        optimizer = optimizer,
-                        best_val_accuracy=best_val_accuracy,
-                        config = config)
-
-        save_checkpoint(path = latest_checkpoint_path,
-                        epoch = i+1,
-                        model = model,
-                        optimizer = optimizer,
-                        best_val_accuracy=best_val_accuracy,
-                        config = config)
 
     # Resume trianing step:
-    resumed_model, resumed_loss_fn, resumed_optimizer = build_training_objects(config)
     
-    checkpoint_dict = load_checkpoint(path = latest_checkpoint_path, model = resumed_model, optimizer=resumed_optimizer)
-    start_epoch_after_resume = int(checkpoint_dict["epoch"]) + 1
-    best_val_accuracy = float(checkpoint_dict["best_val_accuracy"])
-
-    for i in range(start_epoch_after_resume, start_epoch_after_resume + config.resume_train_epochs):
-        train_dict = train_one_epoch(resumed_model, loaders["train"], resumed_loss_fn, resumed_optimizer)
-        val_dict = evaluate(resumed_model, loaders["val"], resumed_loss_fn)
-
-        print(f"Epoch {i} -> loss: {train_dict['loss']:.5f}, acc: {train_dict['accuracy']:.5f}, val_loss: {val_dict['loss']:.5f}, val_acc: {val_dict['accuracy']:.4f}")
 
 
-        if val_dict["accuracy"] > best_val_accuracy:
-            best_val_accuracy = val_dict["accuracy"]
-            save_checkpoint(path = best_checkpoint_path,
-                        epoch = i,
-                        model = resumed_model,
-                        optimizer = resumed_optimizer,
-                        best_val_accuracy=best_val_accuracy,
-                        config = config)
 
-        save_checkpoint(path = latest_checkpoint_path,
-                        epoch = i,
-                        model = resumed_model,
-                        optimizer = resumed_optimizer,
-                        best_val_accuracy=best_val_accuracy,
-                        config = config)
-
-    return {
-            "best_val_accuracy": best_val_accuracy,
-            "start_epoch_after_resume": start_epoch_after_resume,
-            "latest_checkpoint_path": str(latest_checkpoint_path),
-            "best_checkpoint_path": str(best_checkpoint_path),
-        }
-
-    #raise NotImplementedError("Run the checkpoint and resume workflow.")
 
 
 def check_metrics(metrics: dict[str, float | int | str], target: float) -> bool:

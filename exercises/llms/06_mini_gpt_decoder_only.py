@@ -263,6 +263,7 @@ from common.training_checks import print_pass_or_try_again
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
+@dataclass
 class MiniGPTConfig:
     """Settings for the tiny decoder-only GPT exercise."""
 
@@ -308,7 +309,6 @@ def describe_decoder_shapes(config: MiniGPTConfig) -> dict[str, object]:
     }
 
 
-        #raise NotImplementedError("Run the tiny decoder-only model and return raw logits.")
 
 
 # Load the raw text corpus.
@@ -317,12 +317,9 @@ def describe_decoder_shapes(config: MiniGPTConfig) -> dict[str, object]:
 # - meaning: the full text corpus as one Python string
 def load_raw_text(config: MiniGPTConfig) -> str:
 
-    with open(file=f"{BOOTCAMP_ROOT}/Data/input.txt", mode="r", encoding="utf-8") as f:
-        text = f.read()
+    raise NotImplementedError("Return the full Tiny Shakespeare text as one Python string.")
 
-    return text
 
-    # raise NotImplementedError("Return the full Tiny Shakespeare text as one Python string.")
 
 
 # Split the raw text into train, validation, and test text sections.
@@ -333,16 +330,11 @@ def load_raw_text(config: MiniGPTConfig) -> str:
 # Use a contiguous 60% train / 20% val / 20% test split.
 def split_text_corpus(raw_text: str) -> dict[str, str]:
 
-    num_train, num_val = int(len(raw_text) * 0.6), int(len(raw_text) * 0.2)
-
-    train_text = raw_text[:num_train]
-    val_text = raw_text[num_train: num_train + num_val]
-    test_text = raw_text[num_train + num_val:]
-
-    return {"train_text": train_text, "val_text": val_text, "test_text": test_text}
+    raise NotImplementedError("Return the raw text split into contiguous train, val, and test sections.")
 
 
-    #raise NotImplementedError("Return the raw text split into contiguous train, val, and test sections.")
+
+
 
 class CharTokenDataset(torch.utils.data.Dataset):
     def __init__(self, text, context_length, vocab_dict):
@@ -367,7 +359,6 @@ class CharTokenDataset(torch.utils.data.Dataset):
 
 
 
-@dataclass
 
 # Build the train, validation, and test dataloaders.
 # Return a dict with exactly these keys:
@@ -406,35 +397,18 @@ class CharTokenDataset(torch.utils.data.Dataset):
 # - target is "ell"
 def load_dataloaders(config: MiniGPTConfig) -> dict[str, DataLoader]:
 
-    raw_text = load_raw_text(config)
-    data_dict = split_text_corpus(raw_text)
+    raise NotImplementedError("Return train, val, and test dataloaders for next-token prediction.")
 
-    train_text = data_dict["train_text"]
-    val_text = data_dict["val_text"]
-    test_text = data_dict["test_text"]
 
-    vocabulary = sorted(list(set(raw_text)))
-    print(f"VOCAB SIZE: {len(vocabulary)}")
 
-    str_to_int = {c: i for i, c in enumerate(vocabulary)}
-    int_to_str = {i: c for c, i in str_to_int.items()}
     # encode = lambda s: [str_to_int[c] for c in s]
     # decode = lambda l: "".join(int_to_str[i] for i in l)
 
     #print(f"Encoded string: {encode('Hello World!')}")
     #print(f"Decoded string: {decode(encode('Hello World!'))}")
 
-    config.vocab_size = len(vocabulary)
-    config.str_to_int = str_to_int
-    config.int_to_str = int_to_str
 
-    train_ds = CharTokenDataset(text = train_text, context_length = config.context_length, vocab_dict=str_to_int)
-    val_ds = CharTokenDataset(text = val_text, context_length = config.context_length, vocab_dict= str_to_int)
-    test_ds = CharTokenDataset(text = test_text, context_length = config.context_length, vocab_dict= str_to_int)
 
-    return {"train": torch.utils.data.DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True),
-            "val": torch.utils.data.DataLoader(dataset=val_ds, batch_size=config.batch_size),
-            "test": torch.utils.data.DataLoader(dataset=test_ds, batch_size=config.batch_size)}
 
 
 
@@ -457,14 +431,10 @@ def load_dataloaders(config: MiniGPTConfig) -> dict[str, DataLoader]:
 # - if the model could see them during training, it would learn the wrong lesson
 def build_causal_mask(context_length: int) -> torch.Tensor:
 
-    ones = torch.ones(size=(context_length, context_length), dtype=torch.bool)
-    mask = torch.tril(ones)
-    mask = mask.unsqueeze(dim=0).unsqueeze(dim=0)
-
-    return mask
+    raise NotImplementedError("Return the boolean decoder causal mask with shape [1, 1, context_length, context_length].")
 
 
-    #raise NotImplementedError("Return the boolean decoder causal mask with shape [1, 1, context_length, context_length].")
+
 
 
 # Compute scaled dot-product attention for decoder multi-head attention.
@@ -535,13 +505,10 @@ def scaled_dot_product_attention(
     # job at once, multi-head attention splits the work into several smaller attention views running in parallel.
     #  After that, their outputs are joined back together, so each token gets a richer combined summary of the context.
 
-    batch_size, num_heads, context_length, head_dim = key.shape
+    raise NotImplementedError("Return the masked scaled dot-product attention output for multi-head decoder attention.")
 
     # transpose dim2 and dim2 so the matrix multiplication is valid.
-    scores = torch.matmul(query, key.transpose(dim0=2, dim1=3)) # (32, 4, 128, 32) @ (32, 4, 128, 32) = (32, 4, 128, 128)
-    scaled = scores / sqrt(head_dim)
 
-    scaled = scaled.masked_fill(~mask, float("-inf"))
 
     # Softmax goes on the last dimension because the last dimension is the list of tokens that the current 
     # token can look at. After the score step, the shape is [batch_size, num_heads, context_length, context_length]. 
@@ -551,13 +518,9 @@ def scaled_dot_product_attention(
     # behave like proportions and add up to 1.0. In plain words, the current token is choosing how to spread 
     # its attention across the tokens it is allowed to use.
 
-    weights = scaled.softmax(dim=-1)            # (32, 4, 128, 128)
 
-    output = torch.matmul(weights, value)       # (32, 4, 128, 128) @ (32, 4, 128, 32) = (32, 4, 128, 32)
 
-    return output # (32, 4, 128, 32)
 
-    #raise NotImplementedError("Return the masked scaled dot-product attention output for multi-head decoder attention.")
 
 
 class MaskedSelfAttention(nn.Module):
@@ -565,8 +528,7 @@ class MaskedSelfAttention(nn.Module):
 
     def __init__(self, embed_dim: int, num_heads: int) -> None:
         super().__init__()
-        self.embed_dim = embed_dim
-        self.num_heads = num_heads
+        raise NotImplementedError("Build the Q, K, V projections and the output projection for masked multi-head attention.")
         # Beginner-friendly build order:
         # 1. check that `embed_dim` can be split across `num_heads`
         #    - this means each head gets the same number of features
@@ -592,20 +554,10 @@ class MaskedSelfAttention(nn.Module):
         # - this class should handle the multi-head setup around that helper
         # - after the helper runs, join the heads back together
 
-        if embed_dim % num_heads != 0:
-            raise ValueError("embed_dim cannot be split evenly across num_heads. They should be exactly divisible.")
 
-        self.embed_dim = embed_dim
-        self.num_heads = num_heads
-        self.head_dim = embed_dim // num_heads
 
-        self.query = nn.Linear(in_features=embed_dim, out_features=embed_dim)
-        self.key = nn.Linear(in_features=embed_dim, out_features=embed_dim)
-        self.value = nn.Linear(in_features=embed_dim, out_features=embed_dim)
 
-        self.projection = nn.Linear(in_features=embed_dim, out_features=embed_dim)
 
-        #raise NotImplementedError("Build the Q, K, V projections and the output projection for masked multi-head attention.")
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """Return masked self-attention output.
@@ -676,11 +628,8 @@ class MaskedSelfAttention(nn.Module):
 
         # x shape is (32, 128, 128),  mask shape is (1, 1, 128, 128)
 
-        query = self.query(x)       # (32, 128, 128)
-        key = self.key(x)           # (32, 128, 128)
-        value = self.value(x)       # (32, 128, 128)
+        raise NotImplementedError("Apply masked multi-head self-attention and return the output tensor.")
 
-        batch_size, context_length, embed_dim = query.shape
 
         # scaled_dot_product_attention expects inputs of shape (32, 4, 128, 32)
         # because each embed dim will get split into self.num_heads
@@ -695,26 +644,14 @@ class MaskedSelfAttention(nn.Module):
         # works because you are keeping B and T the same, and only splitting the last part C into two 
         # smaller parts. In simple words, reshape just repacks numbers in order. It follows your shape 
         # exactly, even if that shape mixes things up
-        query = torch.reshape(query, shape=(batch_size, context_length, self.num_heads, self.head_dim))
-        key = torch.reshape(key, shape=(batch_size, context_length, self.num_heads, self.head_dim))
-        value = torch.reshape(value, shape=(batch_size, context_length, self.num_heads, self.head_dim))
 
-        query = query.permute(dims = (0, 2, 1, 3))
-        key = key.permute(dims = (0, 2, 1, 3))
-        value = value.permute(dims = (0, 2, 1, 3))
 
-        output = scaled_dot_product_attention(query, key, value, mask)  # (32, 4, 128, 32)
         # Don't forget to permute back so reshape can work in the correct order.
-        output = output.permute(dims = (0, 2, 1, 3))
-
-        output = torch.reshape(output, shape=(batch_size, context_length, embed_dim))  # (32, 128, 128)
-
-        proj = self.projection(output)  # (32, 128, 128)
-
-        return proj        
 
 
-        #raise NotImplementedError("Apply masked multi-head self-attention and return the output tensor.")
+
+
+
 
 
 class MiniGPTBlock(nn.Module):
@@ -722,7 +659,7 @@ class MiniGPTBlock(nn.Module):
 
     def __init__(self, config: MiniGPTConfig) -> None:
         super().__init__()
-        self.config = config
+        raise NotImplementedError("Build one decoder block with masked self-attention, MLP, layer norms, and residual connections.")
         # Beginner-friendly block pieces:
         # - layer norm
         # - masked self-attention
@@ -742,17 +679,10 @@ class MiniGPTBlock(nn.Module):
         # - residual connections help the block change the features without destroying useful old information
         #         
 
-        self.layer_norm1 = nn.LayerNorm(normalized_shape=config.embed_dim)
 
-        self.masked_self_attention = MaskedSelfAttention(embed_dim = config.embed_dim, num_heads = config.num_heads)
 
-        self.layer_norm2 = nn.LayerNorm(normalized_shape=config.embed_dim)
 
-        self.mlp = nn.Sequential(nn.Linear(in_features=config.embed_dim, out_features=config.mlp_dim),
-                                nn.ReLU(inplace=True),
-                                nn.Linear(in_features=config.mlp_dim, out_features=config.embed_dim))
 
-        #raise NotImplementedError("Build one decoder block with masked self-attention, MLP, layer norms, and residual connections.")
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """Return the updated hidden states with shape `[batch_size, context_length, embed_dim]`.
@@ -773,15 +703,8 @@ class MiniGPTBlock(nn.Module):
 
         # x shape is (32, 128, 128),  mask shape is (1, 1, 128, 128)
 
-        residual = x
-        normalized = self.layer_norm1(x)
-        attention_output = self.masked_self_attention(normalized, mask)         # (32, 128, 128)
-        x = residual + attention_output
+        raise NotImplementedError("Run one decoder block and return the updated hidden states.")
 
-        residual = x
-        normalized = self.layer_norm2(x)
-        mlp_output = self.mlp(normalized)                                       # (32, 128, 128)
-        x = residual + mlp_output
 
         # So the idea becomes easier to read if each stage says:
         # keep residual
@@ -789,10 +712,8 @@ class MiniGPTBlock(nn.Module):
         # run sub-layer
         # add result back
 
-        return x
 
         
-        #raise NotImplementedError("Run one decoder block and return the updated hidden states.")
 
 
 class MiniGPT(nn.Module):
@@ -800,8 +721,7 @@ class MiniGPT(nn.Module):
 
     def __init__(self, vocab_size: int, config: MiniGPTConfig) -> None:
         super().__init__()
-        self.vocab_size = vocab_size
-        self.config = config
+        raise NotImplementedError("Build the token embeddings, positional embeddings, decoder blocks, final layer norm, and LM head.")
         # Beginner-friendly build order:
         # 1. token embedding table
         # 2. positional embedding table
@@ -815,22 +735,12 @@ class MiniGPT(nn.Module):
         # - decoder blocks build context-aware features
         # - the LM head turns those features into next-token scores
 
-        self.vocab_size = vocab_size
-        self.embed_dim = config.embed_dim
-        self.context_length = config.context_length
 
-        self.causal_mask = build_causal_mask(context_length = config.context_length)
 
-        self.token_embeddings = nn.Embedding(num_embeddings=vocab_size, embedding_dim=config.embed_dim)
-        self.positional_embeddings = nn.Embedding(num_embeddings=config.context_length, embedding_dim=config.embed_dim)
 
-        self.decoder_blocks = nn.ModuleList([MiniGPTBlock(config) for _ in range(config.num_layers)])
 
-        self.layer_norm = nn.LayerNorm(normalized_shape=config.embed_dim)
 
-        self.classification_head = nn.Linear(in_features=config.embed_dim, out_features=vocab_size)
 
-        #raise NotImplementedError("Build the token embeddings, positional embeddings, decoder blocks, final layer norm, and LM head.")
 
     def forward(self, input_ids: torch.Tensor) -> torch.Tensor:
         """Return raw next-token logits with shape `[batch_size, context_length, vocab_size]`.
@@ -851,39 +761,24 @@ class MiniGPT(nn.Module):
 
         # input_ids is shape (32, 128)  i.e. 128 tokens per sample
 
-        self.causal_mask = self.causal_mask.to(input_ids.device)
+        raise NotImplementedError("Run the tiny decoder-only model and return raw logits.")
 
         # `current_sequence_length` is the length of the input the model got this time.
         # In training, that is usually the full fixed window size of config.context_length i.e. num_tokens per sample
         # In generation/inference, it can be shorter at the start because you may only have a short prompt.
         # So we use the current input length here instead of always assuming the full context length.
 
-        batch_size, current_sequence_length = input_ids.shape  # 32, 128        current_sequence_length could be different than 128
-
-        token_embeddings = self.token_embeddings(input_ids)                     # (32, 128, 128)
-
-        positions = torch.arange(start=0, end=current_sequence_length, step=1, device=input_ids.device)      # (128) if current_sequence_length=128
-        positions = positions.reshape(shape=(1, current_sequence_length))           # (1, 128)
-        positions = positions.expand(size = (batch_size, current_sequence_length))  # (32, 128)
-        pos_embeddings = self.positional_embeddings(positions)                  # (32, 128, 128)
-
-        embeddings = token_embeddings + pos_embeddings                          # (32, 128, 128)
-
-        mask = self.causal_mask[:, :, : current_sequence_length, : current_sequence_length]
-
-        features = embeddings
-        for block in self.decoder_blocks:
-            features = block(features, mask)
-
-        features = self.layer_norm(features)                                    # (32, 128, 128)
-
-        logits = self.classification_head(features)                             # (32, 128, 65)
-
-        return logits
 
 
 
-    #raise NotImplementedError("Return train, val, and test dataloaders for next-token prediction.")
+
+
+
+
+
+
+
+
 
 
 # Build the model, loss, and optimizer.
@@ -894,14 +789,9 @@ class MiniGPT(nn.Module):
 # Use `nn.CrossEntropyLoss`.
 def build_training_objects(config: MiniGPTConfig) -> tuple[nn.Module, nn.Module, torch.optim.Optimizer]:
 
-    model = MiniGPT(vocab_size = config.vocab_size, config=config)
-    model = model.to(device)
+    raise NotImplementedError("Return the tiny GPT model, CrossEntropyLoss, and optimizer.")
 
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(lr = config.learning_rate, params= model.parameters())
 
-    return model, loss_fn, optimizer
-    #raise NotImplementedError("Return the tiny GPT model, CrossEntropyLoss, and optimizer.")
 
 
 # Run one full training epoch.
@@ -928,36 +818,12 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
 ) -> dict[str, float]:
 
-    model.train()
+    raise NotImplementedError("Return the mean train loss and train perplexity for one full epoch.")
 
-    losses = []    
 
-    for data_dict in loader:
-        input_ids = data_dict["input_ids"]
-        target_ids = data_dict["target_ids"]
 
-        input_ids = input_ids.to(device)
-        target_ids = target_ids.to(device)
 
-        optimizer.zero_grad()
 
-        logits = model(input_ids)       # output shape is (32, 128, 65)
-
-        flatten_logits = torch.flatten(logits, start_dim = 0, end_dim=1)    # output shape is (4096, 65)
-        flatten_targets = torch.flatten(target_ids)
-
-        loss = loss_fn(flatten_logits, flatten_targets)
-        loss.backward()
-        optimizer.step()
-
-        losses.append(loss.item())        
-
-    mean_loss = torch.tensor(losses).mean()
-    mean_perp = torch.exp(mean_loss)
-
-    return {"loss": mean_loss.item(), "perplexity": mean_perp.item()}
-
-    #raise NotImplementedError("Return the mean train loss and train perplexity for one full epoch.")
 
 
 # Run one full evaluation pass.
@@ -976,32 +842,12 @@ def train_one_epoch(
 @torch.no_grad()
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[str, float]:
 
-    model.eval()
+    raise NotImplementedError("Return the mean loss and perplexity for the loader you evaluate.")
 
-    losses = []    
 
-    for data_dict in loader:
-        input_ids = data_dict["input_ids"]
-        target_ids = data_dict["target_ids"]
 
-        input_ids = input_ids.to(device)
-        target_ids = target_ids.to(device)
 
-        logits = model(input_ids)       # output shape is (32, 128, 65)
 
-        flatten_logits = torch.flatten(logits, start_dim = 0, end_dim=1)    # output shape is (4096, 65)
-        flatten_targets = torch.flatten(target_ids)
-
-        loss = loss_fn(flatten_logits, flatten_targets)
-
-        losses.append(loss.item())        
-
-    mean_loss = torch.tensor(losses).mean()
-    mean_perp = torch.exp(mean_loss)
-
-    return {"loss": mean_loss.item(), "perplexity": mean_perp.item()}
-
-    #raise NotImplementedError("Return the mean loss and perplexity for the loader you evaluate.")
 
 
 # Generate a short text sample from a finished decoder-only model.
@@ -1033,13 +879,9 @@ def generate_text(model: nn.Module, start_text: str, config: MiniGPTConfig) -> s
     # - earlier positions predict tokens you already have
     # - the last position is the one that predicts the new token you still need
 
-    if not start_text:
-        start_text = "To be"
+    raise NotImplementedError("Generate and return one short text sample from the tiny GPT model.")
     
-    encode = lambda s: [config.str_to_int[c] for c in s]
-    decode = lambda l: "".join(config.int_to_str[i] for i in l)
 
-    context_text = start_text[-config.context_length:]
 
     # `start_text[-config.context_length:]` takes only the last `context_length` characters 
     # from `start_text`. This is useful during generation because the model was trained to use 
@@ -1061,30 +903,11 @@ def generate_text(model: nn.Module, start_text: str, config: MiniGPTConfig) -> s
 
     # model.parameters() gives an iterator next(...) gets the first parameter, 
     # and .device tells you where the model is, like CPU or GPU.
-    model_device = next(model.parameters()).device
 
-    character_ids = torch.tensor(encode(context_text), dtype=torch.long).to(model_device)  # shape = (5)
-    character_ids = character_ids.unsqueeze(dim=0)                                              # shape = (1, 5)
 
-    generated = []
-    for i in range(config.sample_length):
-        logits = model(character_ids)               # shape is (1, 128, 65)
-        last_vec = logits[:, -1, :]                 # shape is (65)
-        next_char = torch.argmax(last_vec, dim=-1).long()
 
-        next_char = next_char.to(model_device)
 
-        generated.append(next_char.item())
 
-        next_char = next_char.reshape(1, 1)
-        character_ids = torch.concat([character_ids, next_char], dim=1)
-        character_ids = character_ids[:, -config.context_length:]
-
-    decoded_text = start_text + decode(generated)
-
-    return decoded_text
-
-    #raise NotImplementedError("Generate and return one short text sample from the tiny GPT model.")
 
 
 # Run the full training flow.
@@ -1096,27 +919,13 @@ def generate_text(model: nn.Module, start_text: str, config: MiniGPTConfig) -> s
 # - `dict[str, float]`
 # This is the final epoch summary, not a history list.
 def run_training(config: MiniGPTConfig) -> dict[str, float]:
-    torch.manual_seed(config.random_state)
+    raise NotImplementedError("Run the full mini GPT training flow and return the final train and val metrics.")
 
-    loaders = load_dataloaders(config)
-    model, loss_fn, optimizer = build_training_objects(config)
 
-    for i in range(config.epochs):
 
-        train_dict = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-        val_dict = evaluate(model, loaders["val"], loss_fn)
 
-        print(f"Epoch {i+1} -> loss: {train_dict['loss']}, perp: {train_dict['perplexity']}, val_loss: {val_dict['loss']}, val_perp: {val_dict['perplexity']}")
 
-    test_dict = evaluate(model, loaders["test"], loss_fn)
-    print(f"Test results -> loss: {test_dict['loss']}, perp: {test_dict['perplexity']}")
 
-    print(f"\n GENERATED: \n {generate_text(model=model, start_text = 'To be', config=config)}")
-
-    return {"train_loss": train_dict["loss"], 
-            "val_loss": val_dict["loss"], "val_perplexity": val_dict["perplexity"]}
-
-    #raise NotImplementedError("Run the full mini GPT training flow and return the final train and val metrics.")
 
 
 

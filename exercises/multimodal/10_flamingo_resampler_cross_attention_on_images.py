@@ -208,38 +208,11 @@ def build_flamingo_dataset(config: FlamingoTinyConfig) -> list[FlamingoExample]:
     # - Images are real tensors.
     # - Questions and answers are non-empty strings.
 
-    from datasets import load_dataset
-    import torchvision
+    raise NotImplementedError("Build data for Flamingo-style training.")
 
-    data = load_dataset(path=config.hf_dataset_name, split=f"train[:{config.sample_size}]")
 
-    transform = torchvision.transforms.Compose([
-        torchvision.transforms.Resize((config.image_size, config.image_size)),
-        torchvision.transforms.ToTensor(),
-    ])
 
-    examples: list[FlamingoExample] = []
-    for row in data:
-        question = str(row["question"]).lower().strip()
-        answer = str(row["multiple_choice_answer"]).lower().strip()
 
-        if not question or not answer:
-            continue
-
-        if len(answer.split()) > 3:
-            continue
-
-        image = row["image"].convert("RGB")
-        image_tensor = transform(image)
-
-        examples.append({
-            "image": image_tensor,
-            "question": question,
-            "answer": answer,
-        })
-
-    return examples
-    #raise NotImplementedError("Build data for Flamingo-style training.")
 
 
 class VisualTokenEncoder(nn.Module):
@@ -265,7 +238,7 @@ class VisualTokenEncoder(nn.Module):
         # Check:
         # - The forward output should be `[batch_size, num_visual_tokens, visual_hidden_size]`.
 
-        self.conv2d = nn.Conv2d(in_channels=3, out_channels=config.visual_hidden_size, kernel_size=4, stride=4)
+        raise NotImplementedError("Build image-to-visual-token encoder.")
         # Example with the default config:
         # input images are [batch_size, 3, 48, 48].
         # kernel_size=4 means each output looks at one 4x4 image patch.
@@ -274,7 +247,6 @@ class VisualTokenEncoder(nn.Module):
         # 12 * 12 = 144 visual tokens.
         # Shape after this convolution: [batch_size, visual_hidden_size, 12, 12].
 
-        #raise NotImplementedError("Build image-to-visual-token encoder.")
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         """Return visual tokens with shape `[B, num_visual_tokens, visual_hidden_size]`."""
@@ -295,12 +267,8 @@ class VisualTokenEncoder(nn.Module):
         # Check:
         # - The last dimension should be `config.visual_hidden_size`.
 
-        features = self.conv2d(images)  # [B, 3, 48, 48]  ->  [B, 64, 12, 12]
-        features = features.flatten(start_dim=2)            # [B, 64, 144]
-        features = features.transpose(-2, -1)               # [B, 144, 64]  where num_visual_tokens = 144
+        raise NotImplementedError("Return visual tokens.")
 
-        return features
-        #raise NotImplementedError("Return visual tokens.")
 
 
 class TinyPerceiverResampler(nn.Module):
@@ -335,13 +303,9 @@ class TinyPerceiverResampler(nn.Module):
         # - The resampler always returns exactly `config.num_resampled_tokens`.
         # - The last dimension should be `config.text_hidden_size`.
 
-        self.config = config
+        raise NotImplementedError("Build resampler layers.")
 
-        self.latents = nn.Parameter(torch.randn(config.num_resampled_tokens, config.text_hidden_size) * 0.02)
-        self.visual_to_text = nn.Linear(in_features=config.visual_hidden_size, out_features=config.text_hidden_size)
-        self.cross_attention = nn.MultiheadAttention(embed_dim=config.text_hidden_size, num_heads=config.num_attention_heads, batch_first=True)
 
-        #raise NotImplementedError("Build resampler layers.")
 
     def forward(self, visual_tokens: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Return resampled tokens and attention weights."""
@@ -376,13 +340,10 @@ class TinyPerceiverResampler(nn.Module):
         # visual_tokens shape is [b, 144, 64] 
         # where num_visual_tokens = 64, and we want to compress/reduce it down to num_resampled_tokens=8
 
-        batch_size = visual_tokens.shape[0]
+        raise NotImplementedError("Compress visual tokens.")
 
-        projected_visual_tokens = self.visual_to_text(visual_tokens)    # [B, 144, 64] -> [B, 144, 64]  in this case the text_hidden_size is also 64
 
-        latents = self.latents.unsqueeze(dim=0).expand(batch_size, -1, -1)  # [8, 64] -> [1, 8, 64] -> [B, 8, 64]
 
-        outputs, weights = self.cross_attention(query=latents, key=projected_visual_tokens, value=projected_visual_tokens, need_weights=True)
 
         # The latent tokens are learned because they are `nn.Parameter`s.
         # That means gradient descent updates them during training, just like layer weights.
@@ -421,9 +382,7 @@ class TinyPerceiverResampler(nn.Module):
         # - this latent looked 67% at visual token 0
         # - this latent looked 24% at visual token 1
         # - this latent looked 9% at visual token 2
-        return outputs, weights  # [B, 8, 64] ,  [B, 8, 144]
 
-        #raise NotImplementedError("Compress visual tokens.")
 
 
 class TinyCrossAttentionAnswerModel(nn.Module):
@@ -463,17 +422,12 @@ class TinyCrossAttentionAnswerModel(nn.Module):
         # - The embedding table has `question_vocab_size` rows.
         # - The answer head output width is `num_answers`.
 
-        self.question_embedding = nn.Embedding(num_embeddings = question_vocab_size, embedding_dim=config.text_hidden_size)
+        raise NotImplementedError("Build Flamingo-style answer model.")
 
-        self.visual_encoder = VisualTokenEncoder(config)
 
-        self.resampler = TinyPerceiverResampler(config)
 
-        self.cross_attention = nn.MultiheadAttention(embed_dim=config.text_hidden_size, num_heads=config.num_attention_heads, batch_first=True)
 
-        self.answer_head = nn.Linear(in_features=config.text_hidden_size, out_features=num_answers)
 
-        #raise NotImplementedError("Build Flamingo-style answer model.")
 
     def forward(self, images: torch.Tensor, question_ids: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Return answer logits and attention weights."""
@@ -509,20 +463,13 @@ class TinyCrossAttentionAnswerModel(nn.Module):
 
         # images is shape [b, 3, 48, 48]
 
-        visual_features = self.visual_encoder(images)           # [B, 144, 64]   144 visual tokens
+        raise NotImplementedError("Run resampler and cross-attention.")
 
-        visual_tokens, _ = self.resampler(visual_features)      # [B, 8, 64]    compressed down to 8 visual tokens
 
-        question_embeddings = self.question_embedding(question_ids) # [B, sequence_length, 64]
 
-        output, weights = self.cross_attention(query=question_embeddings, key=visual_tokens, value=visual_tokens, need_weights=True)  # [B, sequence_length, 64], [B, sequence_length, 8]
 
-        pooled = output.mean(dim=1)                             # [B, sequence_length, 64] -> [B, 64]
 
-        logits = self.answer_head(pooled)                       # [B, num_answers]
 
-        return logits, weights
-        #raise NotImplementedError("Run resampler and cross-attention.")
 
 
 def tokenize_questions(questions: list[str], token_to_id: dict[str, int]) -> torch.Tensor:
@@ -550,18 +497,9 @@ def tokenize_questions(questions: list[str], token_to_id: dict[str, int]) -> tor
     # Check:
     # - The dtype should be `torch.long`.
 
-    pad_id = token_to_id.get("<pad>", 0)
-    unk_id = token_to_id.get("<unk>", 1)
-    split_questions = [question.lower().split() for question in questions]
-    max_length = max(len(words) for words in split_questions)
-    token_ids = torch.full((len(questions), max_length), pad_id, dtype=torch.long)
+    raise NotImplementedError("Tokenize questions.")
 
-    for row_index, words in enumerate(split_questions):
-        ids = [token_to_id.get(word, unk_id) for word in words]
-        token_ids[row_index, :len(ids)] = torch.tensor(ids, dtype=torch.long)
 
-    return token_ids
-    #raise NotImplementedError("Tokenize questions.")
 
 
 def train_one_epoch(model: TinyCrossAttentionAnswerModel, loader: DataLoader, optimizer: torch.optim.Optimizer) -> float:
@@ -587,29 +525,10 @@ def train_one_epoch(model: TinyCrossAttentionAnswerModel, loader: DataLoader, op
     # Check:
     # - Return mean loss as a Python float.
 
-    loss_fn = nn.CrossEntropyLoss()
-    model.train()
+    raise NotImplementedError("Train one Flamingo-style epoch.")
 
-    total_loss = 0.0
-    total_examples = 0
 
-    for batch in loader:
-        images = batch["image"].to(device)
-        question_ids = batch["question_ids"].to(device)
-        answer_ids = batch["answer_id"].to(device)
 
-        optimizer.zero_grad()
-        logits, _ = model(images, question_ids)
-        loss = loss_fn(logits, answer_ids)
-        loss.backward()
-        optimizer.step()
-
-        batch_size = images.shape[0]
-        total_loss += loss.item() * batch_size
-        total_examples += batch_size
-
-    return total_loss / total_examples
-    #raise NotImplementedError("Train one Flamingo-style epoch.")
 
 
 def evaluate_answers(model: TinyCrossAttentionAnswerModel, loader: DataLoader) -> float:
@@ -634,24 +553,9 @@ def evaluate_answers(model: TinyCrossAttentionAnswerModel, loader: DataLoader) -
     # Check:
     # - Return a float between `0.0` and `1.0`.
 
-    model.eval()
-    correct = 0
-    total = 0
+    raise NotImplementedError("Evaluate answer accuracy.")
 
-    with torch.no_grad():
-        for batch in loader:
-            images = batch["image"].to(device)
-            question_ids = batch["question_ids"].to(device)
-            answer_ids = batch["answer_id"].to(device)
 
-            logits, _ = model(images, question_ids)
-            predictions = logits.argmax(dim=-1)
-
-            correct += (predictions == answer_ids).sum().item()
-            total += images.shape[0]
-
-    return correct / total
-    #raise NotImplementedError("Evaluate answer accuracy.")
 
 
 def save_flamingo_visuals(losses: list[float], model: TinyCrossAttentionAnswerModel, examples: list[FlamingoExample], config: FlamingoTinyConfig) -> tuple[str, str]:
@@ -678,53 +582,18 @@ def save_flamingo_visuals(losses: list[float], model: TinyCrossAttentionAnswerMo
     # Check:
     # - The attention plot should have one axis for text tokens and one for visual tokens.
 
-    import matplotlib
+    raise NotImplementedError("Save Flamingo-style visuals.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
 
-    loss_curve_path = config.output_dir / "flamingo_loss_curve.png"
-    attention_path = config.output_dir / "flamingo_attention_map.png"
 
-    plt.figure()
-    plt.plot(losses)
-    plt.title("Flamingo-style training loss")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.savefig(loss_curve_path)
-    plt.close()
 
-    question_words = sorted({word for example in examples for word in example["question"].lower().split()})
-    question_vocab = {"<pad>": 0, **{word: index + 1 for index, word in enumerate(question_words)}}
 
-    example = examples[0]
-    image = example["image"].unsqueeze(0).to(device)  # [3, 48, 48] -> [1, 3, 48, 48]
-    question_ids = tokenize_questions([example["question"]], question_vocab).to(device)  # [1, question_tokens]
 
-    model.eval()
-    with torch.no_grad():
-        _, attention_weights = model(image, question_ids)  # [1, question_tokens, 8]
 
-    if attention_weights.dim() == 4:
-        attention_map = attention_weights.mean(dim=1)[0]  # [1, heads, question_tokens, 8] -> [question_tokens, 8]
-    else:
-        attention_map = attention_weights[0]  # [1, question_tokens, 8] -> [question_tokens, 8]
 
-    attention_map = attention_map.detach().cpu()
 
-    plt.figure()
-    plt.imshow(attention_map)
-    plt.title("Question-token attention to resampled visual tokens")
-    plt.xlabel("Resampled visual token")
-    plt.ylabel("Question token")
-    plt.colorbar()
-    plt.savefig(attention_path)
-    plt.close()
 
-    return str(loss_curve_path), str(attention_path)
-    #raise NotImplementedError("Save Flamingo-style visuals.")
 
 
 def run_exercise(config: FlamingoTinyConfig) -> FlamingoMetrics:

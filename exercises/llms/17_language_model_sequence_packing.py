@@ -236,31 +236,11 @@ def build_text_examples() -> list[str]:
     # - `texts[0]` should not be an empty string.
     #
 
-    fallback_texts = [
-        "to be or not to be",
-        "the king speaks softly",
-        "a horse runs fast",
-        "we learn from short examples",
-        "the model predicts the next token",
-        "padding can waste many positions",
-        "packing joins short texts together",
-        "separator tokens mark text boundaries",
-    ]
+    raise NotImplementedError("Return a small list of short text strings.")
 
-    data_path = PROJECT_ROOT / "data" / "input.txt"
-    if not data_path.exists():
-        return fallback_texts
 
-    lines = data_path.read_text(encoding="utf-8").splitlines()
-    lines = [line.strip() for line in lines if line.strip()]
-    lines = [line for line in lines if 3 <= len(line.split()) <= 12]
-    lines = sorted(lines, key=lambda line: len(line.split()))
 
-    if not lines:
-        return fallback_texts
 
-    return lines[:100]
-    #raise NotImplementedError("Return a small list of short text strings.")
 
 def build_vocabulary(texts: list[str], config: SequencePackingConfig) -> dict[str, int]:
     """Build a simple token vocabulary."""
@@ -305,20 +285,9 @@ def build_vocabulary(texts: list[str], config: SequencePackingConfig) -> dict[st
     # - `token_to_id[config.sep_token] == 2`
     # - A known word from the texts should have an integer id.
 
-    vocabulary = {config.pad_token: 0, config.unk_token: 1, config.sep_token: 2}
-    all_words = []
-    for line in texts:
-        words = line.lower().split()
-        all_words.extend(words)
-    distinct_words = sorted(set(all_words))
-    index = 3
+    raise NotImplementedError("Build token-to-id vocabulary from the text examples.")
 
-    for word in distinct_words:
-        vocabulary[word] = index
-        index+=1
 
-    return vocabulary
-    #raise NotImplementedError("Build token-to-id vocabulary from the text examples.")
 
 def tokenize_texts(texts: list[str], token_to_id: dict[str, int], config: SequencePackingConfig) -> list[list[int]]:
     """Turn text examples into token-id lists."""
@@ -360,16 +329,8 @@ def tokenize_texts(texts: list[str], token_to_id: dict[str, int], config: Sequen
     # - `isinstance(token_lists[0][0], int)`
     # - If the text is `"to be"` and ids are `to=7`, `be=8`, the result should be `[7, 8]`.
 
-    unk_id = token_to_id[config.unk_token]
-    token_lists = []
-    for text in texts:
-        words = text.lower().split()
-        tokens = [token_to_id.get(word, unk_id) for word in words]
-        if len(tokens)>0:
-            token_lists.append(tokens)
+    raise NotImplementedError("Tokenize each text example into token ids.")
 
-    return token_lists
-    #raise NotImplementedError("Tokenize each text example into token ids.")
 
 # Build next-token labels from input ids.
 # Main idea:
@@ -414,10 +375,7 @@ def build_next_token_labels(input_ids: torch.Tensor, ignore_index: int) -> torch
     # - If `input_ids` is `[[10, 11, 12, 0]]`, labels should be `[[11, 12, 0, -100]]`.
     # - `labels.shape == input_ids.shape`
 
-    target_token_ids = torch.full_like(input_ids, ignore_index) #Returns a tensor with the same size as input filled with fill_value
-    target_token_ids[:, : -1] = input_ids[:, 1:]
-    return target_token_ids
-    #raise NotImplementedError("Shift labels one step left and ignore positions that should not train.")
+    raise NotImplementedError("Shift labels one step left and ignore positions that should not train.")
 
 # Build the simple padded version of the batch.
 # This is the baseline that may waste space.
@@ -471,20 +429,9 @@ def build_padded_batch(token_lists: list[list[int]], config: SequencePackingConf
     # - `(labels != config.ignore_index).sum()` counts real next-token targets.
     #
 
-    input_ids = torch.full(size=(len(token_lists), config.max_length), fill_value=pad_id, dtype=torch.long)    #Creates a tensor of size size filled with fill_value
-    target_ids = torch.full(size=(len(token_lists), config.max_length), fill_value=config.ignore_index, dtype=torch.long)
+    raise NotImplementedError("Build a padded language-model batch.")
 
-    for i, tokens in enumerate(token_lists):
-        # If tokens is shorter than config.max_length, this is still fine:
-        # Python slicing does not error when the slice end is past the list length.
-        capped_tokens = tokens[:config.max_length]   
-        tokens_tensor = torch.tensor(capped_tokens, dtype=torch.long)
-        seq_len = len(capped_tokens)
-        input_ids[i, :seq_len] = tokens_tensor[:seq_len]
-        target_ids[i, :seq_len-1] = tokens_tensor[1 : seq_len]
 
-    return {"input_ids": input_ids, "labels": target_ids}
-    #raise NotImplementedError("Build a padded language-model batch.")
 
 # Build the packed version of the batch.
 # This tries to use more token positions for real learning instead of padding.
@@ -556,50 +503,11 @@ def build_packed_batch(
     # - `labels.shape == input_ids.shape`
     # - No label should teach the model to predict the first token of a new text from `<sep>`.
 
-    final_rows = []
-    current = []
-    for tokens in token_lists:
-        if not tokens:
-            continue
+    raise NotImplementedError("build_packed_batch.")
 
-        if len(tokens) + 1 > config.packed_length:
-            example = tokens[: config.packed_length - 1] + [sep_id]
-        else:
-            example = tokens + [sep_id]
 
-        if current and len(current) + len(example) > config.packed_length:
-            padded_current = current + [pad_id] * (config.packed_length - len(current))
-            final_rows.append(padded_current)
-            current = []
 
-        current.extend(example)
 
-    if current:
-        padded_current = current + [pad_id] * (config.packed_length - len(current))
-        final_rows.append(padded_current)
-
-    if not final_rows:
-        input_ids = torch.empty((0, config.packed_length), dtype=torch.long)
-        labels = torch.empty((0, config.packed_length), dtype=torch.long)
-        return {"input_ids": input_ids, "labels": labels}
-
-    final_labels = []
-    for row in final_rows:
-        row_labels = [config.ignore_index] * config.packed_length
-        for index in range(config.packed_length - 1):
-            current_token = row[index]
-            next_token = row[index + 1]
-            if current_token == sep_id or current_token == pad_id:
-                continue
-            if next_token == pad_id:
-                continue
-            row_labels[index] = next_token
-        final_labels.append(row_labels)
-
-    input_ids = torch.tensor(final_rows, dtype=torch.long)
-    labels = torch.tensor(final_labels, dtype=torch.long)
-    return {"input_ids": input_ids, "labels": labels}
-    #raise NotImplementedError("build_packed_batch.")
 
 def count_useful_label_tokens(labels: torch.Tensor, ignore_index: int) -> int:
     """Count labels that will contribute to the loss."""
@@ -635,11 +543,8 @@ def count_useful_label_tokens(labels: torch.Tensor, ignore_index: int) -> int:
     # - For `[[6, 7, -100], [3, -100, -100]]`, the answer should be `3`.
 
     #labels is shape [batch_size, sequence_length]
-    mask = labels != ignore_index
-    count = mask.sum().item()
+    raise NotImplementedError("Count labels that are not ignore_index.")
 
-    return count
-    #raise NotImplementedError("Count labels that are not ignore_index.")
 
 # Compare padded and packed batches fairly.
 # The best comparison is:
@@ -698,50 +603,17 @@ def compare_padding_and_packing(
     # - `packed_useful_tokens >= padded_useful_tokens` for the default examples.
     # - `packing_note` should mention the concrete useful-token counts.
 
-    padded_label_ids = padded_batch["labels"]
-    packed_label_ids = packed_batch["labels"]
+    raise NotImplementedError("Return useful token counts and a plain-language comparison.")
 
-    padded_useful_tokens = count_useful_label_tokens(padded_label_ids, config.ignore_index) # these are labels != ignore_index
-    packed_useful_tokens = count_useful_label_tokens(packed_label_ids, config.ignore_index)
-    if sep_id is not None:
-        # Do not count separator labels here.
-        # They were added by packing, so counting them would make packing look like it created more real text labels.
-        padded_useful_tokens -= int((padded_label_ids == sep_id).sum().item())
-        packed_useful_tokens -= int((packed_label_ids == sep_id).sum().item())
 
     # `.numel()` counts every position in the tensor.
     # For shape `[100, 24]`, this is `100 * 24 = 2400`.
     # It does not mean "number of padding tokens".
-    padded_total_positions = padded_label_ids.numel()
-    packed_total_positions = packed_label_ids.numel()
 
-    padded_waste_tokens = padded_total_positions - padded_useful_tokens
-    packed_waste_tokens = packed_total_positions - packed_useful_tokens
 
-    if padded_useful_tokens == 0:
-        packing_efficiency_gain = 0.0
-    else:    
-        padded_efficiency = padded_useful_tokens / padded_total_positions
-        packed_efficiency = packed_useful_tokens / packed_total_positions
-        packing_efficiency_gain = packed_efficiency / padded_efficiency
     
-    packing_note = (
-        f"Packing used {packed_useful_tokens} useful non-separator labels "
-        f"instead of {padded_useful_tokens}."
-    )
 
-    return {
-        "padded_useful_tokens": padded_useful_tokens,
-        "packed_useful_tokens": packed_useful_tokens,
-        "padded_total_positions": padded_total_positions,
-        "packed_total_positions": packed_total_positions,
-        "padded_waste_tokens": padded_waste_tokens,
-        "packed_waste_tokens": packed_waste_tokens,
-        "packing_efficiency_gain": packing_efficiency_gain,
-        "packing_note": packing_note,
-    }
 
-    #raise NotImplementedError("Return useful token counts and a plain-language comparison.")
 
 def run_packing_demo(config: SequencePackingConfig) -> PackingComparison:
     """Run the full sequence-packing workflow."""
@@ -775,22 +647,12 @@ def run_packing_demo(config: SequencePackingConfig) -> PackingComparison:
     # Checks:
     # - The returned dictionary should pass `check_metrics(metrics)`.
 
-    texts_list = build_text_examples()
-    token_to_id = build_vocabulary(texts_list, config)
-    tokens_list = tokenize_texts(texts_list, token_to_id, config)
+    raise NotImplementedError("Run padded and packed batching and compare them.")
 
-    pad_id = token_to_id[config.pad_token]
-    sep_id = token_to_id[config.sep_token]
 
-    padded_batch = build_padded_batch(tokens_list, config, pad_id)
-    packed_batch = build_packed_batch(tokens_list, config, pad_id, sep_id)
 
-    compare_dict = compare_padding_and_packing(padded_batch, packed_batch, config, sep_id)
 
-    print(f"padded_batch shape: {padded_batch['input_ids'].shape}")
-    print(f"packed_batch shape: {packed_batch['input_ids'].shape}")
 
-    print(compare_dict)
 
     # example output:
     # padded_batch shape: torch.Size([100, 24])
@@ -799,9 +661,7 @@ def run_packing_demo(config: SequencePackingConfig) -> PackingComparison:
     # Plain meaning: packing uses tensor space about 5.77x more efficiently than padding for this data.
 
 
-    return compare_dict
 
-    #raise NotImplementedError("Run padded and packed batching and compare them.")
 
 def check_metrics(metrics: dict[str, float | int | str]) -> bool:
     """Return True when packing comparison values are present."""

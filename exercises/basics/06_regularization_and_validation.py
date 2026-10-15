@@ -125,8 +125,6 @@ from common.training_checks import print_pass_or_try_again
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-@dataclass
-        #raise NotImplementedError("Return raw class logits from the regularized model.")
 
 
 # Build the synthetic dataset and loaders.
@@ -139,19 +137,12 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 # Labels should be integer class tensors with dtype `torch.long`.
 def load_dataloaders(config: RegularizationConfig) -> dict[str, DataLoader]:
 
-    x, y = make_classification(n_samples = config.num_samples, n_features=config.num_features, 
-                                n_classes=config.num_classes, n_informative=config.num_features//2)
+    raise NotImplementedError("Return train, val, and test loaders.")
 
-    num_train, num_val = int(config.num_samples * 0.6), int(config.num_samples * 0.2)
     
-    train_ds = TensorDataset(torch.tensor(x[:num_train,:], dtype=torch.float), torch.tensor(y[:num_train], dtype=torch.int64))
-    val_ds = TensorDataset(torch.tensor(x[num_train:num_train+num_val,:], dtype=torch.float), torch.tensor(y[num_train:num_train+num_val], dtype=torch.int64))
-    test_ds = TensorDataset(torch.tensor(x[num_train+num_val:,:], dtype=torch.float), torch.tensor(y[num_train+num_val:], dtype=torch.int64))
 
-    return {"train": DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True),
-            "val": DataLoader(dataset=val_ds, batch_size=config.batch_size),
-            "test": DataLoader(dataset=test_ds, batch_size=config.batch_size)}
 
+@dataclass
 class RegularizationConfig:
     """Settings for regularization and validation."""
 
@@ -173,17 +164,9 @@ class RegularizedMLP(nn.Module):
 
     def __init__(self, input_dim: int, hidden_dim: int, num_classes: int, dropout: float) -> None:
         super().__init__()
-        self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
-        self.num_classes = num_classes
-        self.dropout = dropout
+        raise NotImplementedError("Build a small MLP and place dropout after a hidden activation. Keep it simple.")
 
-        self.fc1 = nn.Linear(in_features=input_dim, out_features=hidden_dim)
-        self.fc2 = nn.Linear(in_features=hidden_dim, out_features=hidden_dim//2)
-        self.d1 = nn.Dropout(p=dropout)
-        self.fc3 = nn.Linear(in_features=hidden_dim//2, out_features=num_classes)
 
-        #raise NotImplementedError("Build a small MLP and place dropout after a hidden activation. Keep it simple.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return class logits.
@@ -193,12 +176,7 @@ class RegularizedMLP(nn.Module):
         - dropout should run in train mode and turn off in eval mode automatically
         """
 
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.d1(x)
-        x = self.fc2(x)
-        x = F.relu(x)
-        x = self.fc3(x)
+        raise NotImplementedError("Return raw class logits from the regularized model.")
 
         # weight decay = 1e-4
         # without droput, with weight decay: Best Val Loss: 0.41208744049072266, early_stopped_at_epoch: 786, val_acc: 87.89
@@ -290,10 +268,8 @@ class RegularizedMLP(nn.Module):
         # for large weights, L2 penalizes more
 
 
-        return x
 
 
-    #raise NotImplementedError("Return train, val, and test loaders.")
 
 
 # Build the three training objects.
@@ -307,17 +283,11 @@ class RegularizedMLP(nn.Module):
 # - the model returns raw logits
 # - the labels are integer class ids with dtype `torch.long`
 def build_training_objects(config: RegularizationConfig) -> tuple[nn.Module, nn.Module, torch.optim.Optimizer]:
-    torch.manual_seed(config.random_state)
+    raise NotImplementedError("Return the model, loss function, and optimizer with weight decay.")
 
-    model = RegularizedMLP(input_dim = config.num_features, hidden_dim=config.hidden_dim, num_classes=config.num_classes, dropout=config.dropout)
-    model.to(device=device)
 
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(lr=config.learning_rate, weight_decay=config.weight_decay, params=model.parameters())
 
-    return model, loss_fn, optimizer
 
-    #raise NotImplementedError("Return the model, loss function, and optimizer with weight decay.")
 
 
 # Run one full training epoch.
@@ -329,40 +299,12 @@ def build_training_objects(config: RegularizationConfig) -> tuple[nn.Module, nn.
 # - "accuracy"
 def train_one_epoch(model: nn.Module, loader: DataLoader, loss_fn: nn.Module, optimizer: torch.optim.Optimizer) -> dict[str, float]:
 
-    losses, accuracies = [], []
+    raise NotImplementedError("Return one epoch of training metrics with loss and accuracy.")
 
-    model.train()
 
-    for x_data, y_targets in loader:
-        x_data = x_data.to(device)
-        y_targets = y_targets.to(device)
 
-        optimizer.zero_grad()
 
-        logits = model(x_data)
-        loss = loss_fn(logits, y_targets)
-        loss.backward()
-        optimizer.step()
-        
-        losses.append(loss.item())
 
-        max_indexes = torch.argmax(logits, dim=1) #across columns # or you can just say logits.argmax
-        # The below is the same as counting where prediction equals target in the batch and then deviding by batch_size(num_elements)
-        # to get the accuracy.
-        # When you think about it, the below will have an array of 1's where pred == y_target for that row/sample.
-        # Then when you take the mean, it just adds all the 1's and 0's and divides by num_elements.
-        # Because we used boolean which became 1's and 0's, when summed up, the 0's wont matter. Adding up the 1's
-        # is the same as counting the number of elements where pred=target, and the mean is just dividing by the num_elements/size.
-        correct = (max_indexes == y_targets).float()
-        mean_accuracy_accross_batch = float(correct.mean())
-        accuracies.append(mean_accuracy_accross_batch)
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accuracies).mean().item()
-
-    return {"loss": mean_loss, "accuracy":mean_acc}
-
-    #raise NotImplementedError("Return one epoch of training metrics with loss and accuracy.")
 
 
 # Run one full validation epoch.
@@ -376,30 +318,11 @@ def train_one_epoch(model: nn.Module, loader: DataLoader, loss_fn: nn.Module, op
 @torch.no_grad()
 def validate_one_epoch(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[str, float]:
 
-    model.eval()
+    raise NotImplementedError("Return one epoch of validation metrics with loss and accuracy.")
 
-    losses, accuracies = [], []
 
-    for x_data, y_targets in loader:
 
-        x_data = x_data.to(device)
-        y_targets = y_targets.to(device)
-
-        logits = model(x_data)
-        loss = loss_fn(logits, y_targets)
-
-        losses.append(loss.item())
-        
-        max_indexes = logits.argmax(dim=1) #max column index per row/sample
-        correct = (max_indexes == y_targets).float()
-        mean_accuracy_across_batch = correct.mean().item()
-        accuracies.append(mean_accuracy_across_batch)
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accuracies).mean().item()
     
-    return {"loss": mean_loss, "accuracy":mean_acc}
-    #raise NotImplementedError("Return one epoch of validation metrics with loss and accuracy.")
 
 
 # Decide whether to stop.
@@ -409,12 +332,9 @@ def validate_one_epoch(model: nn.Module, loader: DataLoader, loss_fn: nn.Module)
 # - and current_val_loss did not beat best_val_loss
 def should_stop_early(best_val_loss: float, current_val_loss: float, epochs_without_improvement: int, patience: int) -> bool:
 
-    if epochs_without_improvement >= patience and best_val_loss < current_val_loss:
-        return True
+    raise NotImplementedError("Return True when validation loss has not improved for patience epochs.")
     
-    return False
 
-    #raise NotImplementedError("Return True when validation loss has not improved for patience epochs.")
 
 
 # Run the full experiment and keep history.
@@ -431,47 +351,11 @@ def should_stop_early(best_val_loss: float, current_val_loss: float, epochs_with
 # - "best_val_loss"
 # - "stopped_early"
 def run_training(config: RegularizationConfig) -> dict[str, list[float] | float | bool]:
-    #raise NotImplementedError("Run training, track validation history, and include whether early stopping happened.")
 
-    loaders = load_dataloaders(config)
-    model, loss_fn, optimizer = build_training_objects(config)
+    raise NotImplementedError("Run training, track validation history, and include whether early stopping happened.")
 
-    stopped_early = False
-    train_losses, val_losses = [], []
-    train_accs, val_accs = [], []
-    best_val_loss = sys.float_info.max
-    counter = 0
-    for i in range(config.epochs):
-        train_dict = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-        val_dict = validate_one_epoch(model, loaders["val"], loss_fn)
 
-        train_losses.append(train_dict["loss"])
-        train_accs.append(train_dict["accuracy"])
-        val_losses.append(val_dict["loss"])
-        val_accs.append(val_dict["accuracy"])
 
-        current_val_loss = val_dict["loss"]
-
-        if should_stop_early(best_val_loss, current_val_loss, counter, config.patience):
-            stopped_early = True
-            break
-
-        if current_val_loss < best_val_loss:
-            #this means the loss improved
-            best_val_loss = current_val_loss
-            #reset counter
-            counter=0
-        else:
-            counter+=1
-
-        if i%10 == 0:
-            print(f"Epoch {i} -> loss: {train_dict["loss"]}, acc: {train_dict["accuracy"]}, val_loss: {val_dict["loss"]}, val_acc: {val_dict["accuracy"]}")
-
-    print(f"Best Val Loss: {best_val_loss}, early_stopped_at_epoch: {i}")
-
-    return {"train_losses":train_losses, "val_losses":val_losses, 
-            "train_accuracies": train_accs, "val_accuracies": val_accs,
-            "best_val_loss": best_val_loss, "stopped_early": stopped_early}
 
 
 def check_metrics(metrics: dict[str, list[float] | float | bool]) -> bool:

@@ -131,9 +131,7 @@ from common.training_checks import check_threshold, print_pass_or_try_again
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-@dataclass
 
-        #raise NotImplementedError("Return raw class logits with shape [batch_size, num_classes].")
 
 
 # Build the multiclass dataset and loaders.
@@ -146,19 +144,11 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 # Labels should be integer class tensors with dtype `torch.long`.
 def load_dataloaders(config: MulticlassClassificationConfig) -> dict[str, DataLoader]:
 
-    x, y = make_classification(n_samples = config.num_samples, 
-                                n_features = config.num_features, 
-                                n_classes=config.num_classes, n_informative=8)
+    raise NotImplementedError("Return train, val, and test loaders for the multiclass dataset.")
     
-    num_train, num_val = int(config.num_samples * 0.6), int(config.num_samples * 0.2)
-    train_ds = TensorDataset(torch.tensor(x[:num_train], dtype=torch.float), torch.tensor(y[:num_train], dtype=torch.int64))
-    val_ds = TensorDataset(torch.tensor(x[num_train: num_train+num_val], dtype=torch.float), torch.tensor(y[num_train: num_train+num_val], dtype=torch.int64))
-    test_ds = TensorDataset(torch.tensor(x[num_train+num_val:], dtype=torch.float), torch.tensor(y[num_train+num_val:], dtype=torch.int64))
 
-    return {"train": DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True),
-            "val": DataLoader(dataset=val_ds, batch_size = config.batch_size),
-            "test": DataLoader(dataset=test_ds, batch_size = config.batch_size)}
 
+@dataclass
 class MulticlassClassificationConfig:
     """Settings for the multiclass exercise."""
 
@@ -178,16 +168,9 @@ class MulticlassMLP(nn.Module):
 
     def __init__(self, input_dim: int, hidden_dim: int, num_classes: int) -> None:
         super().__init__()
-        self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
-        self.num_classes = num_classes
+        raise NotImplementedError("Build a small MLP, for example Linear -> ReLU -> Linear with num_classes outputs.")
 
-        self.fc1 = nn.Linear(in_features = input_dim, out_features=hidden_dim*4)
-        self.fc2 = nn.Linear(in_features = hidden_dim*4, out_features=hidden_dim*2)
-        self.fc3 = nn.Linear(in_features=hidden_dim*2, out_features=hidden_dim)
-        self.fc4 = nn.Linear(in_features=hidden_dim, out_features=num_classes)
 
-        #raise NotImplementedError("Build a small MLP, for example Linear -> ReLU -> Linear with num_classes outputs.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return raw logits with shape [batch_size, num_classes].
@@ -195,16 +178,11 @@ class MulticlassMLP(nn.Module):
         Do not apply softmax here if you use CrossEntropyLoss.
         """
 
-        x1 = F.relu(self.fc1(x))
-        x1 = F.relu(self.fc2(x1))
-        x1 = F.relu(self.fc3(x1))
-        out = self.fc4(x1)
+        raise NotImplementedError("Return raw class logits with shape [batch_size, num_classes].")
 
-        return out
 
     
 
-    #raise NotImplementedError("Return train, val, and test loaders for the multiclass dataset.")
 
 
 # Build the three training objects.
@@ -217,12 +195,7 @@ class MulticlassMLP(nn.Module):
 # - the model should return raw logits
 # - the labels should be integer class ids, not one-hot vectors
 def build_training_objects(config: MulticlassClassificationConfig) -> tuple[nn.Module, nn.Module, torch.optim.Optimizer]:
-    model = MulticlassMLP(config.num_features, config.hidden_dim, config.num_classes)
-    model.to(device=device)
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(lr = config.learning_rate, params = model.parameters())
-    return model, loss_fn, optimizer
-    #raise NotImplementedError("Return the model, CrossEntropyLoss, and optimizer.")
+    raise NotImplementedError("Return the model, CrossEntropyLoss, and optimizer.")
 
 
 # Run one full training epoch.
@@ -235,28 +208,10 @@ def build_training_objects(config: MulticlassClassificationConfig) -> tuple[nn.M
 # Use multiclass_accuracy_from_logits(...) for the accuracy.
 def train_one_epoch(model: nn.Module, loader: DataLoader, loss_fn: nn.Module, optimizer: torch.optim.Optimizer) -> dict[str, float]:
 
-    losses, accuracies = [], []
-    for x_data, y_targets in loader:
+    raise NotImplementedError("Return one epoch of training metrics with loss and accuracy.")
 
-        x_data = x_data.to(device=device)
-        y_targets = y_targets.to(device=device)
 
-        optimizer.zero_grad()
 
-        output = model(x_data)        
-        loss = loss_fn(output, y_targets)
-        loss.backward()
-        optimizer.step()
-
-        losses.append(loss.item())
-        accuracies.append(multiclass_accuracy_from_logits(output, y_targets))
-
-    mean_loss = torch.tensor(losses).mean()
-    mean_acc = torch.tensor(accuracies).mean()
-
-    return {"loss":mean_loss, "accuracy":mean_acc}
-
-    #raise NotImplementedError("Return one epoch of training metrics with loss and accuracy.")
 
 
 # Run one full validation epoch.
@@ -270,29 +225,13 @@ def train_one_epoch(model: nn.Module, loader: DataLoader, loss_fn: nn.Module, op
 @torch.no_grad()
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[str, float]:
 
-    model.eval()
+    raise NotImplementedError("Return validation loss and validation accuracy.")
 
-    losses, accuracies = [], []
 
-    for x_data, y_targets in loader:
 
-        x_data = x_data.to(device=device)
-        y_targets = y_targets.to(device=device)
 
-        output = model(x_data)
-        loss = loss_fn(output, y_targets)
 
-        losses.append(loss.item())
-        accuracies.append(multiclass_accuracy_from_logits(output, y_targets))
 
-    mean_loss = torch.tensor(losses).mean()
-    mean_acc = torch.tensor(accuracies).mean()
-
-    model.train()
-
-    return {"loss": mean_loss, "accuracy": mean_acc}
-
-    #raise NotImplementedError("Return validation loss and validation accuracy.")
 
 
 # Train for several epochs and return the final summary.
@@ -309,23 +248,11 @@ def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[s
 # - "val_accuracy"
 def run_training(config: MulticlassClassificationConfig) -> dict[str, float]:
     
-    loaders = load_dataloaders(config)
-    model, loss_fn, optimizer = build_training_objects(config)
-
-    dict_train, dict_val = {},{}
-    for i in range(config.epochs):
-
-        dict_train = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-        dict_val = evaluate(model, loaders["val"], loss_fn)
-
-        if i % 10 == 0:
-            print(f"Epoch {i} -> loss: {dict_train['loss']:.5f}, acc: {dict_train['accuracy']:.5f}, val_loss: {dict_val['loss']:.5f}, val_acc: {dict_val['accuracy']:.4f}")
+    raise NotImplementedError("Run the full multiclass training flow and return the final train and val metrics.")
 
 
-    return {"train_loss":dict_train["loss"], "train_accuracy":dict_train["accuracy"],
-            "val_loss":dict_val["loss"], "val_accuracy":dict_val["accuracy"]}
 
-    #raise NotImplementedError("Run the full multiclass training flow and return the final train and val metrics.")
+
 
 
 

@@ -264,12 +264,8 @@ class TinyActorCriticEnv:
         # - `state.sum()` should be `1.0`.
         # - `self.position` should be `0` after reset.
 
-        self.position = 0
-        state = torch.zeros(self.config.state_dim, dtype=torch.float32)
-        state[self.position] = 1.0
+        raise NotImplementedError("Return the starting state vector.")
 
-        return state
-        #raise NotImplementedError("Return the starting state vector.")
 
     def step(self, action: int) -> tuple[torch.Tensor, float, bool]:
         """Run one environment step and return next state, reward, and done."""
@@ -309,24 +305,12 @@ class TinyActorCriticEnv:
         # - The position should never go above `state_dim - 1`.
         # - `done` should be `True` only at the goal.
 
-        goal_position = self.config.state_dim - 1
+        raise NotImplementedError("Return the next state, reward, and done flag.")
 
-        if action == 0:
-            self.position = max(0, self.position-1)
-        elif action == 1:
-            self.position = min(goal_position, self.position + 1)
 
-        done = self.position == goal_position
 
-        reward = -0.01
-        if done:
-            reward = 1.0
 
-        state = torch.zeros(self.config.state_dim, dtype=torch.float32)
-        state[self.position] = 1.0
 
-        return state, reward, done
-        #raise NotImplementedError("Return the next state, reward, and done flag.")
 
 class ActorCriticNetwork(nn.Module):
     """Tiny network with actor and critic outputs."""
@@ -372,13 +356,9 @@ class ActorCriticNetwork(nn.Module):
         # - For input shape `[batch_size, state_dim]`, critic values should be `[batch_size]`.
         super().__init__()
 
-        self.trunk = nn.Sequential(nn.Linear(in_features=config.state_dim, out_features=config.hidden_dim),
-                                    nn.ReLU(inplace=True))
+        raise NotImplementedError("Build a tiny shared trunk with actor and critic heads.")
 
-        self.actor_head = nn.Linear(in_features=config.hidden_dim, out_features=config.num_actions)
-        self.critic_head = nn.Linear(in_features=config.hidden_dim, out_features=1)
 
-        #raise NotImplementedError("Build a tiny shared trunk with actor and critic heads.")
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Return action logits and state values."""
@@ -416,12 +396,8 @@ class ActorCriticNetwork(nn.Module):
         # - Do not apply softmax to logits in `forward`.
         # - Do not use `.squeeze()` without a dimension, because a batch of size 1 could become shape `[]`.
 
-        features = self.trunk(x)
-        logits = self.actor_head(features)
-        values = self.critic_head(features)
+        raise NotImplementedError("Return actor logits and critic values.")
 
-        return logits, values.squeeze(dim=-1)
-        #raise NotImplementedError("Return actor logits and critic values.")
 
 # Collect one rollout.
 # Return at least:
@@ -489,92 +465,11 @@ def collect_rollout(
     # - Each log-probability should be a scalar tensor that still has gradients.
     # - Each value should be a scalar tensor that still has gradients.
 
-    model.train()
+    raise NotImplementedError("Return one rollout with actor and critic information.")
 
-    model_device = next(model.parameters()).device
-    state = env.reset().to(model_device)
 
-    states, actions, rewards, dones, log_probs, values = [], [], [], [], [], []
 
-    for i in range(config.max_steps_per_rollout):
 
-        logits, value_batch = model(state.unsqueeze(dim=0))  # add a fake batch dim
-
-        # `logits` has shape `[1, num_actions]` because the policy saw one state.
-        # The first `1` is the batch size.
-        # `logits.squeeze(0)` removes that batch wrapper, so the scores become shape `[num_actions]`.
-        #
-        # `Categorical(logits=...)` is the PyTorch distribution for choosing one item
-        # from a short list of choices. Here the choices are actions:
-        # - action 0 = left
-        # - action 1 = right
-        #
-        # This is very similar to:
-        # ```python
-        # probs = torch.softmax(logits.squeeze(0), dim=-1)
-        # action_tensor = torch.multinomial(probs, num_samples=1)
-        # ```
-        #
-        # Both versions mean:
-        # turn raw action scores into probabilities, then randomly pick one action
-        # using those probabilities.
-        #
-        # Small example:
-        # ```python
-        # action_scores = torch.tensor([2.0, 0.5])
-        # probs = torch.softmax(action_scores, dim=-1)
-        # # probs is about tensor([0.8176, 0.1824])
-        # ```
-        #
-        # So action 0 is picked about 82% of the time,
-        # and action 1 is picked about 18% of the time.
-        #
-        # `Categorical` is nicer here because actor-critic also needs `log_prob`.
-        # `log_prob` means "the log of the probability of the action we actually picked".
-        #
-        # Example:
-        # If the policy probabilities are:
-        # - action 0: 0.82
-        # - action 1: 0.18
-        #
-        # and the sampled action is action 0, then:
-        # ```python
-        # log_prob = torch.log(torch.tensor(0.82))
-        # # about -0.20
-        # ```
-        #
-        # If the sampled action is action 1, then:
-        # ```python
-        # log_prob = torch.log(torch.tensor(0.18))
-        # # about -1.71
-        # ```
-        #
-        # A more likely action has a log_prob closer to 0.
-        # A less likely action has a more negative log_prob.
-        
-        dist = torch.distributions.Categorical(logits=logits.squeeze(0))
-        action_tensor = dist.sample()
-        log_prob = dist.log_prob(action_tensor)
-        action = int(action_tensor.item())
-
-        values.append(value_batch.squeeze(dim=0))   # save critic value
-
-        next_state, reward, done = env.step(action)
-        next_state = next_state.to(model_device)
-
-        states.append(state)
-        actions.append(action)
-        rewards.append(reward)
-        dones.append(done)
-        log_probs.append(log_prob)
-
-        state = next_state
-
-        if done:
-            break
-
-    return {"states": states, "actions": actions, "rewards": rewards, "dones": dones, "log_probs": log_probs, "values": values}
-    #raise NotImplementedError("Return one rollout with actor and critic information.")
 
 def compute_value_targets(rewards: list[float], gamma: float) -> list[float]:
     """Return discounted value targets for the rollout."""
@@ -669,15 +564,9 @@ def compute_value_targets(rewards: list[float], gamma: float) -> list[float]:
     #   the result should be `[0.97, 0.98, 0.99, 1.0]`.
     # - The final target should equal the final reward because there is no later reward.
 
-    targets = []
-    running_target = 0.0
+    raise NotImplementedError("Return discounted value targets.")
 
-    for reward in reversed(rewards):
-        running_target = reward + gamma * running_target
-        targets.insert(0, running_target)
 
-    return targets
-    #raise NotImplementedError("Return discounted value targets.")
 
 def compute_advantages(value_targets: list[float], predicted_values: list[torch.Tensor]) -> torch.Tensor:
     """Return the rollout advantages."""
@@ -721,11 +610,7 @@ def compute_advantages(value_targets: list[float], predicted_values: list[torch.
     # - If target is `0.9` and predicted value is `0.4`, advantage should be `0.5`.
     # - The output length should equal `len(value_targets)`.
 
-    value_tensor = torch.stack(predicted_values).squeeze(-1)
-    target_tensor = torch.tensor(value_targets, dtype=torch.float32, device=value_tensor.device)
-    advantages = target_tensor - value_tensor.detach()
-    return advantages
-    #raise NotImplementedError("Return target value minus predicted value.")
+    raise NotImplementedError("Return target value minus predicted value.")
 
 def actor_loss(log_probs: list[torch.Tensor], advantages: torch.Tensor) -> torch.Tensor:
     """Return the actor loss."""
@@ -771,11 +656,8 @@ def actor_loss(log_probs: list[torch.Tensor], advantages: torch.Tensor) -> torch
     # - `len(log_probs)` should equal `advantages.shape[0]`.
     # - Do not call `.item()` before `loss.backward()`.
 
-    log_prob_tensor = torch.stack(log_probs)
-    loss = -(log_prob_tensor * advantages.detach()).mean()
+    raise NotImplementedError("Return the actor loss using log_probs and advantages.")
 
-    return loss
-    #raise NotImplementedError("Return the actor loss using log_probs and advantages.")
 
 def critic_loss(predicted_values: list[torch.Tensor], value_targets: list[float]) -> torch.Tensor:
     """Return the critic loss."""
@@ -817,12 +699,8 @@ def critic_loss(predicted_values: list[torch.Tensor], value_targets: list[float]
     # - `len(predicted_values)` should equal `len(value_targets)`.
     # - Do not detach `value_tensor` here, because this loss should train the critic.
 
-    value_tensor = torch.stack(predicted_values).squeeze(-1)
-    target_tensor = torch.tensor(value_targets, dtype=torch.float32, device=value_tensor.device)
-    loss = nn.functional.mse_loss(value_tensor, target_tensor)
+    raise NotImplementedError("Return the critic loss between predicted and target values.")
 
-    return loss
-    #raise NotImplementedError("Return the critic loss between predicted and target values.")
 
 def train_actor_critic(config: ActorCriticConfig) -> ActorCriticSummary:
     """Run the full actor-critic workflow."""
@@ -881,62 +759,11 @@ def train_actor_critic(config: ActorCriticConfig) -> ActorCriticSummary:
     # - `mean_return` should be a Python float.
     # - Actor and critic losses should both be used in the update.
 
-    env = TinyActorCriticEnv(config)
-    model = ActorCriticNetwork(config).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+    raise NotImplementedError("Collect rollouts, compute advantages, train actor and critic, and return a summary.")
 
-    rollout_returns = []
 
-    last_actor_loss, last_critic_loss = 0.0, 0.0
 
-    for i in range(config.rollouts):
 
-        rollout = collect_rollout(model, env, config)
-
-        # Build one target per step: "from this step onward, how good did things turn out?"
-        # These are the answers the critic is trying to learn.
-        value_targets = compute_value_targets(rollout["rewards"], config.gamma)
-
-        # Compare what really happened with what the critic guessed.
-        # Positive advantage means the step turned out better than the critic expected.
-        # Negative advantage means it turned out worse than the critic expected.
-        advantages = compute_advantages(value_targets, rollout["values"])
-
-        # Train the actor with the advantage signal.
-        # If an action did better than expected, make that action more likely next time.
-        # If it did worse than expected, make that action less likely next time.
-        a_loss = actor_loss(rollout["log_probs"], advantages)
-
-        # Train the critic to make better value guesses.
-        # It compares the critic's old guesses with the value targets from this rollout.
-        c_loss = critic_loss(rollout["values"], value_targets)
-
-        loss = a_loss + c_loss
-
-        optimizer.zero_grad()
-
-        loss.backward()
-        optimizer.step()
-
-        rollout_returns.append(sum(rollout["rewards"]))
-        last_actor_loss = float(a_loss.item())
-        last_critic_loss = float(c_loss.item())
-
-        if (i + 1) % 10 == 0 or i == 0:
-            reached_goal = bool(rollout["dones"][-1])
-            print(
-                f"rollout {i + 1:03d}: "
-                f"return={rollout_returns[-1]:.4f}, "
-                f"steps={len(rollout['rewards'])}, "
-                f"reached_goal={reached_goal}, "
-                f"actor_loss={last_actor_loss:.4f}, "
-                f"critic_loss={last_critic_loss:.4f}"
-            )
-
-    mean_return = float(sum(rollout_returns) / len(rollout_returns))
-    check_window = min(10, len(rollout_returns))
-    early_mean_return = float(sum(rollout_returns[:check_window]) / check_window)
-    late_mean_return = float(sum(rollout_returns[-check_window:]) / check_window)
 
     # In this LineWorld, the agent gets -0.01 for each non-goal step
     # and +1.0 when it reaches the goal.
@@ -944,23 +771,8 @@ def train_actor_critic(config: ActorCriticConfig) -> ActorCriticSummary:
     # - the agent reached the goal
     # - it took about 3 small penalty steps first
     # - the total was roughly -0.01 - 0.01 - 0.01 + 1.0 = 0.97
-    print("Training check:")
-    print(f"  first {check_window} rollout mean return: {early_mean_return:.4f}")
-    print(f"  last {check_window} rollout mean return: {late_mean_return:.4f}")
-    print(f"  final rollout return: {rollout_returns[-1]:.4f}")
-    print("  Higher return is better here because the agent gets +1 at the goal.")
 
-    summary: ActorCriticSummary = {
-        "mean_return": mean_return,
-        "last_actor_loss": last_actor_loss,
-        "last_critic_loss": last_critic_loss,
-        "num_rollouts": config.rollouts,
-        "note": "",
-    }
-    summary["note"] = explain_advantage(summary)
 
-    return summary
-    #raise NotImplementedError("Collect rollouts, compute advantages, train actor and critic, and return a summary.")
 
 def explain_advantage(summary: ActorCriticSummary) -> str:
     """Write a short note about the meaning of advantage."""
@@ -992,12 +804,7 @@ def explain_advantage(summary: ActorCriticSummary) -> str:
     # - Keep the note short and plain.
     # - Do not say the critic chooses the action.
     # - Do not say advantage is always positive.
-    mean_return = summary["mean_return"]
-    return (
-        f"The critic gives a baseline guess for each state. "
-        f"Advantage is the target return minus that guess, and this run had mean return {mean_return:.3f}."
-    )
-    #raise NotImplementedError("Explain advantage and the critic in simple words.")
+    raise NotImplementedError("Explain advantage and the critic in simple words.")
 
 def check_metrics(metrics: ActorCriticSummary) -> bool:
     """Return True when the actor-critic summary has the expected keys."""

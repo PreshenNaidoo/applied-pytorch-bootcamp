@@ -155,13 +155,9 @@ def describe_rope_shapes(config: RoPEConfig) -> dict[str, object]:
 def make_toy_qk(config: RoPEConfig) -> dict[str, torch.Tensor]:
     """Return toy query and key tensors."""
 
-    gen = torch.Generator().manual_seed(config.random_state)
+    raise NotImplementedError("Return query and key tensors with shape [batch, heads, seq, head_dim].")
 
-    query = torch.randn(config.batch_size, config.num_heads, config.sequence_length, config.head_dim, generator=gen)
-    key = torch.randn(config.batch_size, config.num_heads, config.sequence_length, config.head_dim, generator=gen)    
 
-    return {"query": query, "key": key}
-    #raise NotImplementedError("Return query and key tensors with shape [batch, heads, seq, head_dim].")
 
 # Build the sine and cosine values used by RoPE.
 # Return:
@@ -244,32 +240,22 @@ def build_rope_cache(config: RoPEConfig) -> dict[str, torch.Tensor]:
     # The first two dimensions are 1 so PyTorch can broadcast them across every batch and head.
 
     # step1
-    if config.head_dim % 2 != 0:
-        raise ValueError("Head dimension should be an even number.")
+    raise NotImplementedError("Return sine and cosine tensors for each position.")
 
     # step 2
-    token_positions = torch.arange(start=0, end=config.sequence_length, step=1, dtype=torch.float)  #shape = [8]
     
     # step 3
     # frequencies = 1.0 / (base ** (pair_index / (head_dim // 2)))
-    pair_indexes = torch.arange(start=0, end=config.head_dim//2, step=1, dtype=torch.float)         # shape = [4]
-    frequencies = 1.0 / (config.base ** (pair_indexes / (config.head_dim//2)))                      # shape = [4]
 
     # step 4
     # positions is shape (sequence_length), frequencies is shape (head_dim//2)
     # angle tensor should be shape (sequence_length, head_dim//2)
     # sequence_length = 8, head_dim=16
     # matmul  (8, 1) @ (1, 16//2) = (8, 8)
-    angles = token_positions.unsqueeze(dim=-1) @ frequencies.unsqueeze(dim=0)                       # shape = [8,8]
 
     # step 5 and 6
     # these should have shape [1, 1, sequence_length, head_dim]
-    repeat_angles = torch.concat([angles, angles], dim=-1)                                          # shape = [8, 16]
-    cos_angles = torch.cos(repeat_angles).unsqueeze(dim=0).unsqueeze(dim=0)                         # shape = [1, 1, 8, 16]
-    sin_angles = torch.sin(repeat_angles).unsqueeze(dim=0).unsqueeze(dim=0)                         # shape = [1, 1, 8, 16]
 
-    return {"cos": cos_angles, "sin": sin_angles}
-    #raise NotImplementedError("Return sine and cosine tensors for each position.")
 
 # Plot the RoPE cache as heatmaps.
 # This is a visual helper for learning.
@@ -380,23 +366,15 @@ def rotate_half(x: torch.Tensor) -> torch.Tensor:
     # x shape is [batch_size, num_heads, sequence_length, head_dim]
 
     # step 1:
-    batch_size, num_heads, sequence_length, head_dim = x.shape   # (2, 4, 8, 16)
-    split_x = x.unsqueeze(dim=3).reshape(batch_size, num_heads, sequence_length, 2, head_dim//2)  # (2, 4, 8, 2, 8)
+    raise NotImplementedError("Return the rotate-half version of the tensor.")
     #first_half, second_half = split_x[:,:,:,0,:], split_x[:,:,:,1,:]  # both become (2, 4, 8, 8)
-    first_half, second_half = split_x[:,:,:,0:1,:], split_x[:,:,:,1:,:]  # both become (2, 4, 8, 1, 8)
 
     # step 2:
-    second_half = second_half * -1    # (2, 4, 8, 1, 8)
 
     # step 3:
-    merged = torch.concat([second_half, first_half], dim=3)     # (2, 4, 8, 2, 8)
 
     # step 4:
-    merged = merged.reshape(batch_size, num_heads, sequence_length, 1, head_dim)    # (2, 4, 8, 1, 16)
-    merged = merged.reshape(batch_size, num_heads, sequence_length, head_dim)       # (2, 4, 8, 16)
 
-    return merged
-    #raise NotImplementedError("Return the rotate-half version of the tensor.")
 
 # Apply RoPE to one query or key tensor.
 # Return a tensor with the same shape.
@@ -600,10 +578,8 @@ def apply_rope(x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor) -> torch.T
 
     # x is [batch, heads, seq, head_dim]
 
-    rotated_x = (x * cos) + (rotate_half(x) * sin)
+    raise NotImplementedError("Apply rotary position information and keep the same shape.")
 
-    return rotated_x
-    #raise NotImplementedError("Apply rotary position information and keep the same shape.")
 
 # Compute scaled attention scores from query and key.
 # Input:
@@ -634,13 +610,9 @@ def attention_scores(query: torch.Tensor, key: torch.Tensor) -> torch.Tensor:
     # divide by sqrt(head_dim)
     # This keeps the scores from getting too large when head_dim is bigger.
 
-    batch, heads, seq, head_dim = query.shape
+    raise NotImplementedError("Compute scaled query-key attention scores.")
 
-    scores = torch.matmul(query, key.transpose(dim0=2, dim1=3)) #(batch, heads, seq, head_dim) @ (batch, heads, head_dim, seq)
-    scores/=sqrt(head_dim)  # (batch, heads, seq, seq)
 
-    return scores
-    #raise NotImplementedError("Compute scaled query-key attention scores.")
 
 # Compare attention scores before and after RoPE.
 # Return:
@@ -682,71 +654,34 @@ def compare_attention_scores(
     # - "score_difference"
 
     # step 1:
-    att_scores_before = attention_scores(query, key)
+    raise NotImplementedError("Return shape checks and a score-difference value.")
 
     # step 2 and 3:    
-    rope_query = apply_rope(query, cos, sin)
-    rope_key = apply_rope(key, cos, sin)
 
     # step 4
-    att_scores_after = attention_scores(rope_query, rope_key)
 
     # step 5 and 6
-    if rope_query.shape != query.shape or rope_key.shape != key.shape:
-        raise ValueError("Shapes not equal")
 
     # step 7:
-    mean_diff = (att_scores_after - att_scores_before).abs().mean().item()
 
-    return {"query_shape": query.shape,
-            "rotated_query_shape": rope_query.shape,
-            "key_shape": key.shape,
-            "rotated_key_shape": rope_key.shape,
-            "score_difference":mean_diff}
 
-    #raise NotImplementedError("Return shape checks and a score-difference value.")
 
 # Write the final explanation.
 # Return:
 # - one short plain-language note that explains how RoPE changed attention scores
 def write_rope_note(score_summary: dict[str, float | tuple[int, ...]]) -> str:
     """Write a short plain-language note about RoPE."""
-    score_difference = float(score_summary["score_difference"])
-    return (
-        "RoPE changed the attention scores by rotating the query and key vectors "
-        "based on token position. The query and key shapes stayed the same, but "
-        f"the mean score change was {score_difference:.6f}."
-    )
-    #raise NotImplementedError("Explain what changed after applying RoPE.")
+    raise NotImplementedError("Explain what changed after applying RoPE.")
 
 # Run the full RoPE workflow.
 # Return:
 # - dictionary with shape checks, score difference, and explanation note
 def run_rope_demo(config: RoPEConfig) -> dict[str, float | bool | str]:
     """Run the full RoPE demo."""
-    qk = make_toy_qk(config)
-    rope_cache = build_rope_cache(config)
+    raise NotImplementedError("Run the RoPE shape and score comparison.")
 
-    score_summary = compare_attention_scores(
-        query=qk["query"],
-        key=qk["key"],
-        cos=rope_cache["cos"],
-        sin=rope_cache["sin"],
-    )
-    note = write_rope_note(score_summary)
-    print(note)
 
-    shape_ok = (
-        score_summary["query_shape"] == score_summary["rotated_query_shape"]
-        and score_summary["key_shape"] == score_summary["rotated_key_shape"]
-    )
 
-    return {
-        "shape_ok": bool(shape_ok),
-        "score_difference": float(score_summary["score_difference"]),
-        "note": note,
-    }
-    #raise NotImplementedError("Run the RoPE shape and score comparison.")
 
 # Check whether the RoPE demo returned the main proof values.
 # Return:

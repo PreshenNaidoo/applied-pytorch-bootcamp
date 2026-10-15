@@ -239,41 +239,10 @@ def build_failure_set(config: FailureSetConfig) -> list[FailureExample]:
     # Checks:
     # - Every condition should appear at least once.
     # - Transformed images should keep the same shape as original images.
-    from datasets import load_dataset
-    import torchvision.transforms
+    raise NotImplementedError("Build bodycam-style failure set.")
 
-    data = load_dataset(config.hf_dataset_name, split=f"train[:{config.sample_size}]")
-    image_transform = torchvision.transforms.Compose(
-        [
-            torchvision.transforms.Resize((config.image_size, config.image_size)),
-            torchvision.transforms.ToTensor(),
-        ]
-    )
-    conditions = ["low_light", "blur", "occlusion", "small_object", "unusual_angle", "ambiguous"]
-    examples: list[FailureExample] = []
 
-    for row in data:
-        image = row["image"].convert("RGB")
-        clean_image = image_transform(image)
-        target_answer = caption_to_clip_answer(row["caption"])
 
-        for condition in conditions:
-            transformed_image = apply_failure_transform(clean_image, condition, config)
-            condition_target = target_answer
-            if condition == "ambiguous":
-                condition_target = "not enough information"
-
-            examples.append(
-                {
-                    "image": transformed_image,
-                    "question": "what is visible?",
-                    "target_answer": condition_target,
-                    "condition": condition,
-                }
-            )
-
-    return examples
-    #raise NotImplementedError("Build bodycam-style failure set.")
 
 
 def apply_failure_transform(image: torch.Tensor, condition: str, config: FailureSetConfig) -> torch.Tensor:
@@ -307,42 +276,10 @@ def apply_failure_transform(image: torch.Tensor, condition: str, config: Failure
     # Checks:
     # - Shape should not change.
     # - Pixel values should stay between 0 and 1.
-    import torch.nn.functional as F
-    import torchvision.transforms.functional as TF
+    raise NotImplementedError("Apply visual failure transform.")
 
-    output = image.clone()
-    height = output.shape[1]
-    width = output.shape[2]
 
-    if condition == "low_light":
-        output = output * 0.25
 
-    elif condition == "occlusion":
-        y0 = height // 4
-        y1 = 3 * height // 4
-        x0 = width // 4
-        x1 = 3 * width // 4
-        output[:, y0:y1, x0:x1] = 0
-
-    elif condition == "blur":
-        output = F.avg_pool2d(output.unsqueeze(0), kernel_size=5, stride=1, padding=2).squeeze(0)
-
-    elif condition == "small_object":
-        small = F.interpolate(output.unsqueeze(0), size=(height // 2, width // 2), mode="bilinear", align_corners=False).squeeze(0)
-        output = torch.zeros_like(output)
-        y0 = height // 4
-        x0 = width // 4
-        output[:, y0 : y0 + small.shape[1], x0 : x0 + small.shape[2]] = small
-
-    elif condition == "unusual_angle":
-        output = TF.rotate(output, angle=20)
-
-    elif condition == "ambiguous":
-        output = output * 0.05
-        output[:, height // 8 : 7 * height // 8, width // 8 : 7 * width // 8] = 0
-
-    return output.clamp(0, 1)
-    #raise NotImplementedError("Apply visual failure transform.")
 
 
 class TinyFailureSetModel(nn.Module):
@@ -381,16 +318,8 @@ class TinyFailureSetModel(nn.Module):
         # Checks:
         # - The model should accept real image tensors.
         # - `config.confidence_threshold` should be used in `predict(...)`.
-        from transformers import CLIPModel, CLIPProcessor
+        raise NotImplementedError("Build or load model for failure testing.")
 
-        self.confidence_threshold = config.confidence_threshold
-        self.model_mode = "clip"
-        self.label_names = CLIP_ANSWER_CHOICES
-        self.processor = CLIPProcessor.from_pretrained(config.pretrained_clip_name)
-        self.clip_model = CLIPModel.from_pretrained(config.pretrained_clip_name, use_safetensors=True)
-        self.clip_model.to(device)
-        self.clip_model.eval()
-        #raise NotImplementedError("Build or load model for failure testing.")
 
     def predict(self, image: torch.Tensor, question: str) -> FailurePrediction:
         """Return answer, confidence, and abstention flag."""
@@ -425,36 +354,12 @@ class TinyFailureSetModel(nn.Module):
         #
         # Check:
         # - Confidence should be between 0 and 1.
-        import torchvision.transforms.functional as TF
+        raise NotImplementedError("Predict with confidence and possible abstention.")
 
-        pil_image = TF.to_pil_image(image.detach().cpu().clamp(0, 1))
-        inputs = self.processor(
-            text=self.label_names,
-            images=pil_image,
-            return_tensors="pt",
-            padding=True,
-        )
-        inputs = {key: value.to(device) for key, value in inputs.items()}
 
-        self.clip_model.eval()
-        with torch.no_grad():
-            outputs = self.clip_model(**inputs)
-            probabilities = torch.softmax(outputs.logits_per_image, dim=-1)
-            confidence_tensor, label_id_tensor = probabilities.max(dim=-1)
 
-        confidence = float(confidence_tensor.item())
-        answer = self.label_names[int(label_id_tensor.item())]
-        abstained = confidence < self.confidence_threshold
 
-        if abstained:
-            answer = "not enough information"
 
-        return {
-            "answer": answer,
-            "confidence": confidence,
-            "abstained": abstained,
-        }
-        #raise NotImplementedError("Predict with confidence and possible abstention.")
 
 
 def evaluate_failure_set(model: TinyFailureSetModel, examples: list[FailureExample], config: FailureSetConfig) -> FailureSetMetrics:
@@ -482,57 +387,12 @@ def evaluate_failure_set(model: TinyFailureSetModel, examples: list[FailureExamp
     # Check:
     # - Low worst-condition accuracy is not a code failure here.
     #   It means the failure set found a weak spot.
-    total_count = 0
-    correct_count = 0
-    abstention_count = 0
-    condition_stats: dict[str, dict[str, int]] = {}
+    raise NotImplementedError("Evaluate failure set by condition.")
 
-    for example in examples:
-        prediction = model.predict(example["image"], example["question"])
-        condition = example["condition"]
 
-        if condition not in condition_stats:
-            condition_stats[condition] = {"total": 0, "correct": 0}
 
-        total_count += 1
-        condition_stats[condition]["total"] += 1
 
-        if prediction["abstained"]:
-            abstention_count += 1
 
-        predicted_answer = prediction["answer"].strip().lower()
-        target_answer = example["target_answer"].strip().lower()
-        is_correct = (not prediction["abstained"]) and predicted_answer == target_answer
-
-        if is_correct:
-            correct_count += 1
-            condition_stats[condition]["correct"] += 1
-
-    if total_count == 0:
-        return {
-            "overall_accuracy": 0.0,
-            "abstention_rate": 0.0,
-            "worst_condition_accuracy": 0.0,
-            "worst_condition": "",
-            "failure_grid_path": "",
-            "condition_chart_path": "",
-        }
-
-    condition_accuracies: dict[str, float] = {}
-    for condition, stats in condition_stats.items():
-        condition_accuracies[condition] = stats["correct"] / stats["total"]
-
-    worst_condition = min(condition_accuracies, key=condition_accuracies.get) if condition_accuracies else ""
-
-    return {
-        "overall_accuracy": correct_count / total_count,
-        "abstention_rate": abstention_count / total_count,
-        "worst_condition_accuracy": condition_accuracies[worst_condition] if worst_condition else 0.0,
-        "worst_condition": worst_condition,
-        "failure_grid_path": "",
-        "condition_chart_path": "",
-    }
-    #raise NotImplementedError("Evaluate failure set by condition.")
 
 
 def save_failure_visuals(examples: list[FailureExample], predictions: list[FailurePrediction], config: FailureSetConfig) -> tuple[str, str]:
@@ -560,81 +420,14 @@ def save_failure_visuals(examples: list[FailureExample], predictions: list[Failu
     #
     # Check:
     # - The grid should include at least a few wrong or abstained examples.
-    import matplotlib
+    raise NotImplementedError("Save failure-set visuals.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    failure_grid_path = config.output_dir / "bodycam_failure_grid.png"
-    condition_chart_path = config.output_dir / "bodycam_condition_accuracy.png"
 
-    shown_pairs = list(zip(examples, predictions))[:8]
-    if shown_pairs:
-        column_count = min(4, len(shown_pairs))
-        row_count = (len(shown_pairs) + column_count - 1) // column_count
-        fig, axes = plt.subplots(row_count, column_count, figsize=(4 * column_count, 4 * row_count))
 
-        if row_count == 1 and column_count == 1:
-            axes = [[axes]]
-        elif row_count == 1:
-            axes = [axes]
-        elif column_count == 1:
-            axes = [[ax] for ax in axes]
 
-        flat_axes = [ax for row in axes for ax in row]
-        for ax, (example, prediction) in zip(flat_axes, shown_pairs):
-            image = example["image"].detach().cpu().clamp(0, 1).permute(1, 2, 0).numpy()
-            ax.imshow(image)
-            title = (
-                f"{example['condition']}\n"
-                f"target: {example['target_answer'][:32]}\n"
-                f"pred: {prediction['answer'][:32]}\n"
-                f"conf: {prediction['confidence']:.2f}, abstain: {prediction['abstained']}"
-            )
-            ax.set_title(title, fontsize=8)
-            ax.axis("off")
 
-        for ax in flat_axes[len(shown_pairs) :]:
-            ax.axis("off")
 
-        fig.tight_layout()
-        fig.savefig(failure_grid_path)
-        plt.close(fig)
-    else:
-        failure_grid_path.write_text("No examples to show.", encoding="utf-8")
-
-    condition_stats: dict[str, dict[str, int]] = {}
-    for example, prediction in zip(examples, predictions):
-        condition = example["condition"]
-        if condition not in condition_stats:
-            condition_stats[condition] = {"total": 0, "correct": 0}
-
-        condition_stats[condition]["total"] += 1
-        predicted_answer = prediction["answer"].strip().lower()
-        target_answer = example["target_answer"].strip().lower()
-        is_correct = (not prediction["abstained"]) and predicted_answer == target_answer
-        if is_correct:
-            condition_stats[condition]["correct"] += 1
-
-    conditions = list(condition_stats.keys())
-    accuracies = [
-        condition_stats[condition]["correct"] / condition_stats[condition]["total"]
-        for condition in conditions
-    ]
-
-    fig, ax = plt.subplots(figsize=(max(6, 1.2 * len(conditions)), 4))
-    ax.bar(conditions, accuracies)
-    ax.set_ylim(0, 1)
-    ax.set_ylabel("accuracy")
-    ax.set_title("Accuracy by failure condition")
-    ax.tick_params(axis="x", rotation=30)
-    fig.tight_layout()
-    fig.savefig(condition_chart_path)
-    plt.close(fig)
-
-    return str(failure_grid_path), str(condition_chart_path)
-    #raise NotImplementedError("Save failure-set visuals.")
 
 
 def run_exercise(config: FailureSetConfig) -> FailureSetMetrics:

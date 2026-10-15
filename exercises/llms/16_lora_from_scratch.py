@@ -226,23 +226,9 @@ def describe_lora_shapes(config: LoRAFromScratchConfig) -> LoRAShapeSummary:
     # Checks:
     # - If input shape is `[32, 12]`, the final logits should be `[32, 4]`.
 
-    x = torch.randn(size=(config.batch_size, config.input_dim))                         # shape = [32, 12]
-    W = torch.randn(size=(config.num_classes, config.input_dim), dtype=torch.float)     # shape = [4, 12]
-    bias = torch.rand(size=(1, config.num_classes))
-    A = torch.randn(size=(config.rank, config.input_dim), dtype=torch.float)            # shape = [3, 12]
-    B = torch.randn(size=(config.num_classes, config.rank), dtype=torch.float)          # shape = [4, 3]
-    scale = config.alpha / config.rank                                                  # scalar  6.0/3 = 2.0
+    raise NotImplementedError("Return the LoRA shapes and scale.")
 
-    base_output = x @ W.T + bias                # [32, 12] @ [12, 4] = [32, 4]  +   [1, 4]
-    lora_update = ((x @ A.T) @ B.T) * scale     # [32, 12] @ [12, 3] = [32, 3]  @   [3, 4]  =  [32, 4]
-    final_output = base_output + lora_update    # [32, 4] + [32, 4]
 
-    return {'base_weight_shape': W.shape, 
-            'lora_A_shape': A.shape,
-            'lora_B_shape': B.shape,
-            'scale': scale,
-            'formula': final_output}
-    #raise NotImplementedError("Return the LoRA shapes and scale.")
 
 
 def make_toy_classification_tensors(config: LoRAFromScratchConfig) -> dict[str, torch.Tensor]:
@@ -289,24 +275,11 @@ def make_toy_classification_tensors(config: LoRAFromScratchConfig) -> dict[str, 
     # - `train_features.dtype` should be `torch.float32`.
     # - `train_labels.dtype` should be `torch.long`.
 
-    teacher_weight = torch.randn(size=(config.input_dim, config.num_classes))       # shape = [12, 4]
-    train_features = torch.randn(size=(config.train_examples, config.input_dim))    # shape = [512, 12]
-    val_features = torch.randn(size=(config.val_examples, config.input_dim))        # shape = [128, 12]
-    test_features = torch.randn(size=(config.test_examples, config.input_dim))      # shape = [128, 12]
+    raise NotImplementedError("Create toy classification tensors.")
 
-    teacher_logits = train_features @ teacher_weight                                # [512, 12] @ [12, 4] = [512, 4]
-    train_labels = teacher_logits.argmax(dim=1)                                     # [512]
 
-    teacher_logits = val_features @ teacher_weight                                  # [128, 12] @ [12, 4] = [128, 4]
-    val_labels = teacher_logits.argmax(dim=1)                                       # [128]
 
-    teacher_logits = test_features @ teacher_weight                                 # [128, 12] @ [12, 4] = [128, 4]
-    test_labels = teacher_logits.argmax(dim=1)                                       # [128]
 
-    return {"train_features": train_features, "train_labels": train_labels,
-            "val_features": val_features, "val_labels": val_labels,
-            "test_features": test_features, "test_labels": test_labels}
-    #raise NotImplementedError("Create toy classification tensors.")
 
 
 def build_dataloaders(
@@ -347,15 +320,9 @@ def build_dataloaders(
     #   - `features`: `[batch_size, input_dim]`
     #   - `labels`: `[batch_size]`    
 
-    train_ds = torch.utils.data.TensorDataset(tensors["train_features"], tensors["train_labels"])
-    val_ds = torch.utils.data.TensorDataset(tensors["val_features"], tensors["val_labels"])
-    test_ds = torch.utils.data.TensorDataset(tensors["test_features"], tensors["test_labels"])
+    raise NotImplementedError("Build train, validation, and test dataloaders.")
 
-    return {"train": torch.utils.data.DataLoader(train_ds, config.batch_size, shuffle=True),
-            "val": torch.utils.data.DataLoader(val_ds, config.batch_size),
-            "test": torch.utils.data.DataLoader(test_ds, config.batch_size)}
 
-    #raise NotImplementedError("Build train, validation, and test dataloaders.")
 
 
 class LoRALinear(nn.Module):
@@ -403,17 +370,11 @@ class LoRALinear(nn.Module):
 
         super().__init__()
 
-        self.base = nn.Linear(in_features = input_dim, out_features = output_dim)
-        for param in self.base.parameters():
-            param.requires_grad = False
+        raise NotImplementedError("Build the frozen base and trainable LoRA layers.")
 
-        self.lora_A = nn.Linear(in_features = input_dim, out_features = rank, bias = False)
 
-        self.lora_B = nn.Linear(in_features = rank, out_features = output_dim, bias = False)
 
-        self.scale = alpha / rank
         
-        #raise NotImplementedError("Build the frozen base and trainable LoRA layers.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return base output plus LoRA update."""
@@ -438,13 +399,9 @@ class LoRALinear(nn.Module):
         # Checks:
         # - If `x` is `[8, input_dim]`, output should be `[8, output_dim]`.
 
-        base_output = self.base(x)               # [32, 12] @ [12, 4]  + bias  (bias is already inside nn.Linear) = [32, 4]
-        lora_hidden = self.lora_A(x)             # [32, 12] @ [12, 3] = [32, 3]
-        lora_update = self.lora_B(lora_hidden) * self.scale         # [32, 3] @ [3, 4] = [32, 4]
+        raise NotImplementedError("Return base output plus LoRA update.")
 
-        return base_output + lora_update
 
-        #raise NotImplementedError("Return base output plus LoRA update.")
 
 
 class TinyLoRAClassifier(nn.Module):
@@ -481,9 +438,8 @@ class TinyLoRAClassifier(nn.Module):
         # - A fake input with shape `[2, input_dim]` should return `[2, num_classes]`.
         super().__init__()
 
-        self.classifier = LoRALinear(config.input_dim, config.num_classes, config.rank, config.alpha)
+        raise NotImplementedError("Build the tiny LoRA classifier.")
         
-        #raise NotImplementedError("Build the tiny LoRA classifier.")
 
     def forward(self, features: torch.Tensor) -> torch.Tensor:
         """Return class logits."""
@@ -504,10 +460,8 @@ class TinyLoRAClassifier(nn.Module):
         # - Do not apply softmax here.
         # - `nn.CrossEntropyLoss` expects raw logits.
 
-        logits = self.classifier(features)
+        raise NotImplementedError("Return class logits.")
 
-        return logits
-        #raise NotImplementedError("Return class logits.")
 
 
 def count_parameters(model: nn.Module) -> dict[str, float]:
@@ -537,15 +491,9 @@ def count_parameters(model: nn.Module) -> dict[str, float]:
     # Checks:
     # - In this exercise, trainable percent should be much smaller than 100.
 
-    total_prarameters = sum(param.numel() for param in model.parameters())
-    trainable_parameters = sum(param.numel() for param in model.parameters() if param.requires_grad)
-    trainable_percent = (trainable_parameters/total_prarameters) * 100.0
+    raise NotImplementedError("Count total and trainable parameters.")
 
-    return {"total_parameters": total_prarameters,
-            "trainable_parameters": trainable_parameters,
-            "trainable_percent": trainable_percent}
 
-    #raise NotImplementedError("Count total and trainable parameters.")
 
 
 def build_training_objects(
@@ -587,16 +535,10 @@ def build_training_objects(
     # Checks:
     # - The optimizer should not receive frozen base parameters.
 
-    model = TinyLoRAClassifier(config)
-    model = model.to(device)
+    raise NotImplementedError("Build model, loss, optimizer, and parameter counts.")
 
-    loss_fn = nn.CrossEntropyLoss()
 
-    trainable_parameters = [param for param in model.parameters() if param.requires_grad]
-    optimizer = torch.optim.AdamW(lr=config.learning_rate, params=trainable_parameters)
 
-    return model, loss_fn, optimizer, count_parameters(model)
-    #raise NotImplementedError("Build model, loss, optimizer, and parameter counts.")
 
 
 def train_one_epoch(
@@ -639,36 +581,11 @@ def train_one_epoch(
     # Checks:
     # - `logits.shape` should be `[batch_size, num_classes]`.
 
-    model.train()
+    raise NotImplementedError("Train one epoch and return loss and accuracy.")
 
-    total_loss = 0.0
-    example_count = 0
-    accs = []
 
-    for features, labels in loader:
-        features = features.to(device)
-        labels = labels.to(device)
 
-        optimizer.zero_grad()
 
-        logits = model(features)
-        loss = loss_fn(logits, labels)
-        loss.backward()
-        optimizer.step()
-
-        batch_size = features.size(0)
-        total_loss += loss.item() * batch_size
-        example_count += batch_size
-
-        preds = logits.argmax(dim=-1)
-        correct = (preds == labels).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = total_loss / example_count
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss": mean_loss, "accuracy": mean_acc}
-    #raise NotImplementedError("Train one epoch and return loss and accuracy.")
 
 
 @torch.no_grad()
@@ -705,32 +622,11 @@ def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[s
     # Checks:
     # - This function should not call `backward()` or `optimizer.step()`.
 
-    model.eval()
+    raise NotImplementedError("Evaluate and return loss and accuracy.")
 
-    total_loss = 0.0
-    example_count = 0
-    accs = []
 
-    for features, labels in loader:
-        features = features.to(device)
-        labels = labels.to(device)        
 
-        logits = model(features)
-        loss = loss_fn(logits, labels)       
 
-        batch_size = features.size(0)
-        total_loss += loss.item() * batch_size
-        example_count += batch_size
-
-        preds = logits.argmax(dim=-1)
-        correct = (preds == labels).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = total_loss / example_count
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss": mean_loss, "accuracy": mean_acc}
-    #raise NotImplementedError("Evaluate and return loss and accuracy.")
 
 
 def explain_lora_from_scratch(parameter_counts: dict[str, float]) -> str:
@@ -752,13 +648,7 @@ def explain_lora_from_scratch(parameter_counts: dict[str, float]) -> str:
     #
     # Checks:
     # - The note should be clear enough to say out loud in an interview.
-    trainable_percent = parameter_counts["trainable_percent"]
-    return (
-        "LoRA keeps the base layer frozen and trains only the small adapter "
-        f"matrices. In this run, only {trainable_percent:.2f}% of the "
-        "parameters were trainable."
-    )
-    # raise NotImplementedError("explain_lora_from_scratch.")
+    raise NotImplementedError("explain_lora_from_scratch.")
 
 
 def run_training(config: LoRAFromScratchConfig) -> dict[str, float | str]:
@@ -793,46 +683,13 @@ def run_training(config: LoRAFromScratchConfig) -> dict[str, float | str]:
     # - `trainable_percent` should be below `config.target_trainable_percent`.
     # - `lora_note` should explain why only the adapter weights were trained.
 
-    tensors = make_toy_classification_tensors(config)
-    loaders = build_dataloaders(tensors, config)
-    model, loss_fn, optimizer, param_counts_dict = build_training_objects(config)
+    raise NotImplementedError("Run the full LoRA-from-scratch workflow.")
 
-    for epoch in range(config.epochs):
 
-        train_dict = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-        val_dict = evaluate(model, loaders["val"], loss_fn)
 
-        print(
-            f"Epoch {epoch + 1} -> "
-            f"train_loss: {train_dict['loss']:.4f}, "
-            f"train_accuracy: {train_dict['accuracy']:.4f}, "
-            f"val_loss: {val_dict['loss']:.4f}, "
-            f"val_accuracy: {val_dict['accuracy']:.4f}"
-        )
 
-    test_dict = evaluate(model, loaders["test"], loss_fn)
-    print(f"test_loss: {test_dict['loss']:.4f}, "
-          f"test_accuracy: {test_dict['accuracy']:.4f}"
-        )
 
-    lora_note = explain_lora_from_scratch(param_counts_dict)
 
-    print(param_counts_dict)
-
-    return {
-        "train_loss": train_dict["loss"],
-        "train_accuracy": train_dict["accuracy"],
-        "val_loss": val_dict["loss"],
-        "val_accuracy": val_dict["accuracy"],
-        "test_loss": test_dict["loss"],
-        "test_accuracy": test_dict["accuracy"],
-        "total_parameters": param_counts_dict["total_parameters"],
-        "trainable_parameters": param_counts_dict["trainable_parameters"],
-        "trainable_percent": param_counts_dict["trainable_percent"],
-        "lora_note": lora_note,
-    }
-
-    #raise NotImplementedError("Run the full LoRA-from-scratch workflow.")
 
 
 def check_metrics(metrics: dict[str, float | str], config: LoRAFromScratchConfig) -> bool:

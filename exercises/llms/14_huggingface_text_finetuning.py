@@ -285,22 +285,10 @@ def load_text_splits(config: HuggingFaceFineTuningConfig) -> dict[str, object]:
     #   - `val`
     #   - `test`
 
-    import datasets as hf_datasets
+    raise NotImplementedError("Load the dataset and return train, val, and test splits.")
 
-    raw_data = hf_datasets.load_dataset(config.dataset_name)
-    train_data = raw_data["train"]
-    test_data = raw_data["test"]
 
-    split_dict = train_data.train_test_split(
-        test_size=0.2,
-        shuffle=True,
-        seed=config.random_state,
-    )
-    train_data = split_dict["train"]
-    val_data = split_dict["test"]
 
-    return {"train": train_data, "val": val_data, "test": test_data}
-    #raise NotImplementedError("Load the dataset and return train, val, and test splits.")
 
 # Load the pretrained tokenizer.
 # In plain words:
@@ -331,12 +319,9 @@ def load_tokenizer(config: HuggingFaceFineTuningConfig) -> PreTrainedTokenizerBa
     # - for `distilbert-base-uncased`, the tokenizer lowercases text
     # - it also creates token ids in the format DistilBERT expects
 
-    from transformers import AutoTokenizer
+    raise NotImplementedError("Load and return a pretrained tokenizer.")
 
-    tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=config.model_name)
 
-    return tokenizer
-    #raise NotImplementedError("Load and return a pretrained tokenizer.")
 
 # Tokenize each split.
 # Return tokenized train, validation, and test data.
@@ -393,38 +378,7 @@ def tokenize_splits(
     # 6. Return the tokenizer output.
     # 7. Outside the helper, call `.map(tokenize_batch, batched=True)` on train, val, and test.
     # 8. Return `{"train": tokenized_train, "val": tokenized_val, "test": tokenized_test}`.
-    def tokenize_batch(batch: dict[str, list[Any]]) -> dict[str, Any]:
-        """Tokenize one batch and add labels."""
-        # This helper is called by `.map(...)`.
-        #
-        # Input:
-        # - `batch[config.text_column]`: list of text strings
-        # - `batch[config.label_column]`: list of class ids
-        #
-        # Do these steps here:
-        # 1. Tokenize the list of text strings.
-        #    The tokenizer should create both `input_ids` and `attention_mask`.
-        #    You do not build the attention mask by hand here.
-        #    Important:
-        #    - `tokenizer.encode(text)` returns only one list of token ids.
-        #    - `tokenizer(texts, padding=..., truncation=..., max_length=...)`
-        #      returns a dictionary like:
-        #      {"input_ids": [...], "attention_mask": [...]}
-        # 2. Store the class ids under the key `labels`.
-        # 3. Return the tokenized batch.
-        #
-        # Return:
-        # - dictionary with `input_ids`, `attention_mask`, and `labels`
-
-        texts = batch[config.text_column]
-        labels = batch[config.label_column]
-
-        token_dict = tokenizer(texts, padding="max_length", truncation=True, max_length=config.max_length)        
-        input_ids = token_dict["input_ids"]
-        attention_mask = token_dict["attention_mask"]
-            
-        return {"input_ids": input_ids, "attention_mask": attention_mask, "labels": labels}
-        #raise NotImplementedError("Tokenize one batch and add labels.")
+    raise NotImplementedError("Return tokenized train, val, and test data.")
 
     # After `tokenize_batch` works, use it here:
     # - map it over `text_splits["train"]`
@@ -433,14 +387,9 @@ def tokenize_splits(
     #
     # Each `.map(...)` call should produce a tokenized Hugging Face dataset.
 
-    tokenized_train = text_splits["train"].map(tokenize_batch, batched=True)
 
-    tokenized_val = text_splits["val"].map(tokenize_batch, batched=True)
 
-    tokenized_test = text_splits["test"].map(tokenize_batch, batched=True)
 
-    return {"train": tokenized_train, "val": tokenized_val, "test": tokenized_test}
-    #raise NotImplementedError("Return tokenized train, val, and test data.")
 
 # Build dataloaders from the tokenized splits.
 # Return:
@@ -500,33 +449,9 @@ def build_dataloaders(tokenized_splits: dict[str, object], config: HuggingFaceFi
     # Return:
     # - dictionary with `train`, `val`, and `test` DataLoaders
 
-    train_ds = tokenized_splits["train"]
-    val_ds = tokenized_splits["val"]
-    test_ds = tokenized_splits["test"]
+    raise NotImplementedError("Return train, val, and test dataloaders for tokenized text.")
 
-    columns = ["input_ids", "attention_mask", "labels"]
-    train_ds.set_format(type="torch", columns=columns)
-    val_ds.set_format(type="torch", columns=columns)
-    test_ds.set_format(type="torch", columns=columns)
 
-    return {
-        "train": torch.utils.data.DataLoader(
-            dataset=train_ds,
-            batch_size=config.batch_size,
-            shuffle=True,
-        ),
-        "val": torch.utils.data.DataLoader(
-            dataset=val_ds,
-            batch_size=config.batch_size,
-            shuffle=False,
-        ),
-        "test": torch.utils.data.DataLoader(
-            dataset=test_ds,
-            batch_size=config.batch_size,
-            shuffle=False,
-        ),
-    }
-    #raise NotImplementedError("Return train, val, and test dataloaders for tokenized text.")
 
 def build_training_objects(
     config: HuggingFaceFineTuningConfig,
@@ -571,23 +496,18 @@ def build_training_objects(
     # - model
     # - optimizer
 
-    from transformers import AutoModelForSequenceClassification
+    raise NotImplementedError("Return a pretrained sequence classifier and optimizer.")
 
-    model = AutoModelForSequenceClassification.from_pretrained(config.model_name, num_labels=config.num_classes)
 
     # A Hugging Face model is still a PyTorch `nn.Module`.
     # That is why normal PyTorch methods like `.to(device)`,
     # `.train()`, `.eval()`, and `.parameters()` work here.
-    model = model.to(device)    
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
     # We do not return a loss function here.
     # Hugging Face classification models make the cross entropy loss for us
     # when `labels` are passed into the model during training.
-    return model, optimizer
 
-    #raise NotImplementedError("Return a pretrained sequence classifier and optimizer.")
 
 def train_one_epoch(
     model: nn.Module,
@@ -632,49 +552,11 @@ def train_one_epoch(
     # Return:
     # - `{"loss": mean_loss, "accuracy": mean_accuracy}`
 
-    model.train()
+    raise NotImplementedError("Return mean train loss and accuracy.")
 
-    losses, accuracies = [], []
 
-    for data_dict in loader:
-        input_ids = data_dict["input_ids"]              # [batch_size, max_length]
-        labels = data_dict["labels"]                    # [batch_size]
 
-        # This is a padding mask, not a causal mask.
-        # Shape: [batch_size, max_length].
-        # 1 means "real token"; 0 means "padding token".
-        # Example with batch_size=2 and max_length=6:
-        # [[1, 1, 1, 1, 0, 0],   # 4 real tokens, then 2 padding tokens
-        #  [1, 1, 1, 1, 1, 1]]   # 6 real tokens, no padding
-        # The model uses this during attention so real tokens ignore padding tokens.
-        # Without it, the model may treat padding as if it were real text.
-        # Hugging Face expands it inside the model to the larger attention shape it needs.
-        # A causal mask is different: it blocks a token from looking at future tokens.
-        attention_masks = data_dict["attention_mask"]   # [batch_size, max_length]
 
-        input_ids = input_ids.to(device)
-        labels = labels.to(device)
-        attention_masks = attention_masks.to(device)
-
-        optimizer.zero_grad()
-
-        model_output = model(input_ids=input_ids, attention_mask=attention_masks, labels=labels)
-        loss = model_output["loss"]
-        logits = model_output["logits"]
-        loss.backward()
-        optimizer.step()
-
-        losses.append(loss.item())
-
-        pred = logits.argmax(dim=-1)
-        correct = (pred==labels).float()
-        accuracies.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accuracies).mean().item()
-
-    return {"loss": mean_loss, "accuracy": mean_acc}
-    #raise NotImplementedError("Return mean train loss and accuracy.")
 
 @torch.no_grad()
 def evaluate(model: nn.Module, loader: DataLoader) -> dict[str, float]:
@@ -704,44 +586,10 @@ def evaluate(model: nn.Module, loader: DataLoader) -> dict[str, float]:
     # Return:
     # - `{"loss": mean_loss, "accuracy": mean_accuracy}`
 
-    model.eval()
-    losses, accuracies = [], []
+    raise NotImplementedError("Return mean loss and accuracy for the loader.")
 
-    for data_dict in loader:
-        input_ids = data_dict["input_ids"]              # [batch_size, max_length]
-        labels = data_dict["labels"]                    # [batch_size]
 
-         # This is a padding mask, not a causal mask.
-        # Shape: [batch_size, max_length].
-        # 1 means "real token"; 0 means "padding token".
-        # Example with batch_size=2 and max_length=6:
-        # [[1, 1, 1, 1, 0, 0],   # 4 real tokens, then 2 padding tokens
-        #  [1, 1, 1, 1, 1, 1]]   # 6 real tokens, no padding
-        # The model uses this during attention so real tokens ignore padding tokens.
-        # Without it, the model may treat padding as if it were real text.
-        # Hugging Face expands it inside the model to the larger attention shape it needs.
-        # A causal mask is different: it blocks a token from looking at future tokens.
-        attention_masks = data_dict["attention_mask"]   # [batch_size, max_length]
 
-        input_ids = input_ids.to(device)
-        labels = labels.to(device)
-        attention_masks = attention_masks.to(device)        
-
-        model_output = model(input_ids=input_ids, attention_mask=attention_masks, labels=labels)
-        loss = model_output["loss"]
-        logits = model_output["logits"]        
-
-        losses.append(loss.item())
-
-        pred = logits.argmax(dim=-1)
-        correct = (pred==labels).float()
-        accuracies.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accuracies).mean().item()
-
-    return {"loss": mean_loss, "accuracy": mean_acc}
-   # raise NotImplementedError("Return mean loss and accuracy for the loader.")
 
 def compare_with_simple_baseline(pretrained_metrics: dict[str, float], simple_baseline_accuracy: float | None = None) -> str:
     """Write a short note comparing pretrained fine-tuning with a simple baseline."""
@@ -832,43 +680,11 @@ def run_training(config: HuggingFaceFineTuningConfig) -> dict[str, float | str]:
     # - `test_accuracy`: final test accuracy
     # - `comparison_note`: short string from the comparison helper
 
-    raw_splits = load_text_splits(config)
-    tokenizer = load_tokenizer(config)
-    tokenized_splits = tokenize_splits(text_splits=raw_splits, tokenizer=tokenizer, config=config)
-    loaders = build_dataloaders(tokenized_splits, config)
-    model, optimizer = build_training_objects(config)    
+    raise NotImplementedError("Fine-tune the pretrained text model and return final metrics.")
 
-    for epoch in range(config.epochs):
-        train_dict = train_one_epoch(model, loaders["train"], optimizer)
-        val_dict = evaluate(model, loaders["val"])
 
-        print(
-            f"Epoch {epoch + 1} -> "
-            f"train_loss: {train_dict['loss']:.4f}, "
-            f"train_accuracy: {train_dict['accuracy']:.4f}, "
-            f"val_loss: {val_dict['loss']:.4f}, "
-            f"val__accuracy: {val_dict['accuracy']:.4f}"
-        )
 
-    test_dict = evaluate(model, loaders["test"])
-    comparison_note = compare_with_simple_baseline(
-        {
-            "val_accuracy": val_dict["accuracy"],
-            "test_accuracy": test_dict["accuracy"],
-        }
-    )
 
-    return {
-        "train_loss": train_dict["loss"],
-        "train_accuracy": train_dict["accuracy"],
-        "val_loss": val_dict["loss"],
-        "val_accuracy": val_dict["accuracy"],
-        "test_loss": test_dict["loss"],
-        "test_accuracy": test_dict["accuracy"],
-        "comparison_note": comparison_note,
-    }
-
-    #raise NotImplementedError("Fine-tune the pretrained text model and return final metrics.")
 
 def check_metrics(metrics: dict[str, float | str], target: float) -> bool:
     """Return True when validation accuracy reaches the rough target."""

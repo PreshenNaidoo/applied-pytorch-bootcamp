@@ -299,12 +299,8 @@ class TinyLineWorld:
         # - `state.sum()` should be `1.0`.
         # - `self.position` should be `0` after reset.
 
-        self.position = 0
-        state = torch.zeros(size=[self.config.state_dim], dtype=torch.float)
-        state[self.position] = 1.0
+        raise NotImplementedError("Return the starting state vector.")
         
-        return state
-        #raise NotImplementedError("Return the starting state vector.")
 
     def step(self, action: int) -> tuple[torch.Tensor, float, bool]:
         """Run one environment step and return next state, reward, and done."""
@@ -344,23 +340,11 @@ class TinyLineWorld:
         # - The position should never go above `state_dim - 1`.
         # - `done` should be `True` only at the goal.
 
-        goal_position = self.config.state_dim-1
-        if action == 0:     # move left
-            self.position = self.position-1 if self.position-1>=0 else 0
-        elif action == 1:   # move right
-            self.position = self.position+1 if self.position+1 <= goal_position else goal_position
+        raise NotImplementedError("Return the next state, reward, and done flag.")
         
-        done = self.position == goal_position
 
-        reward = -0.1
-        if done:
-            reward = 1.0
 
-        state = torch.zeros(size=[self.config.state_dim], dtype=torch.float)
-        state[self.position] = 1.0
 
-        return state, reward, done
-        #raise NotImplementedError("Return the next state, reward, and done flag.")
 
 
 class ReplayBuffer:
@@ -389,10 +373,8 @@ class ReplayBuffer:
         # Checks:
         # - `len(buffer)` should be `0` right after initialization.
 
-        self.capacity = capacity
-        self.storage = []
+        raise NotImplementedError("Initialize replay storage.")
 
-        #raise NotImplementedError("Initialize replay storage.")
 
     def add(
         self,
@@ -435,12 +417,9 @@ class ReplayBuffer:
         # - `len(self.storage)` should never be greater than `self.capacity`.
         # - This method should not train the network.
 
-        if len(self.storage) == self.capacity:
-            self.storage.pop(0)
+        raise NotImplementedError("Add one transition to replay.")
         
-        self.storage.append((state, action, reward, next_state, done))
 
-        #raise NotImplementedError("Add one transition to replay.")
 
     def sample(self, batch_size: int) -> ReplayBatch:
         """Sample one replay batch."""
@@ -476,18 +455,9 @@ class ReplayBuffer:
         # - Do not call this until `len(self.storage) >= batch_size`.
         # - The returned keys should match the list above exactly.
 
-        batch = random.sample(self.storage, batch_size)
-        states, actions, rewards, next_states, dones = zip(*batch)
-        states_tensor = torch.stack(states)
-        actions_tensor = torch.tensor(actions, dtype=torch.long)
-        rewards_tensor = torch.tensor(rewards, dtype=torch.float32)
-        next_states_tensor = torch.stack(next_states)
-        dones_tensor = torch.tensor(dones, dtype=torch.float32)
+        raise NotImplementedError("Return one replay batch of states, actions, rewards, next_states, and dones.")
 
-        return {"states": states_tensor, "actions": actions_tensor, "rewards": rewards_tensor, 
-                "next_states": next_states_tensor, "dones": dones_tensor}
 
-        #raise NotImplementedError("Return one replay batch of states, actions, rewards, next_states, and dones.")
 
     def __len__(self) -> int:
         """Return the number of stored transitions."""
@@ -511,8 +481,7 @@ class ReplayBuffer:
         # Checks:
         # - The result should be between `0` and `self.capacity`.
 
-        return len(self.storage)
-        #raise NotImplementedError("Return replay size.")
+        raise NotImplementedError("Return replay size.")
 
 
 class DQNNetwork(nn.Module):
@@ -553,13 +522,8 @@ class DQNNetwork(nn.Module):
         # - For input shape `[batch_size, state_dim]`, output shape should be `[batch_size, num_actions]`.
         super().__init__()
 
-        self.net = nn.Sequential(nn.Linear(in_features=config.state_dim, out_features=config.hidden_dim),
-                                    nn.ReLU(inplace=True),
-                                    nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim),
-                                    nn.ReLU(inplace=True),
-                                    nn.Linear(in_features=config.hidden_dim, out_features=config.num_actions))
+        raise NotImplementedError("Build a tiny MLP that returns one Q-value per action.")
 
-        #raise NotImplementedError("Build a tiny MLP that returns one Q-value per action.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return Q-values with shape `[batch_size, num_actions]`."""
@@ -588,9 +552,7 @@ class DQNNetwork(nn.Module):
         # - Do not apply softmax. Q-values are scores, not probabilities.
         # - The second dimension should equal `num_actions`.
 
-        logits = self.net(x)
-        return logits
-        #raise NotImplementedError("Return one Q-value per action.")
+        raise NotImplementedError("Return one Q-value per action.")
 
 @torch.no_grad()
 def choose_action(q_network: nn.Module, state: torch.Tensor, epsilon: float) -> int:
@@ -629,17 +591,10 @@ def choose_action(q_network: nn.Module, state: torch.Tensor, epsilon: float) -> 
     # - With `epsilon=0.0`, this should always use the network.
     # - With `epsilon=1.0`, this should always explore.
 
-    random_num = random.random()
-    if random_num < epsilon:
-        #Explore
-        return random.randrange(2)
+    raise NotImplementedError("Return one action using epsilon-greedy and the network outputs.")
 
     #else Exploit:
-    q_values = q_network(state.unsqueeze(0))
-    action = torch.argmax(q_values, dim=1).item()
 
-    return int(action)
-    #raise NotImplementedError("Return one action using epsilon-greedy and the network outputs.")
 
 # TD means temporal difference.
 # In this file, the "difference" is:
@@ -723,9 +678,7 @@ def compute_td_targets(
     # - If `done == 1.0`, target should equal reward.
     # - Do not let gradients flow into the target network.
 
-    with torch.no_grad():
-        next_q_values = target_network(next_states)
-        max_next_q = next_q_values.max(dim=1).values
+    raise NotImplementedError("Return the TD targets for the replay batch.")
 
     # This is the batched version of:
     # if done: 
@@ -733,10 +686,7 @@ def compute_td_targets(
     # else: 
     #   target = reward + gamma * best_next_q
     # When done is 1.0, (1.0 - dones) is 0.0, so the future part disappears.
-    td_targets = rewards + gamma * max_next_q * (1.0 - dones)
 
-    return td_targets
-    #raise NotImplementedError("Return the TD targets for the replay batch.")
 
 def hard_update_target_network(online_network: nn.Module, target_network: nn.Module) -> None:
     """Copy online weights into the target network."""
@@ -763,10 +713,8 @@ def hard_update_target_network(online_network: nn.Module, target_network: nn.Mod
     # - After copying, matching parameters should be equal.
     # - This function should not call `optimizer.step()`.
 
-    target_network.load_state_dict(online_network.state_dict())
+    raise NotImplementedError("Copy parameters from the online network into the target network.")
 
-    return
-    #raise NotImplementedError("Copy parameters from the online network into the target network.")
 
 # Train the online network on one replay batch.
 # Return at least:
@@ -825,36 +773,14 @@ def train_one_dqn_batch(
     # - `actions` must have dtype `torch.long` for `.gather(...)`.
     # - TD targets should not require gradients.
 
-    online_network.train()
+    raise NotImplementedError("Return one DQN batch update summary.")
 
-    states = replay_batch["states"]  # shape: [batch_size, state_dim]
-    actions = replay_batch["actions"]  # shape: [batch_size]
-    rewards = replay_batch["rewards"]  # shape: [batch_size]
-    next_states = replay_batch["next_states"]  # shape: [batch_size, state_dim]
-    dones = replay_batch["dones"]  # shape: [batch_size]
 
-    logits = online_network(states)
-    pred_q_values = torch.gather(logits, dim=-1, index=actions.unsqueeze(1)).squeeze()  # shape: [batch_size]
 
-    td_targets = compute_td_targets(rewards = rewards,
-                                    dones = dones,
-                                    next_states = next_states,
-                                    target_network=target_network, 
-                                    gamma=gamma)                                        # shape: [batch_size]
 
-    optimizer.zero_grad()
 
-    loss_fn = nn.MSELoss()
-    loss = loss_fn(pred_q_values, td_targets)
-    loss.backward()
-    optimizer.step()
 
-    return  {
-                "loss": loss.item(),
-                "mean_predicted_q": pred_q_values.mean().item(),
-            }
 
-    #raise NotImplementedError("Return one DQN batch update summary.")
 
 def run_dqn_training(config: DQNConfig) -> DQNSummary:
     """Run the full tiny DQN workflow."""
@@ -906,99 +832,23 @@ def run_dqn_training(config: DQNConfig) -> DQNSummary:
     # - `replay_size` should be no larger than `config.replay_capacity`.
     # - `mean_loss` should handle the case where no training batch ran yet.
 
-    env = TinyLineWorld(config)
+    raise NotImplementedError("Collect replay, train the online network, update the target network, and return a summary.")
 
-    replay_buffer = ReplayBuffer(config.replay_capacity)
 
-    online_network = DQNNetwork(config).to(device)
-    target_network = DQNNetwork(config).to(device)
 
-    optimizer = torch.optim.AdamW(lr=config.learning_rate, params=online_network.parameters())
 
-    episode_returns = []
-    batch_losses = []
-    training_steps = 0
-    target_updates = 0
 
-    hard_update_target_network(online_network, target_network) # Copies online weights into the target network
-    target_updates += 1
 
-    for i in range(config.episodes):
-        episode_return = 0.0
-        episode_batch_losses = []
 
-        state = env.reset()
-        
-        for j in range(config.max_steps_per_episode):
-
-            action = choose_action(online_network, state.to(device), config.epsilon)
-            next_state, reward, done = env.step(action)
-
-            replay_buffer.add(state, action, reward, next_state, done)
-
-            if len(replay_buffer) >= config.batch_size:
-                batch = replay_buffer.sample(config.batch_size)
-                batch = {key: value.to(device) for key, value in batch.items()}
-
-                train_dict = train_one_dqn_batch(online_network, target_network, batch, optimizer, config.gamma)
-                loss = train_dict["loss"]
-                batch_losses.append(loss)
-                episode_batch_losses.append(loss)
-                training_steps += 1
-
-                if training_steps % config.target_update_every == 0:
-                    hard_update_target_network(online_network, target_network)
-                    target_updates += 1
-
-            episode_return += reward
-            state = next_state
-            
-            if done:
-                break
-
-        episode_returns.append(episode_return)
-        episode_mean_loss = sum(episode_batch_losses) / len(episode_batch_losses) if episode_batch_losses else 0.0
-        print(f"Episode {i + 1}/{config.episodes} loss: {episode_mean_loss:.4f}")
-
-    mean_loss = sum(batch_losses) / len(batch_losses) if batch_losses else 0.0
-    summary: DQNSummary = {
-        "episode_returns": episode_returns,
-        "mean_loss": mean_loss,
-        "replay_size": len(replay_buffer),
-        "target_updates": target_updates,
-        "note": "",
-    }
-    summary["note"] = explain_replay_and_target_network(summary)
 
     # Test whether the trained agent can reach the goal without exploration.
-    online_network.eval()
-    eval_state = env.reset()
-    eval_return = 0.0
-    reached_goal = False
-    for _ in range(config.max_steps_per_episode):
-        eval_action = choose_action(online_network, eval_state.to(device), epsilon=0.0)
-        eval_next_state, eval_reward, eval_done = env.step(eval_action)
-        eval_return += eval_reward
-        eval_state = eval_next_state
-        if eval_done:
-            reached_goal = True
-            break
 
-    print(f"DQN episodes: {len(episode_returns)}")
-    print(f"Final replay size: {summary['replay_size']}")
-    print(f"Mean training loss: {summary['mean_loss']:.4f}")
-    print(f"Target network copies: {summary['target_updates']}")
-    print(f"Last 5 episode returns: {episode_returns[-5:]}")
     # In this line world, the shortest path needs 4 moves to reach the goal.
     # The first 3 moves are non-goal moves, so each gives -0.1.
     # The 4th move reaches the goal, so it gives +1.0.
     # Total return: -0.1 + -0.1 + -0.1 + 1.0 = 0.7.
     # So a good greedy test should usually reach the goal with return near 0.7.
-    print(f"Greedy test return: {eval_return:.2f}")
-    print(f"Greedy test reached goal: {reached_goal}")
 
-    return summary
-    #raise NotImplementedError("Collect replay, train the online network, update the target network, and return a summary.")
 
 def explain_replay_and_target_network(summary: DQNSummary) -> str:
     """Write a short note about replay and target networks."""
@@ -1028,12 +878,7 @@ def explain_replay_and_target_network(summary: DQNSummary) -> str:
     # Checks:
     # - Keep the note short.
     # - Do not say replay or target networks are required for tabular Q-learning.
-    return (
-        f"Replay helped by training on a mix of {summary['replay_size']} stored steps, "
-        "not only the newest step. "
-        f"The target network helped by giving slower-changing targets and was copied {summary['target_updates']} times."
-    )
-    #raise NotImplementedError("Explain why replay and target networks help DQN.")
+    raise NotImplementedError("Explain why replay and target networks help DQN.")
 
 def check_metrics(metrics: DQNSummary) -> bool:
     """Return True when the DQN summary has the expected keys."""

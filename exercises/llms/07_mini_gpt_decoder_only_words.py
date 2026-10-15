@@ -320,6 +320,7 @@ from common.training_checks import print_pass_or_try_again
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
+@dataclass
 class MiniGPTConfig:
     """Settings for the tiny decoder-only GPT exercise."""
 
@@ -366,7 +367,6 @@ def describe_decoder_shapes(config: MiniGPTConfig) -> dict[str, object]:
         ],
     }
 
-        #raise NotImplementedError("Run the tiny decoder-only model and return raw logits.")
 
 
 # Load the raw text corpus.
@@ -376,12 +376,9 @@ def describe_decoder_shapes(config: MiniGPTConfig) -> dict[str, object]:
 def load_raw_text(config: MiniGPTConfig) -> str:
     """Return the full text corpus as one Python string."""
 
-    with open(file=f"{BOOTCAMP_ROOT}/data/input.txt", mode="r", encoding="utf-8") as f:
-        raw_text = f.read()
+    raise NotImplementedError("Return the full Tiny Shakespeare text as one Python string.")
 
-    return raw_text
 
-    #raise NotImplementedError("Return the full Tiny Shakespeare text as one Python string.")
 
 
 # Split the raw text into train, validation, and test text sections.
@@ -393,15 +390,10 @@ def load_raw_text(config: MiniGPTConfig) -> str:
 def split_text_corpus(raw_text: str) -> dict[str, str]:
     """Return the raw text split into contiguous train, val, and test sections."""
 
-    num_train, num_val = int(len(raw_text) * 0.6), int(len(raw_text) * 0.2)
+    raise NotImplementedError("Return the raw text split into contiguous train, val, and test sections.")
 
-    train_text = raw_text[:num_train]
-    val_text = raw_text[num_train:num_train+num_val]
-    test_text = raw_text[num_train+num_val:]
 
-    return {"train_text": train_text, "val_text": val_text, "test_text": test_text}
 
-    #raise NotImplementedError("Return the raw text split into contiguous train, val, and test sections.")
 
 
 # Tiny fallback tokenizer helper.
@@ -429,35 +421,16 @@ class WordTokenDataset(torch.utils.data.Dataset):
     """Dataset stub for word-token next-token windows."""
 
     def __init__(self, tokens: list[str], context_length: int, vocab_dict: dict[str, int]) -> None:
-        self.tokens = tokens
-        self.num_tokens = len(tokens)
-        self.context_length = context_length
-        self.vocab_dict = vocab_dict
-        self.unk_id = 1
-        #raise NotImplementedError("Store tokenized text and any vocabulary objects the dataset needs.")
+        raise NotImplementedError("Store tokenized text and any vocabulary objects the dataset needs.")
 
     def __len__(self) -> int:
-        return self.num_tokens - self.context_length
-        #raise NotImplementedError("Return the number of next-token windows available in the token list.")
+        raise NotImplementedError("Return the number of next-token windows available in the token list.")
 
     def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
-        inputs = self.tokens[index: index + self.context_length]
-        targets = self.tokens[index + 1: index + 1 + self.context_length]
+        raise NotImplementedError("Return one dict with input_ids and target_ids for a word-token window.")
         
-        input_ids, target_ids = [], []
-        for word in inputs:
-            if word in self.vocab_dict:
-                input_ids.append(self.vocab_dict[word])
-            else:
-                input_ids.append(self.unk_id)
         
-        for word in targets:
-            if word in self.vocab_dict:
-                target_ids.append(self.vocab_dict[word])
-            else:
-                target_ids.append(self.unk_id)
 
-        return {"input_ids": torch.tensor(input_ids, dtype=torch.long), "target_ids": torch.tensor(target_ids, dtype=torch.long)}
 
 
 
@@ -469,8 +442,6 @@ class WordTokenDataset(torch.utils.data.Dataset):
 # ReLU is still okay for this small learning exercise, but GELU is closer to GPT-1/GPT-2.
 
 
-@dataclass
-        #raise NotImplementedError("Return one dict with input_ids and target_ids for a word-token window.")
 
 
 # Build the train, validation, and test dataloaders.
@@ -493,32 +464,12 @@ class WordTokenDataset(torch.utils.data.Dataset):
 def load_dataloaders(config: MiniGPTConfig) -> dict[str, DataLoader]:
     """Return train, val, and test dataloaders for next-token prediction."""
 
-    raw_text = load_raw_text(config)
-    data_dict = split_text_corpus(raw_text)
+    raise NotImplementedError("Return train, val, and test dataloaders for next-token prediction.")
 
-    train_text = data_dict["train_text"]
-    val_text = data_dict["val_text"]
-    test_text = data_dict["test_text"]
 
-    all_words = basic_word_tokenize(raw_text)    
-    vocabulary = sorted(set(all_words))
-    vocabulary.insert(0, "[PAD]")
-    vocabulary.insert(1, "[UNK]")
-    vocab_size = len(vocabulary)
-    vocab_dict = {w:i for i, w in enumerate(vocabulary)}
-    int_to_word = {i: w for w, i in vocab_dict.items()}
 
-    config.vocab_size = vocab_size
-    config.token_to_int = vocab_dict
-    config.int_to_token = int_to_word
 
-    train_ds = WordTokenDataset(tokens=basic_word_tokenize(train_text), context_length=config.context_length, vocab_dict=vocab_dict)
-    val_ds = WordTokenDataset(tokens=basic_word_tokenize(val_text), context_length=config.context_length, vocab_dict=vocab_dict)
-    test_ds = WordTokenDataset(tokens=basic_word_tokenize(test_text), context_length=config.context_length, vocab_dict=vocab_dict)
 
-    return {"train": torch.utils.data.DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True),
-            "val": torch.utils.data.DataLoader(dataset=val_ds, batch_size=config.batch_size),
-            "test": torch.utils.data.DataLoader(dataset=test_ds, batch_size=config.batch_size)}
 
 
 
@@ -541,13 +492,9 @@ def load_dataloaders(config: MiniGPTConfig) -> dict[str, DataLoader]:
 # - if the model could see them during training, it would learn the wrong lesson
 def build_causal_mask(context_length: int) -> torch.Tensor:
 
-    ones = torch.ones(size=(context_length, context_length), dtype=torch.bool)
-    mask = torch.tril(ones)
-    mask = mask.unsqueeze(dim=0).unsqueeze(dim=0)
+    raise NotImplementedError("Return the boolean decoder causal mask with shape [1, 1, context_length, context_length].")
     
-    return mask
 
-    #raise NotImplementedError("Return the boolean decoder causal mask with shape [1, 1, context_length, context_length].")
 
 
 # Compute scaled dot-product attention for decoder multi-head attention.
@@ -607,7 +554,7 @@ def scaled_dot_product_attention(
     mask: torch.Tensor,
 ) -> torch.Tensor:
 
-    batch_size, num_heads, context_length, head_dim = query.shape  # eg (16, 4, 16, 32)
+    raise NotImplementedError("Return the masked scaled dot-product attention output for multi-head decoder attention.")
 
     # The head dimension is the feature size that each attention head gets after you split 
     # the full embedding across heads. In this exercise, the full token representation has 
@@ -625,19 +572,12 @@ def scaled_dot_product_attention(
     # job at once, multi-head attention splits the work into several smaller attention views running in parallel.
     #  After that, their outputs are joined back together, so each token gets a richer combined summary of the context.
 
-    scores = torch.matmul(query, key.transpose(dim0=2, dim1=3)) # (16, 4, 16, 32) @ (16, 4, 32, 16) = (16, 4, 16, 16)
-    scaled = scores / sqrt(head_dim)
-
-    scaled = scaled.masked_fill(~mask, float("-inf")) # (16, 4, 16, 16)
-
-    weights = scaled.softmax(dim=-1) # (16, 4, 16, 16)
-
-    output = torch.matmul(weights, value) # (16, 4, 16, 16) @ (16, 4, 16, 32) = (16, 4, 16, 32)
-
-    return output
 
 
-    #raise NotImplementedError("Return the masked scaled dot-product attention output for multi-head decoder attention.")
+
+
+
+
 
 
 class MaskedSelfAttention(nn.Module):
@@ -645,8 +585,7 @@ class MaskedSelfAttention(nn.Module):
 
     def __init__(self, embed_dim: int, num_heads: int) -> None:
         super().__init__()
-        self.embed_dim = embed_dim
-        self.num_heads = num_heads
+        raise NotImplementedError("Build the Q, K, V projections and the output projection for masked multi-head attention.")
         # Beginner-friendly build order:
         # 1. check that `embed_dim` can be split across `num_heads`
         #    - this means each head gets the same number of features
@@ -672,17 +611,9 @@ class MaskedSelfAttention(nn.Module):
         # - this class should handle the multi-head setup around that helper
         # - after the helper runs, join the heads back together
 
-        if embed_dim % num_heads != 0:
-            raise ValueError("Embedded dimension is not exactly divisible by num_heads.")
 
-        self.head_dim = embed_dim // num_heads
 
-        self.query = nn.Linear(in_features=embed_dim, out_features=embed_dim)
-        self.key = nn.Linear(in_features=embed_dim, out_features=embed_dim)
-        self.value = nn.Linear(in_features=embed_dim, out_features=embed_dim)
-        self.proj = nn.Linear(in_features=embed_dim, out_features=embed_dim)
 
-        #raise NotImplementedError("Build the Q, K, V projections and the output projection for masked multi-head attention.")
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """Return masked self-attention output.
@@ -743,32 +674,17 @@ class MaskedSelfAttention(nn.Module):
         - forgetting to join the heads back into `[B, T, C]` before the output projection
         """
 
-        batch_size, context_length, embed_dim = x.shape # eg. 16, 16, 128
+        raise NotImplementedError("Apply masked multi-head self-attention and return the output tensor.")
 
         #mask shape is (1, 1, 16, 16)
 
-        query = self.query(x)   # (16, 16, 128)
-        key = self.key(x)       # (16, 16, 128)
-        value = self.value(x)   # (16, 16, 128)
-
-        query = query.reshape(shape=(batch_size, context_length, self.num_heads, self.head_dim))    # (16, 16, 4, 32)
-        key = key.reshape(shape=(batch_size, context_length, self.num_heads, self.head_dim))        # (16, 16, 4, 32)
-        value = value.reshape(shape=(batch_size, context_length, self.num_heads, self.head_dim))    # (16, 16, 4, 32)
-
-        query = torch.permute(query, (0, 2, 1, 3))      # (16, 4, 16, 32)
-        key = torch.permute(key, (0, 2, 1, 3))          # (16, 4, 16, 32)
-        value = torch.permute(value, (0, 2, 1, 3))      # (16, 4, 16, 32)
-
-        output = scaled_dot_product_attention(query, key, value, mask)              # (16, 4, 16, 32)
-        output = torch.permute(output, (0, 2, 1, 3))                                # (16, 16, 4, 32)
-        output = output.reshape(shape=(batch_size, context_length, embed_dim))      # (16, 16, 128)
-
-        proj = self.proj(output)        # (16, 16, 128)
-
-        return proj
 
 
-        #raise NotImplementedError("Apply masked multi-head self-attention and return the output tensor.")
+
+
+
+
+
 
 
 class MiniGPTBlock(nn.Module):
@@ -776,7 +692,7 @@ class MiniGPTBlock(nn.Module):
 
     def __init__(self, config: MiniGPTConfig) -> None:
         super().__init__()
-        self.config = config
+        raise NotImplementedError("Build one decoder block with masked self-attention, MLP, layer norms, and residual connections.")
         # Beginner-friendly block pieces:
         # - layer norm
         # - masked self-attention
@@ -804,17 +720,10 @@ class MiniGPTBlock(nn.Module):
         # gradients flow more smoothly during training and,
         # residual connections become safer, because each new update is less likely to blow up the old signal
 
-        self.layer_norm1 = nn.LayerNorm(normalized_shape=config.embed_dim)
 
-        self.masked_self_attention = MaskedSelfAttention(config.embed_dim, config.num_heads)
 
-        self.layer_norm2 = nn.LayerNorm(normalized_shape=config.embed_dim)
 
-        self.mlp = nn.Sequential(nn.Linear(in_features=config.embed_dim, out_features=config.mlp_dim),
-                                 nn.ReLU(inplace=True),
-                                 nn.Linear(in_features=config.mlp_dim, out_features=config.embed_dim))
 
-        #raise NotImplementedError("Build one decoder block with masked self-attention, MLP, layer norms, and residual connections.")
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """Return the updated hidden states with shape `[batch_size, context_length, embed_dim]`.
@@ -833,20 +742,11 @@ class MiniGPTBlock(nn.Module):
         - each residual add says "keep the old signal, then add a useful update"
         """
 
-        residual = x
-        x = self.layer_norm1(x)
-        x = self.masked_self_attention(x, mask)
-        x = x + residual
-
-        residual = x
-        x = self.layer_norm2(x)
-        x = self.mlp(x)
-        x = x + residual
-
-        return x
+        raise NotImplementedError("Run one decoder block and return the updated hidden states.")
 
 
-        #raise NotImplementedError("Run one decoder block and return the updated hidden states.")
+
+
 
 
 class MiniGPT(nn.Module):
@@ -854,8 +754,7 @@ class MiniGPT(nn.Module):
 
     def __init__(self, vocab_size: int, config: MiniGPTConfig) -> None:
         super().__init__()
-        self.vocab_size = vocab_size
-        self.config = config
+        raise NotImplementedError("Build the token embeddings, positional embeddings, decoder blocks, final layer norm, and LM head.")
         # Beginner-friendly build order:
         # 1. token embedding table
         # 2. positional embedding table
@@ -869,19 +768,12 @@ class MiniGPT(nn.Module):
         # - decoder blocks build context-aware features
         # - the LM head turns those features into next-token scores
 
-        self.causal_mask = build_causal_mask(config.context_length)
 
-        self.token_embed = nn.Embedding(num_embeddings=vocab_size, embedding_dim=config.embed_dim)
 
-        self.positional_embed = nn.Embedding(num_embeddings=config.context_length, embedding_dim=config.embed_dim)
 
-        self.decoder_blocks = nn.ModuleList([MiniGPTBlock(config) for i in range(config.num_layers)])
 
-        self.layer_norm = nn.LayerNorm(normalized_shape=config.embed_dim)
 
-        self.classification_head = nn.Linear(in_features=config.embed_dim, out_features=vocab_size)
 
-        #raise NotImplementedError("Build the token embeddings, positional embeddings, decoder blocks, final layer norm, and LM head.")
 
     def forward(self, input_ids: torch.Tensor) -> torch.Tensor:
         """Return raw next-token logits with shape `[batch_size, context_length, vocab_size]`.
@@ -901,11 +793,9 @@ class MiniGPT(nn.Module):
         """
 
         # shape of input_ids = (16, 16)
-        batch_size, sequence_length = input_ids.shape
+        raise NotImplementedError("Run the tiny decoder-only model and return raw logits.")
 
-        token_embeddings = self.token_embed(input_ids)              # (16, 16, 128)      # or depending on the actual sequence length
 
-        positions = torch.arange(start=0, end=sequence_length, step=1, device=input_ids.device) # (16)   # or depending on the actual sequence length
         
         # We use `sequence_length` here because it is the length of the input we got right now.
         # That input is not always the full `context_length`.
@@ -913,28 +803,15 @@ class MiniGPT(nn.Module):
         # During generation/inference, it can be shorter at the start if the prompt is short.
         # So `context_length` is the maximum allowed length, but `sequence_length` is the current actual length.
 
-        positions = positions.unsqueeze(dim=0)                                          # (1, 16)
-        positions = positions.expand(size=(batch_size, sequence_length))                # (16, 16)
-
-        positional_embeddings = self.positional_embed(positions)    # (16, 16, 128)      # or depending on the actual sequence length
-
-        embeddings = token_embeddings + positional_embeddings       # (16, 16, 128)      # or depending on the actual sequence length
-
-        self.causal_mask = self.causal_mask.to(input_ids.device)              # (1, 1, 16, 16) # or depending on the actual sequence length
-        mask = self.causal_mask[:, :, :sequence_length, :sequence_length]
-
-        features = embeddings
-        for decoder_block in self.decoder_blocks:
-            features = decoder_block(features, mask)    # (16, 16, 128) 
-
-        features = self.layer_norm(features)            # (16, 16, 128) 
-
-        logits = self.classification_head(features)     # (16, 16, 1000) 
-
-        return logits
 
 
-    #raise NotImplementedError("Return train, val, and test dataloaders for next-token prediction.")
+
+
+
+
+
+
+
 
 
 # Build the model, loss, and optimizer.
@@ -946,14 +823,9 @@ class MiniGPT(nn.Module):
 def build_training_objects(config: MiniGPTConfig) -> tuple[nn.Module, nn.Module, torch.optim.Optimizer]:
     """Return the tiny GPT model, CrossEntropyLoss, and optimizer."""
 
-    model = MiniGPT(vocab_size = config.vocab_size, config=config)
-    model = model.to(device)
+    raise NotImplementedError("Return the tiny GPT model, CrossEntropyLoss, and optimizer.")
 
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(lr=config.learning_rate, params = model.parameters())
 
-    return model, loss_fn, optimizer
-    #raise NotImplementedError("Return the tiny GPT model, CrossEntropyLoss, and optimizer.")
 
 
 # Run one full training epoch.
@@ -981,37 +853,11 @@ def train_one_epoch(
 ) -> dict[str, float]:
     """Return the mean train loss and train perplexity for one full epoch."""
 
-    model.train()
+    raise NotImplementedError("Return the mean train loss and train perplexity for one full epoch.")
 
-    losses = []
     
-    for data_dict in loader:
-        input_ids = data_dict["input_ids"]
-        target_ids = data_dict["target_ids"]
 
-        input_ids = input_ids.to(device)
-        target_ids = target_ids.to(device)
 
-        optimizer.zero_grad()
-
-        logits = model(input_ids)
-
-        batch_size, context_length, vocab_size = logits.shape
-
-        # or you can use flatten:
-        #loss = loss_fn(logits.flatten(start_dim=0, end_dim=1), target_ids.flatten())
-        loss = loss_fn(logits.reshape(batch_size * context_length, vocab_size), target_ids.reshape(batch_size * context_length))
-
-        loss.backward()
-        optimizer.step()
-
-        losses.append(loss.item())
-
-    mean_loss = torch.tensor(losses).mean()
-    perplexity = torch.exp(mean_loss)
-
-    return {"loss": mean_loss.item(), "perplexity": perplexity.item()}
-    #raise NotImplementedError("Return the mean train loss and train perplexity for one full epoch.")
 
 
 # Run one full evaluation pass.
@@ -1031,29 +877,11 @@ def train_one_epoch(
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[str, float]:
     """Return the mean loss and perplexity for the loader you evaluate."""
 
-    model.eval()
+    raise NotImplementedError("Return the mean loss and perplexity for the loader you evaluate.")
 
-    losses = []
 
-    for data_dict in loader:
-        input_ids = data_dict["input_ids"]
-        target_ids = data_dict["target_ids"]
 
-        input_ids = input_ids.to(device)
-        target_ids = target_ids.to(device)
 
-        logits = model(input_ids)
-
-        batch_size, context_length, vocab_size = logits.shape
-        loss = loss_fn(logits.reshape(batch_size * context_length, vocab_size), target_ids.reshape(batch_size * context_length))
-
-        losses.append(loss.item())
-
-    mean_loss = torch.tensor(losses).mean()
-    perplexity = torch.exp(mean_loss)
-
-    return {"loss": mean_loss.item(), "perplexity": perplexity.item()}
-    #raise NotImplementedError("Return the mean loss and perplexity for the loader you evaluate.")
 
 
 def generate_text(model: nn.Module, start_text: str, config: MiniGPTConfig) -> str:
@@ -1080,47 +908,18 @@ def generate_text(model: nn.Module, start_text: str, config: MiniGPTConfig) -> s
     - then the model predicts the next token after that
     - so the sequence grows one step at a time from left to right
     """
-    temperature = 0.8
-    use_temperature = True
+    raise NotImplementedError("Generate and return one short text sample from the tiny GPT model.")
 
-    if not start_text:
-        start_text = "Hello world"
 
-    start_tokens = basic_word_tokenize(start_text)
-    start_tokens = start_tokens[-config.context_length:]
 
-    encode = lambda st: [config.token_to_int.get(w, 1) for w in st]
-    decode = lambda ids: " ".join(config.int_to_token[i] for i in ids)   
     # I added a space by join because in basic_word_tokenize, spaces are not kept as tokens.
     # Only words and punctuations are kept as tokens
 
-    model_device = next(model.parameters()).device    
     
-    context_text = torch.tensor(encode(start_tokens), dtype=torch.long, device=model_device)
-    context_text = context_text.unsqueeze(dim=0)   # add a fake batch dimension. Model expects (batch_size, sequence_length)
 
-    generated = []
 
-    for i in range(config.sample_length):
-        logits = model(context_text)                        # output shape: (1, sequence_length, vocab_size)
-        # The last prediction is the one we want.
-        last_token_vector = logits[:, -1, :]                # shape is (1, vocab_size)
 
-        if use_temperature:
-            probs = torch.softmax(last_token_vector/temperature, dim=-1)
-            last_token_id = torch.multinomial(probs, num_samples=1)         # (1, 1)                 
-        else:
-            last_token_id = last_token_vector.argmax().long()      # shape is scalar  
-            last_token_id = last_token_id.unsqueeze(dim=0).unsqueeze(dim=0)   # add that fake batch dimension so we can concat it to the context_text, shape is now (1,1)
 
-        generated.append(last_token_id.squeeze().item())       
-        context_text = torch.concat([context_text, last_token_id], dim=1)  #shape is now (1, current_len + 1)
-        context_text = context_text[:, -config.context_length:]
-
-    generated_text = start_text + " " + decode(generated)
-
-    return generated_text
-    #raise NotImplementedError("Generate and return one short text sample from the tiny GPT model.")
 
 
 # Run the full training flow.
@@ -1134,25 +933,12 @@ def generate_text(model: nn.Module, start_text: str, config: MiniGPTConfig) -> s
 def run_training(config: MiniGPTConfig) -> dict[str, float]:
     """Run the full mini GPT training flow and return the final train and val metrics."""
 
-    loaders = load_dataloaders(config)
-    model, loss_fn, optimizer = build_training_objects(config)
+    raise NotImplementedError("Run the full mini GPT training flow and return the final train and val metrics.")
 
-    for i in range(config.epochs):
 
-        train_dict = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-        val_dict = evaluate(model, loaders["val"], loss_fn)
 
-        print(f"Epoch {i+1} -> loss: {train_dict['loss']}, perp: {train_dict['perplexity']}, val_loss: {val_dict['loss']}, val_perp: {val_dict['perplexity']}")
 
-    test_dict = evaluate(model, loaders["test"], loss_fn)
-    print(f"Test results -> loss: {test_dict['loss']}, perp: {test_dict['perplexity']}")
 
-    print(f"\n GENERATED: \n {generate_text(model=model, start_text = 'To be or not', config=config)}")
-
-    return {"train_loss": train_dict["loss"], 
-            "val_loss": val_dict["loss"], "val_perplexity": val_dict["perplexity"]}
-
-    #raise NotImplementedError("Run the full mini GPT training flow and return the final train and val metrics.")
 
 
 def check_metrics(metrics: dict[str, float], target: float) -> bool:

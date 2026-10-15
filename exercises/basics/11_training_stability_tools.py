@@ -186,7 +186,6 @@ class StabilityToolsConfig:
     use_mixed_precision: bool = True
     random_state: int = 42
     target_val_accuracy: float = 0.70
-        #raise NotImplementedError("Return raw logits from the classifier.")
 
 
 def describe_stability_tools(config: StabilityToolsConfig) -> dict[str, object]:
@@ -232,20 +231,10 @@ def load_dataloaders(config: StabilityToolsConfig) -> dict[str, DataLoader]:
     # - each example is just one row of numbers
     # - this keeps the exercise focused on training-loop stability tools
 
-    data = datasets.load_wine()
-    features = torch.tensor(data.data[: config.num_samples], dtype=torch.float32)
-    labels = torch.tensor(data.target[: config.num_samples], dtype=torch.long)
+    raise NotImplementedError("Return dataloaders for the stability exercise.")
 
-    data_ds = torch.utils.data.TensorDataset(features, labels)
 
-    gen = torch.Generator()
-    gen.manual_seed(config.random_state)
-    train_ds, val_ds, test_ds = torch.utils.data.random_split(dataset=data_ds, lengths=(0.6, 0.2, 0.2), generator=gen)
 
-    return {"train": torch.utils.data.DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True),
-            "val": torch.utils.data.DataLoader(dataset=val_ds, batch_size=config.batch_size),
-            "test": torch.utils.data.DataLoader(dataset=test_ds, batch_size=config.batch_size)}
-    #raise NotImplementedError("Return dataloaders for the stability exercise.")
 
 
 class StabilityMLP(nn.Module):
@@ -254,20 +243,14 @@ class StabilityMLP(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, num_classes: int) -> None:
         super().__init__()
 
-        self.input = nn.Linear(in_features=input_dim, out_features=hidden_dim)
-        self.hidden = nn.Linear(in_features=hidden_dim, out_features=hidden_dim//2)
-        self.classification_head = nn.Linear(in_features=hidden_dim//2, out_features=num_classes)
+        raise NotImplementedError("Build a small MLP classifier.")
 
-        #raise NotImplementedError("Build a small MLP classifier.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return raw class logits."""
 
-        x = F.relu(self.input(x))
-        x = F.relu(self.hidden(x))
-        x = self.classification_head(x)
+        raise NotImplementedError("Return raw logits from the classifier.")
 
-        return x
 
 
 # Build:
@@ -286,14 +269,8 @@ def build_training_objects(
     # - one scheduler
     # Then add clipping, accumulation, and mixed precision in the training loop.
 
-    model = StabilityMLP(input_dim=config.num_features, hidden_dim=config.hidden_dim, num_classes=config.num_classes)
-    model = model.to(device)
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(lr=config.learning_rate, params=model.parameters())
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs)
+    raise NotImplementedError("Return model, loss, optimizer, and scheduler.")
 
-    return model, loss_fn, optimizer, scheduler
-    #raise NotImplementedError("Return model, loss, optimizer, and scheduler.")
 
 
 # Return the current learning rate as one Python float.
@@ -301,11 +278,8 @@ def build_training_objects(
 def get_current_learning_rate(optimizer: torch.optim.Optimizer) -> float:
     """Return the learning rate from the first optimizer parameter group."""
     
-    param_dict = optimizer.param_groups[0]
-    lr = param_dict["lr"]
+    raise NotImplementedError("Return the current learning rate.")
 
-    return lr
-    #raise NotImplementedError("Return the current learning rate.")
 
 
 # Measure the full gradient norm for the current model state.
@@ -401,17 +375,10 @@ def compute_gradient_norm(model: nn.Module) -> float:
     # If the norm before clipping was 10,
     # the norm after clipping should be close to 2.
 
-    total_norm_squared = 0.0
+    raise NotImplementedError("Measure the gradient norm before clipping.")
 
-    for param in model.parameters():
-        if param.grad is not None:
-            param_norm = param.grad.detach().norm()
-            total_norm_squared += param_norm.item() ** 2        #square
 
-    total_norm = total_norm_squared ** 0.5  #sqrt
 
-    return float(total_norm)
-    #raise NotImplementedError("Measure the gradient norm before clipping.")
 
 #This is a unused function for understanding the code without mized precision complexities
 def train_one_epoch_no_mixed_precision(
@@ -599,64 +566,13 @@ def train_one_epoch(
     # - so we unscale first, then measure and clip the real norm
 
 
-    use_amp = config.use_mixed_precision and device == "cuda"
-    scaler = torch.amp.GradScaler(device=device, enabled=use_amp)
+    raise NotImplementedError("Return train metrics and stability-tool tracking values.")
 
-    model.train()
-    optimizer.zero_grad()
 
-    max_gradient_norm_before_clip = 0
-    losses, accs = [], []
-    optimizer_steps = 0
 
-    for batch_index, (features, labels) in enumerate(loader):
-        features = features.to(device)
-        labels = labels.to(device)
 
-        with torch.amp.autocast("cuda", enabled=use_amp):
-            logits = model(features)
-            raw_loss = loss_fn(logits, labels)
-            loss = raw_loss / config.accumulation_steps
 
-        scaler.scale(loss).backward()
-
-        is_accumulation_step = (batch_index + 1) % config.accumulation_steps == 0
-        is_last_batch = (batch_index + 1) == len(loader)
-
-        if is_accumulation_step or is_last_batch:
-            scaler.unscale_(optimizer)
-
-            total_grad_norm_before_clip = compute_gradient_norm(model)
-            max_gradient_norm_before_clip = max(max_gradient_norm_before_clip, total_grad_norm_before_clip)
-
-            torch.nn.utils.clip_grad_norm_(model.parameters(), config.max_grad_norm)
-
-            scaler.step(optimizer)
-            scaler.update()
-            optimizer.zero_grad()
-
-            optimizer_steps += 1
-
-        preds = logits.argmax(dim=-1)
-        accuracy = (preds == labels).float().mean().item()
-
-        losses.append(raw_loss.item())
-        accs.append(accuracy)    
-
-    scheduler.step()
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
     
-    return {
-        "loss": mean_loss,
-        "accuracy": mean_acc,
-        "max_gradient_norm_before_clip": max_gradient_norm_before_clip,
-        "optimizer_steps": optimizer_steps,
-        "final_learning_rate": get_current_learning_rate(optimizer),
-        "used_mixed_precision": use_amp,
-    }
-    #raise NotImplementedError("Return train metrics and stability-tool tracking values.")
 
 @torch.no_grad()
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[str, float]:
@@ -671,56 +587,21 @@ def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[s
         no mixed precision needed, unless you want it
     """
 
-    model.eval()
+    raise NotImplementedError("Return validation loss and accuracy.")
 
-    losses, accs = [], []
 
-    for features, labels in loader:
-        features = features.to(device)
-        labels = labels.to(device)
 
-        logits = model(features)
-        loss = loss_fn(logits, labels)        
 
-        preds = logits.argmax(dim=-1).long()
-        accuracy = (preds == labels).float().mean().item()
-
-        losses.append(loss.item())
-        accs.append(accuracy)
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss": mean_loss, "accuracy": mean_acc}
-    #raise NotImplementedError("Return validation loss and accuracy.")
 
 
 def run_training(config: StabilityToolsConfig) -> dict[str, float | int | bool]:
     """Run the full stability-tool training workflow."""
 
-    loaders = load_dataloaders(config)
-    model, loss_fn, optimizer, scheduler = build_training_objects(config)
+    raise NotImplementedError("Train with stability tools and return final summary metrics.")
 
-    for i in range(1, config.epochs + 1):
 
-        train_dict = train_one_epoch(model, loaders["train"], loss_fn, optimizer, scheduler, config)
-        val_dict = evaluate(model, loaders["val"], loss_fn)
 
-        print(f"Epoch {i} -> loss: {train_dict['loss']:.5f}, acc: {train_dict['accuracy']:.5f}, val_loss: {val_dict['loss']:.5f}, val_acc: {val_dict['accuracy']:.4f}")
 
-    print(f"\n max_gradient_norm_before_clip: {train_dict['max_gradient_norm_before_clip']} \n")
-
-    test_dict = evaluate(model, loaders["test"], loss_fn)
-    print(f"Test Results: LOSS = {test_dict['loss']}, ACCURACY = {test_dict['accuracy']}")
-
-    return {
-            "val_accuracy": val_dict["accuracy"],
-            "final_learning_rate": train_dict["final_learning_rate"],
-            "max_gradient_norm_before_clip": train_dict["max_gradient_norm_before_clip"],
-            "optimizer_steps": train_dict["optimizer_steps"],
-            "used_mixed_precision": train_dict["used_mixed_precision"],
-            }
-    #raise NotImplementedError("Train with stability tools and return final summary metrics.")
 
 
 def check_metrics(metrics: dict[str, float | int | bool], target: float) -> bool:

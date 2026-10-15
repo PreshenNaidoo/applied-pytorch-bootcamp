@@ -194,31 +194,12 @@ def build_pair_dataset(config: SigLIPConfig) -> list[PairExample]:
     # - both target values 0 and 1 should appear
     # - images should be real tensors, not feature vectors
     
-    from datasets import load_dataset
+    raise NotImplementedError("Build SigLIP positive and negative image-text pairs.")
 
-    data = load_dataset(path=config.hf_dataset_name, split=f"train[:{config.sample_size}]")
 
-    transform = torchvision.transforms.Compose([torchvision.transforms.Resize(size=(config.image_size, config.image_size)),
-                                                torchvision.transforms.ToTensor()])
 
-    examples: list[tuple[torch.Tensor, str]] = []
-    for row in data:
-        image = row["image"].convert("RGB")
-        image_tensor = transform(image)
 
-        caption = row["caption"]
-        if isinstance(caption, list):
-            caption = caption[0]
-        examples.append((image_tensor, caption))
 
-    pairs: list[PairExample] = []
-    for index, (image_tensor, caption) in enumerate(examples):
-        wrong_caption = examples[(index + 1) % len(examples)][1]
-        pairs.append({"image": image_tensor, "caption": caption, "target": 1})
-        pairs.append({"image": image_tensor, "caption": wrong_caption, "target": 0})
-
-    # raise NotImplementedError("Build SigLIP positive and negative image-text pairs.")
-    return pairs
 
 
 def build_vocabulary(captions: list[str]) -> dict[str, int]:
@@ -249,21 +230,12 @@ def build_vocabulary(captions: list[str]) -> dict[str, int]:
     # - `token_to_id["<unk>"] == 1`
     # - A real word from the captions should be present.
 
-    all_words = []
+    raise NotImplementedError("Build vocabulary from pair captions.")
 
-    for caption in captions:
-        words = caption.lower().split()
-        all_words.extend(words)
 
-    vocabulary = sorted(set(all_words))
-    vocabulary.insert(0, "<pad>")
-    vocabulary.insert(1, "<unk>")
 
-    token_to_id = {w:i for i,w in enumerate(vocabulary)}
 
-    return token_to_id
 
-    #raise NotImplementedError("Build vocabulary from pair captions.")
 
 
 def tokenize_captions(captions: list[str], token_to_id: dict[str, int], config: SigLIPConfig) -> torch.Tensor:
@@ -294,29 +266,11 @@ def tokenize_captions(captions: list[str], token_to_id: dict[str, int], config: 
     # - Shape is `[number of captions, max_text_length]`.
     # - Padding positions are `0`.
 
-    pad_id = 0
-    unk_id = 1
+    raise NotImplementedError("Tokenize captions.")
 
-    token_ids_list = []
 
-    for caption in captions:
-        words = caption.lower().split()
 
-        token_ids = []
-        for word in words:
-            token_id = token_to_id.get(word, unk_id)
-            token_ids.append(token_id)
 
-        token_ids = token_ids[: config.max_text_length] # truncate if greater than max_text_length
-
-        if len(token_ids) < config.max_text_length:
-            token_ids += [pad_id] * (config.max_text_length - len(token_ids))
-
-        token_ids_list.append(torch.tensor(token_ids, dtype=torch.long))
-
-    return torch.stack(token_ids_list, dim=0)
-
-    #raise NotImplementedError("Tokenize captions.")
 
 
 class SigLIPPairDataset(Dataset):
@@ -439,10 +393,8 @@ class TinySigLIP(nn.Module):
         # Check:
         # - Both paths must produce `[batch_size, config.embedding_dim]`.
 
-        self.image_encoder = TinyImageEncoder(config)
-        self.text_encoder = TinyTextEncoder(vocab_size, 0, config)
+        raise NotImplementedError("Build TinySigLIP encoders.")
 
-        #raise NotImplementedError("Build TinySigLIP encoders.")
 
     def forward(self, images: torch.Tensor, caption_token_ids: torch.Tensor) -> torch.Tensor:
         """Return one match logit per image-text pair."""
@@ -464,17 +416,12 @@ class TinySigLIP(nn.Module):
         # Check:
         # - Output shape should be `[batch_size]`, not `[batch_size, batch_size]`.
 
-        image_embeddings = self.image_encoder(images)               # [batch_size, embedding_dim]
+        raise NotImplementedError("Return pairwise match logits.")
 
-        text_embeddings = self.text_encoder(caption_token_ids)      # [batch_size, embedding_dim]
 
-        scores = image_embeddings * text_embeddings                 # [batch_size, embedding_dim]
 
-        scores = scores.sum(dim=-1)                                 # [batch_size]
 
-        return scores
 
-        #raise NotImplementedError("Return pairwise match logits.")
 
 
 def compute_siglip_loss(pair_logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
@@ -497,7 +444,7 @@ def compute_siglip_loss(pair_logits: torch.Tensor, targets: torch.Tensor) -> tor
     # 2. Build the loss function with `nn.BCEWithLogitsLoss()`.
     # 3. Return `loss_fn(pair_logits, targets)`.
 
-    loss = nn.BCEWithLogitsLoss()
+    raise NotImplementedError("Compute binary cross entropy with logits.")
 
     # Compare each raw pair score with its match label and return the mean loss.
     # `BCEWithLogitsLoss` applies sigmoid inside, so it turns each raw score into
@@ -513,9 +460,7 @@ def compute_siglip_loss(pair_logits: torch.Tensor, targets: torch.Tensor) -> tor
     # target 1 pushes the score higher, and target 0 pushes the score lower.
     # PyTorch combines sigmoid and binary cross entropy in one stable function,
     # which avoids numeric problems from calling sigmoid ourselves first.
-    return loss(pair_logits, targets)
 
-    #raise NotImplementedError("Compute binary cross entropy with logits.")
 
 
 def train_one_epoch(model: TinySigLIP, loader: DataLoader, optimizer: torch.optim.Optimizer) -> float:
@@ -547,35 +492,11 @@ def train_one_epoch(model: TinySigLIP, loader: DataLoader, optimizer: torch.opti
     # Check:
     # - Return a Python float mean loss over all examples.
 
-    model.train()
+    raise NotImplementedError("Train one epoch.")
 
-    total_loss = 0
-    total_elements = 0
 
-    for data in loader:
-        images = data["image"]
-        captions = data["caption_token_ids"]
-        targets = data["target"]
 
-        images = images.to(device)
-        captions = captions.to(device)
-        targets = targets.to(device)
 
-        optimizer.zero_grad()
-
-        pair_logits = model(images, captions)
-        loss = compute_siglip_loss(pair_logits, targets)
-        loss.backward()
-        optimizer.step()
-
-        batch_size = images.shape[0]
-
-        total_loss += loss.item() * batch_size
-        total_elements += batch_size
-
-    return total_loss / total_elements
-
-    #raise NotImplementedError("Train one epoch.")
 
 @torch.no_grad()
 def evaluate_pairs(model: TinySigLIP, loader: DataLoader) -> float:
@@ -600,35 +521,11 @@ def evaluate_pairs(model: TinySigLIP, loader: DataLoader) -> float:
     # Check:
     # - Accuracy should be a float between `0.0` and `1.0`.
 
-    model.eval()
+    raise NotImplementedError("Evaluate match/non-match accuracy.")
 
-    total_accuracy = 0
-    num_batches = 0
 
-    for data in loader:
-        images = data["image"]
-        captions = data["caption_token_ids"]
-        targets = data["target"]
 
-        images = images.to(device)
-        captions = captions.to(device)
-        targets = targets.to(device)
 
-        pair_logits = model(images, captions)
-        
-        probabilities = torch.sigmoid(pair_logits)
-
-        pred = (probabilities>=0.5).float()
-        correct = (pred == targets).float()
-        accuracy = correct.mean().item()
-
-        total_accuracy+=accuracy
-        num_batches+=1
-
-    mean_accuracy = total_accuracy / num_batches
-
-    return mean_accuracy
-    #raise NotImplementedError("Evaluate match/non-match accuracy.")
 
 
 def save_siglip_visuals(losses: list[float], model: TinySigLIP, pairs: list[PairExample], token_to_id: dict[str, int], config: SigLIPConfig) -> tuple[str, str]:
@@ -655,56 +552,16 @@ def save_siglip_visuals(losses: list[float], model: TinySigLIP, pairs: list[Pair
     #
     # Check:
     # - Both paths should point inside `outputs/multimodal_interview/`.
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    raise NotImplementedError("Save SigLIP training visuals.")
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
 
-    loss_curve_path = config.output_dir / "siglip_loss_curve.png"
-    score_table_path = config.output_dir / "siglip_score_table.png"
 
-    plt.figure(figsize=(6, 4))
-    plt.plot(losses)
-    plt.title("SigLIP training loss")
-    plt.xlabel("epoch")
-    plt.ylabel("loss")
-    plt.tight_layout()
-    plt.savefig(loss_curve_path)
-    plt.close()
 
-    small_pairs = pairs[:8]
-    small_dataset = SigLIPPairDataset(small_pairs, token_to_id, config)
-    small_loader = DataLoader(small_dataset, batch_size=len(small_dataset), shuffle=False)
 
-    model.eval()
-    batch = next(iter(small_loader))
-    images = batch["image"].to(device)
-    caption_token_ids = batch["caption_token_ids"].to(device)
-    targets = batch["target"].to(device)
 
-    with torch.no_grad():
-        logits = model(images, caption_token_ids)
-        scores = torch.sigmoid(logits).detach().cpu()
 
-    target_values = targets.detach().cpu()
-    labels = ["match" if target.item() == 1 else "wrong" for target in target_values]
-    colors = ["tab:green" if target.item() == 1 else "tab:red" for target in target_values]
 
-    plt.figure(figsize=(8, 4))
-    plt.bar(range(len(scores)), scores.tolist(), color=colors)
-    plt.axhline(0.5, color="black", linestyle="--", linewidth=1)
-    plt.xticks(range(len(scores)), labels, rotation=45, ha="right")
-    plt.ylim(0.0, 1.0)
-    plt.title("SigLIP pair match probabilities")
-    plt.xlabel("pair target")
-    plt.ylabel("predicted match probability")
-    plt.tight_layout()
-    plt.savefig(score_table_path)
-    plt.close()
 
-    # raise NotImplementedError("Save SigLIP training visuals.")
-    return str(loss_curve_path), str(score_table_path)
 
 
 def run_exercise(config: SigLIPConfig) -> SigLIPMetrics:

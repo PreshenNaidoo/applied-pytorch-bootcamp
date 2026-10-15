@@ -270,50 +270,7 @@ def build_preference_dataset() -> list[PreferenceExample]:
     # - `len(examples)` should be at least `6`.
     # - `examples[0].keys()` should include `prompt`, `chosen`, and `rejected`.
     # - Do not make the rejected answer better than the chosen answer.
-    examples: list[PreferenceExample] = [
-        {
-            "prompt": "How do I check a tensor shape in PyTorch?",
-            "chosen": "Use `x.shape`. It shows the size of each tensor dimension.",
-            "rejected": "Just run it and hope it works.",
-        },
-        {
-            "prompt": "My training loss is not going down. What should I check first?",
-            "chosen": "Check that the loss is computed on the model output and labels, then check the learning rate.",
-            "rejected": "Ignore the loss because it does not matter.",
-        },
-        {
-            "prompt": "What does `optimizer.zero_grad()` do?",
-            "chosen": "It clears old gradients before the next backward pass, so updates use the current batch only.",
-            "rejected": "It randomly resets the whole model.",
-        },
-        {
-            "prompt": "Why do we use a validation set?",
-            "chosen": "A validation set checks how the model does on data it did not train on.",
-            "rejected": "Use the training data again because it is easier.",
-        },
-        {
-            "prompt": "How can I move a tensor to the GPU?",
-            "chosen": "Use `x = x.to(device)` after setting `device` to `cuda` when CUDA is available.",
-            "rejected": "Rename the tensor to gpu_tensor and it will run on the GPU.",
-        },
-        {
-            "prompt": "What is a batch in training?",
-            "chosen": "A batch is a small group of examples passed through the model before one optimizer step.",
-            "rejected": "A batch is whatever files happen to be on your computer.",
-        },
-        {
-            "prompt": "How do I stop gradients for a tensor?",
-            "chosen": "Use `tensor.detach()` when you want a tensor value without tracking more gradient history.",
-            "rejected": "Delete random lines until the gradient error goes away.",
-        },
-        {
-            "prompt": "What should I do if tensor shapes do not match?",
-            "chosen": "Print each tensor shape, find the mismatched dimension, and reshape only when the meaning stays correct.",
-            "rejected": "Force any reshape that removes the error, even if the data order becomes wrong.",
-        },
-    ]
-    return examples
-    # raise NotImplementedError("Return prompt, chosen, rejected examples.")
+    raise NotImplementedError("Return prompt, chosen, rejected examples.")
 
 # Return a tiny reward score.
 # The simplest path is:
@@ -356,23 +313,12 @@ def reward_model_score(example: PreferenceExample, answer_key: str) -> float:
     # - For most examples, `reward_model_score(example, "chosen")` should be higher than rejected.
     # - This function should not train a model.
 
-    if answer_key not in {"chosen", "rejected"}:
-        raise ValueError("answer_key must be 'chosen' or 'rejected'.")
+    raise NotImplementedError("Return a reward score for the chosen or rejected answer.")
 
-    answer = example[answer_key].lower()
-    score = 1.0 if answer_key == "chosen" else 0.0
 
-    concrete_words = ["shape", "tensor", "loss", "gradient"]
-    unhelpful_words = ["hope", "whatever", "ignore"]
 
-    if any(word in answer for word in concrete_words):
-        score += 0.2
-    if any(word in answer for word in unhelpful_words):
-        score -= 0.2
 
-    return float(score)
 
-    # raise NotImplementedError("Return a reward score for the chosen or rejected answer.")
 
 # Return a tiny policy log-probability.
 # This is a teaching stand-in for a language model log-probability.
@@ -420,18 +366,9 @@ def policy_log_probability(example: PreferenceExample, answer_key: str, policy_n
     # Checks:
     # - The new chosen log-probability should be higher than the reference chosen log-probability.
     # - The return value should be a Python float.
-    if policy_name not in {"new", "reference"}:
-        raise ValueError("policy_name must be 'new' or 'reference'.")
-    if answer_key not in {"chosen", "rejected"}:
-        raise ValueError("answer_key must be 'chosen' or 'rejected'.")
+    raise NotImplementedError("Return a toy log-probability for one answer under one policy.")
 
-    scores = {
-        "reference": {"chosen": -0.8, "rejected": -0.9},
-        "new": {"chosen": -0.4, "rejected": -1.2},
-    }
-    return float(scores[policy_name][answer_key])
 
-    # raise NotImplementedError("Return a toy log-probability for one answer under one policy.")
 
 def policy_ratio(new_log_prob: float, old_log_prob: float) -> float:
     """Return the PPO-style policy ratio."""
@@ -471,8 +408,7 @@ def policy_ratio(new_log_prob: float, old_log_prob: float) -> float:
 
     # Since log(a / b) = log(a) - log(b), exp(new_log_prob - old_log_prob)
     # gives the same idea as new_probability / old_probability.
-    return torch.exp(torch.tensor(new_log_prob - old_log_prob)).item()
-    #raise NotImplementedError("Return exp(new_log_prob - old_log_prob).")
+    raise NotImplementedError("Return exp(new_log_prob - old_log_prob).")
 
 # Return a tiny PPO-style objective term.
 # In plain words:
@@ -520,13 +456,8 @@ def clipped_policy_objective(ratio: float, reward_advantage: float, clip_epsilon
     # - With `ratio=2.0`, `reward_advantage=1.0`, and `clip_epsilon=0.2`, result should be `1.2`.
     # - With `ratio=1.0`, clipping should not change the objective.
 
-    unclipped = ratio * reward_advantage
-    clipped_ratio = min(max(ratio, 1 - clip_epsilon), 1 + clip_epsilon) # clips the ration in the range [1 - clip_epsilon, 1 + clip_epsilon]
-    clipped = clipped_ratio * reward_advantage
-    objective = min(unclipped, clipped)
+    raise NotImplementedError("Return the clipped objective term.")
 
-    return objective
-    #raise NotImplementedError("Return the clipped objective term.")
 
 def compare_rlhf_style_and_dpo(example: PreferenceExample, config: RLHFBridgeConfig) -> RLHFDPOToyComparison:
     """Return a tiny comparison between RLHF-style PPO intuition and DPO intuition."""
@@ -580,40 +511,14 @@ def compare_rlhf_style_and_dpo(example: PreferenceExample, config: RLHFBridgeCon
     # - `chosen_reward` should usually be higher than `rejected_reward`.
     # - The note should say the two views both push preferred answers up.
 
-    chosen_reward = reward_model_score(example, "chosen")
-    rejected_reward = reward_model_score(example, "rejected")
+    raise NotImplementedError("Return a plain comparison of reward-based and preference-based views.")
 
-    reward_advantage = chosen_reward - rejected_reward
 
-    ref_chosen_log_prob = policy_log_probability(example, "chosen", "reference")
-    new_chosen_log_prob = policy_log_probability(example, "chosen", "new")
 
-    chosen_ratio = policy_ratio(new_log_prob=new_chosen_log_prob, old_log_prob=ref_chosen_log_prob)
-    ppo_objective = clipped_policy_objective(
-        ratio=chosen_ratio,
-        reward_advantage=reward_advantage,
-        clip_epsilon=config.clip_epsilon,
-    )
 
-    ref_rejected_log_prob = policy_log_probability(example, "rejected", "reference")
-    new_rejected_log_prob = policy_log_probability(example, "rejected", "new")
 
-    dpo_preference_gap = config.beta * (
-        (new_chosen_log_prob - ref_chosen_log_prob)
-        - (new_rejected_log_prob - ref_rejected_log_prob)
-    )
 
-    return {
-        "chosen_reward": float(chosen_reward),
-        "rejected_reward": float(rejected_reward),
-        "reward_advantage": float(reward_advantage),
-        "chosen_ratio": float(chosen_ratio),
-        "ppo_objective": float(ppo_objective),
-        "dpo_preference_gap": float(dpo_preference_gap),
-        "note": "RLHF-style PPO uses reward and a clipped policy ratio. DPO uses chosen and rejected answers with a reference policy. Both views push preferred answers up.",
-    }
 
-    #raise NotImplementedError("Return a plain comparison of reward-based and preference-based views.")
 
 def write_bridge_note(comparisons: list[RLHFDPOToyComparison], config: RLHFBridgeConfig) -> str:
     """Write and save a short bridge note."""
@@ -650,35 +555,12 @@ def write_bridge_note(comparisons: list[RLHFDPOToyComparison], config: RLHFBridg
     # Checks:
     # - The note should not claim this is a full RLHF pipeline.
     # - The note should use plain language.
-    if not comparisons:
-        raise ValueError("comparisons must contain at least one comparison.")
+    raise NotImplementedError("Write a plain-language bridge note and return the saved path.")
 
-    report_path = Path(config.report_path)
-    report_path.parent.mkdir(parents=True, exist_ok=True)
 
-    mean_chosen_reward = sum(item["chosen_reward"] for item in comparisons) / len(comparisons)
-    mean_rejected_reward = sum(item["rejected_reward"] for item in comparisons) / len(comparisons)
-    mean_dpo_gap = sum(item["dpo_preference_gap"] for item in comparisons) / len(comparisons)
 
-    note_text = (
-        "# RLHF And Preference Optimization Bridge\n\n"
-        "This is a tiny teaching example, not a full RLHF pipeline.\n\n"
-        "A reward model gives higher scores to answers that look better.\n"
-        "A reference policy is the older policy that helps keep the new policy from drifting too far.\n"
-        "DPO compares a chosen answer with a rejected answer and pushes the chosen answer higher.\n\n"
-        "## Tiny Results\n\n"
-        f"- Number of examples: {len(comparisons)}\n"
-        f"- Mean chosen reward: {mean_chosen_reward:.3f}\n"
-        f"- Mean rejected reward: {mean_rejected_reward:.3f}\n"
-        f"- Mean DPO preference gap: {mean_dpo_gap:.3f}\n\n"
-        "In plain words, RLHF-style PPO uses reward plus a limit on policy change.\n"
-        "DPO uses the preference pair more directly, but it still compares the new policy with a reference policy.\n"
-    )
 
-    report_path.write_text(note_text, encoding="utf-8")
-    return str(report_path)
 
-    # raise NotImplementedError("Write a plain-language bridge note and return the saved path.")
 
 def run_rlhf_bridge_demo(config: RLHFBridgeConfig) -> RLHFBridgeSummary:
     """Run the full RLHF bridge workflow."""
@@ -714,26 +596,11 @@ def run_rlhf_bridge_demo(config: RLHFBridgeConfig) -> RLHFBridgeSummary:
     # Checks:
     # - `mean_chosen_reward` should usually be higher than `mean_rejected_reward`.
     # - The report path should point to the saved Markdown note.
-    examples = build_preference_dataset()
-    comparisons = [compare_rlhf_style_and_dpo(example, config) for example in examples]
+    raise NotImplementedError("Build preference examples, compare RLHF-style and DPO-style views, and return a summary.")
 
-    mean_chosen_reward = sum(item["chosen_reward"] for item in comparisons) / len(comparisons)
-    mean_rejected_reward = sum(item["rejected_reward"] for item in comparisons) / len(comparisons)
 
-    report_path = write_bridge_note(comparisons, config)
-    bridge_note = (
-        "Chosen answers score higher, and both RLHF-style PPO and DPO push the policy toward preferred answers."
-    )
 
-    return {
-        "num_examples": len(examples),
-        "mean_chosen_reward": float(mean_chosen_reward),
-        "mean_rejected_reward": float(mean_rejected_reward),
-        "report_path": report_path,
-        "bridge_note": bridge_note,
-    }
 
-    # raise NotImplementedError("Build preference examples, compare RLHF-style and DPO-style views, and return a summary.")
 
 def check_metrics(metrics: RLHFBridgeSummary) -> bool:
     """Return True when the RLHF bridge summary has the expected keys."""

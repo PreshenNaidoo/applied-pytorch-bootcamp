@@ -133,7 +133,6 @@ class PreprocessingConfig:
     random_state: int = 42
 
 
-        #raise NotImplementedError("Return one raw logit per example. Do not apply sigmoid here.")
 
 
 # Build the raw dataset splits.
@@ -142,16 +141,10 @@ class PreprocessingConfig:
 # - "X_train", "X_val", "X_test"
 # - "y_train", "y_val", "y_test"
 def load_raw_splits(config: PreprocessingConfig) -> dict[str, object]:
-    x, y = make_classification(n_samples = config.num_samples, n_features=config.num_features, n_classes=config.num_classes)
+    raise NotImplementedError("Return NumPy train, val, and test arrays with the six split keys.")
 
-    num_train, num_val = int(config.num_samples * 0.6), int(config.num_samples * 0.2)
 
-    x_train, y_train = x[:num_train,:], y[:num_train]
-    x_val, y_val = x[num_train:num_train+num_val,:], y[num_train: num_train+num_val]
-    x_test, y_test = x[num_train+num_val:], y[num_train+num_val:]
 
-    return {"X_train" : x_train, "X_val" : x_val, "X_test" : x_test,
-            "y_train" : y_train, "y_val" : y_val, "y_test" : y_test}
 
 
 
@@ -163,7 +156,6 @@ class Standardizer:
     std: np.ndarray
 
 
-    #raise NotImplementedError("Return NumPy train, val, and test arrays with the six split keys.")
 
 
 # Fit the standardizer on training features only.
@@ -171,16 +163,12 @@ class Standardizer:
 # If any std value is 0, replace it with 1.0 so division stays safe.
 def fit_standardizer(train_features: np.ndarray) -> Standardizer:
 
-    mean = train_features.mean(axis=0)
-    std = train_features.std(axis=0)
+    raise NotImplementedError("Return the training-set mean and std only.")
 
     #std[std == 0] = 1
-    std = np.where(std==0, 1, std)    
-
-    return Standardizer(mean, std)
 
 
-    #raise NotImplementedError("Return the training-set mean and std only.")
+
 
 
 # Apply the saved train-only standardizer.
@@ -188,12 +176,10 @@ def fit_standardizer(train_features: np.ndarray) -> Standardizer:
 # Formula: (features - mean) / std
 def apply_standardizer(features: np.ndarray, standardizer: Standardizer) -> np.ndarray:
 
-    features = (features - standardizer.mean)/standardizer.std
-
-    return features
+    raise NotImplementedError("Return the standardized features using the saved train mean and std.")
 
 
-    #raise NotImplementedError("Return the standardized features using the saved train mean and std.")
+
 
 
 # Build loaders from ready-made arrays.
@@ -205,13 +191,8 @@ def apply_standardizer(features: np.ndarray, standardizer: Standardizer) -> np.n
 # Labels should become float tensors if you use BCEWithLogitsLoss.
 def build_dataloaders_from_arrays(feature_arrays: dict[str, np.ndarray], label_arrays: dict[str, np.ndarray], batch_size: int) -> dict[str, DataLoader]:
     
-    train_ds = TensorDataset(torch.tensor(feature_arrays["train"], dtype=torch.float), torch.tensor(label_arrays["train"], dtype=torch.float))
-    val_ds = TensorDataset(torch.tensor(feature_arrays["val"], dtype=torch.float), torch.tensor(label_arrays["val"], dtype=torch.float))
-    test_ds = TensorDataset(torch.tensor(feature_arrays["test"], dtype=torch.float), torch.tensor(label_arrays["test"], dtype=torch.float))
+    raise NotImplementedError("Return train, val, and test loaders built from the given arrays.")
     
-    return {"train" : DataLoader(dataset=train_ds, batch_size=batch_size, shuffle = True),
-            "val" : DataLoader(dataset=val_ds, batch_size = batch_size),
-            "test" : DataLoader(dataset = test_ds, batch_size = batch_size)}
 
 
 
@@ -220,15 +201,9 @@ class SimpleVectorClassifier(nn.Module):
 
     def __init__(self, input_dim: int, hidden_dim: int, num_classes: int) -> None:
         super().__init__()
-        self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
-        self.num_classes = num_classes
+        raise NotImplementedError("Build one small classifier and reuse the exact same model shape in both experiments.")
 
-        self.fc1 = nn.Linear(in_features=input_dim, out_features=hidden_dim)
-        self.fc2 = nn.Linear(in_features=hidden_dim, out_features=hidden_dim//2)
-        self.fc3 = nn.Linear(in_features=hidden_dim//2, out_features=1)
 
-        #raise NotImplementedError("Build one small classifier and reuse the exact same model shape in both experiments.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return raw logits for the classification task.
@@ -238,13 +213,9 @@ class SimpleVectorClassifier(nn.Module):
         - or return `[batch_size, 1]` and squeeze dim 1 before you return
         """
 
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
+        raise NotImplementedError("Return one raw logit per example. Do not apply sigmoid here.")
 
-        return x.squeeze()
 
-    #raise NotImplementedError("Return train, val, and test loaders built from the given arrays.")
 
 
 # Run one full experiment.
@@ -261,31 +232,12 @@ class SimpleVectorClassifier(nn.Module):
 # - "val_accuracy"
 def run_single_experiment(config: PreprocessingConfig, use_scaling: bool) -> dict[str, float]:
 
-    torch.manual_seed(config.random_state)
+    raise NotImplementedError("Return one experiment result with train_loss, val_loss, and val_accuracy.")
 
-    np_data_dict = load_raw_splits(config)
-    standardizer = fit_standardizer(np_data_dict["X_train"])
 
-    feature_arrays = {
-        "train": np_data_dict["X_train"],
-        "val": np_data_dict["X_val"],
-        "test": np_data_dict["X_test"],
-    }
-    label_arrays = {
-        "train": np_data_dict["y_train"],
-        "val": np_data_dict["y_val"],
-        "test": np_data_dict["y_test"],
-    }
 
-    if use_scaling:
-        feature_arrays["train"] = apply_standardizer(feature_arrays["train"], standardizer)
-        feature_arrays["val"] = apply_standardizer(feature_arrays["val"], standardizer)
-        feature_arrays["test"] = apply_standardizer(feature_arrays["test"], standardizer)
 
-    loaders = build_dataloaders_from_arrays(feature_arrays, label_arrays, config.batch_size)
 
-    model = SimpleVectorClassifier(config.num_features, config.hidden_dim, config.num_classes)
-    model.to(device)
 
     # nn.BCEWithLogitsLoss() expects raw logits and applies the sigmoid part internally.
     # your model should return raw scores
@@ -295,63 +247,10 @@ def run_single_experiment(config: PreprocessingConfig, use_scaling: bool) -> dic
     # So these are equivalent:
     # logit >= 0.0 and sigmoid(logit) >= 0.5
 
-    loss_fn = nn.BCEWithLogitsLoss()
-    optimizer = torch.optim.SGD(lr = config.learning_rate, params = model.parameters())
 
-    train_losses, val_losses = [], []
-    train_accs, val_accs = [], []
 
-    for i in range(config.epochs):
 
-        losses, accs = [], []
-        for x_data, y_targets in loaders["train"]:
-            x_data = x_data.to(device)
-            y_targets = y_targets.to(device)            
 
-            model.train()
-            optimizer.zero_grad()
-
-            logits = model(x_data)
-            loss = loss_fn(logits, y_targets)
-            loss.backward()
-            optimizer.step()
-
-            losses.append(loss.item())
-
-            predicted = (logits >= 0).float()  #float in this case because my targets are float
-            correct = (predicted == y_targets).float()
-            accs.append(float(correct.mean().item()))
-            
-        #append mean loss and accuracy for the entire epoch:
-        train_losses.append(torch.tensor(losses).mean().item())
-        train_accs.append(torch.tensor(accs).mean().item())
-
-        losses, accs = [], []
-        for x_data, y_targets in loaders["val"]:
-            x_data = x_data.to(device)
-            y_targets = y_targets.to(device)
-
-            model.eval()
-
-            logits_val = model(x_data)
-            loss = loss_fn(logits_val, y_targets)
-
-            losses.append(loss.item())
-
-            predicted = (logits_val >= 0).float()
-            correct = (predicted == y_targets).float()
-            accs.append(correct.mean().item())
-
-        val_losses.append(torch.tensor(losses).mean().item())
-        val_accs.append(torch.tensor(accs).mean().item())
-
-        if i % 10 == 0:
-            print(f"Epoch {i} -> loss: {train_losses[-1]}, acc {train_accs[-1]}, val_loss: {val_losses[-1]}, val_acc: {val_accs[-1]}")
-
-    return {"train_loss": train_losses[-1], "train_accuracy": train_accs[-1], 
-            "val_loss": val_losses[-1], "val_accuracy": val_accs[-1]}
-
-    #raise NotImplementedError("Return one experiment result with train_loss, val_loss, and val_accuracy.")
 
 
 # Compare the two experiment settings.
@@ -363,13 +262,8 @@ def run_single_experiment(config: PreprocessingConfig, use_scaling: bool) -> dic
 # Write comparison_note in plain language.
 def run_training(config: PreprocessingConfig) -> dict[str, float | str]:    
 
-    res_no_scale_dict = run_single_experiment(config, use_scaling=False)
-    res_scale_dict = run_single_experiment(config, use_scaling=True)
+    raise NotImplementedError("Return both validation accuracies and one plain-language comparison note.")
 
-    print(f"No Scaling:")
-    print(f"train_loss: {res_no_scale_dict['train_loss']}, train_acc: {res_no_scale_dict['train_accuracy']}, val_loss: {res_no_scale_dict['val_loss']}, val_acc: {res_no_scale_dict['val_accuracy']}")
-    print(f"Scaling:")
-    print(f"train_loss: {res_scale_dict['train_loss']}, train_acc: {res_scale_dict['train_accuracy']}, val_loss: {res_scale_dict['val_loss']}, val_acc: {res_scale_dict['val_accuracy']}")
 
     # Results after training for 200 epochs:
     # No Scaling: 
@@ -398,11 +292,7 @@ def run_training(config: PreprocessingConfig) -> dict[str, float | str]:
     # Scaling:
     # train_loss: 0.5341066122055054, train_acc: 0.8301630616188049, val_loss: 0.5197018384933472, val_acc: 0.86328125 
 
-    return {"no_scaling_val_accuracy": res_no_scale_dict["val_accuracy"],
-            "scaled_val_accuracy": res_scale_dict["val_accuracy"],
-            "comparison_note" :"hello world"}
 
-    #raise NotImplementedError("Return both validation accuracies and one plain-language comparison note.")
 
 
 

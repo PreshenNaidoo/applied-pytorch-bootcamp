@@ -262,22 +262,10 @@ def load_tokenized_dataloaders(config: LoRAFineTuningConfig) -> dict[str, DataLo
     # - `batch["input_ids"].shape` should be `[config.batch_size, config.max_length]`.
     # - `batch["labels"].shape` should be `[config.batch_size]`.
 
-    from datasets import load_dataset
-    from transformers import AutoTokenizer
+    raise NotImplementedError("Return tokenized dataloaders for the LoRA fine-tuning task.")
 
-    raw_data = load_dataset(config.dataset_name)
-    train_data = raw_data["train"]
-    test_data = raw_data["test"]
 
-    split_dict = train_data.train_test_split(
-        test_size=0.2,
-        shuffle=True,
-        seed=config.random_state,
-    )
-    train_data = split_dict["train"]
-    val_data = split_dict["test"]
 
-    tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=config.model_name)
 
     # Implementation steps:
     # 1. In `tokenize_batch`, read the list of texts from `batch[config.text_column]`.
@@ -289,76 +277,12 @@ def load_tokenized_dataloaders(config: LoRAFineTuningConfig) -> dict[str, DataLo
     # 6. Return the tokenizer output.
     # 7. Outside the helper, call `.map(tokenize_batch, batched=True)` on train, val, and test.
     # 8. Return `{"train": tokenized_train, "val": tokenized_val, "test": tokenized_test}`.
-    def tokenize_batch(batch: dict[str, list[Any]]) -> dict[str, Any]:
-        """Tokenize one batch and add labels."""
-        # This helper is called by `.map(...)`.
-        #
-        # Input:
-        # - `batch[config.text_column]`: list of text strings
-        # - `batch[config.label_column]`: list of class ids
-        # - Tiny example:
-        #   batch = {"text": ["Stocks rose today", "A team won"], "label": [2, 1]}
-        #
-        # Do these steps here:
-        # 1. Tokenize the list of text strings.
-        #    The tokenizer should create both `input_ids` and `attention_mask`.
-        #    You do not build the attention mask by hand here.
-        #    Important:
-        #    - `tokenizer.encode(text)` returns only one list of token ids.
-        #    - `tokenizer(texts, padding="max_length", truncation=True, max_length=config.max_length)`
-        #      returns a dictionary like:
-        #      {"input_ids": [...], "attention_mask": [...]}
-        # 2. Store the class ids under the key `labels`.
-        # 3. Return the tokenized batch.
-        #
-        # Return:
-        # - dictionary with `input_ids`, `attention_mask`, and `labels`
-        # - For the tiny example above with `max_length=6`, the return has keys like:
-        #   {
-        #       "input_ids": [[101, 15768, 3123, 2651, 102, 0], ...],
-        #       "attention_mask": [[1, 1, 1, 1, 1, 0], ...],
-        #       "labels": [2, 1],
-        #   }
 
-        texts = batch[config.text_column]
-        labels = batch[config.label_column]
 
-        token_dict = tokenizer(texts, padding="max_length", truncation=True, max_length=config.max_length)
-        input_ids = token_dict["input_ids"]
-        attention_mask = token_dict["attention_mask"]
 
-        return {"input_ids": input_ids, "attention_mask": attention_mask, "labels": labels}
 
-    tokenized_train = train_data.map(tokenize_batch, batched=True)
 
-    tokenized_val = val_data.map(tokenize_batch, batched=True)
 
-    tokenized_test = test_data.map(tokenize_batch, batched=True)
-
-    columns = ["input_ids", "attention_mask", "labels"]
-    tokenized_train.set_format(type="torch", columns=columns)
-    tokenized_val.set_format(type="torch", columns=columns)
-    tokenized_test.set_format(type="torch", columns=columns)
-
-    return {
-        "train": torch.utils.data.DataLoader(
-            dataset=tokenized_train,
-            batch_size=config.batch_size,
-            shuffle=True,
-        ),
-        "val": torch.utils.data.DataLoader(
-            dataset=tokenized_val,
-            batch_size=config.batch_size,
-            shuffle=False,
-        ),
-        "test": torch.utils.data.DataLoader(
-            dataset=tokenized_test,
-            batch_size=config.batch_size,
-            shuffle=False,
-        ),
-    }
-
-    #raise NotImplementedError("Return tokenized dataloaders for the LoRA fine-tuning task.")
 
 # Load the base pretrained model before adding LoRA.
 # Return a classifier that outputs raw class logits.
@@ -400,12 +324,8 @@ def load_base_model(config: LoRAFineTuningConfig) -> nn.Module:
     # - Cross-entropy expects raw logits, not probabilities.
     # - A quick forward pass should make `outputs.logits.shape[-1] == config.num_classes`.
     
-    from transformers import AutoModelForSequenceClassification
-    model = AutoModelForSequenceClassification.from_pretrained(config.model_name, num_labels=config.num_classes)
-    model = model.to(device)
+    raise NotImplementedError("Load and return a pretrained sequence-classification model.")
 
-    return model
-    #raise NotImplementedError("Load and return a pretrained sequence-classification model.")
 
 # Add LoRA adapters to the base model.
 # Return the wrapped model.
@@ -483,20 +403,12 @@ def add_lora_adapters(model: nn.Module, config: LoRAFineTuningConfig) -> nn.Modu
     # - `count_parameters(lora_model)["trainable_percent"]` should be much smaller than 100.
     # - A quick forward pass should still produce logits shaped `[batch_size, config.num_classes]`.
 
-    from peft import LoraConfig, TaskType, get_peft_model
+    raise NotImplementedError("Add LoRA adapters and return the PEFT model.")
 
-    lora_config = LoraConfig(task_type=TaskType.SEQ_CLS, r = config.lora_rank, 
-                                lora_alpha=config.lora_alpha, lora_dropout=config.lora_dropout,
-                                target_modules=["q_lin", "v_lin"])
 
-    lora_model = get_peft_model(model = model, peft_config = lora_config)
-    lora_model = lora_model.to(device)
 
-    lora_model.print_trainable_parameters()
     #the above line prints: trainable params: 741,124 || all params: 67,697,672 || trainable%: 1.0948
 
-    return lora_model
-    #raise NotImplementedError("Add LoRA adapters and return the PEFT model.")
 
 # Count parameters and summarize how many are trainable.
 # Return:
@@ -545,12 +457,8 @@ def count_parameters(model: nn.Module) -> dict[str, float]:
     # If trainable parameters are not much smaller,
     # the exercise is not really demonstrating LoRA properly.
 
-    total_parameters = sum(p.numel() for p in model.parameters())
-    trainable_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    trainable_percent = 100 * trainable_parameters / total_parameters
+    raise NotImplementedError("Count total and trainable model parameters.")
 
-    return {'total_parameters': total_parameters, 'trainable_parameters': trainable_parameters, 'trainable_percent': trainable_percent}
-    #raise NotImplementedError("Count total and trainable model parameters.")
 
 def build_training_objects(config: LoRAFineTuningConfig) -> tuple[nn.Module, torch.optim.Optimizer, dict[str, float]]:
     """Return LoRA model, optimizer, and parameter counts."""
@@ -591,14 +499,9 @@ def build_training_objects(config: LoRAFineTuningConfig) -> tuple[nn.Module, tor
     # - `parameter_counts["trainable_percent"]` should be much smaller than 100.
     #
 
-    base_model = load_base_model(config)
-    lora_model = add_lora_adapters(base_model, config)
-    count_params = count_parameters(lora_model)
+    raise NotImplementedError("Build the LoRA model and optimizer.")
 
-    optimizer = torch.optim.AdamW(params=lora_model.parameters(), lr=config.learning_rate)
 
-    return lora_model, optimizer, count_params
-    #raise NotImplementedError("Build the LoRA model and optimizer.")
 
 def train_one_epoch(
     model: nn.Module,
@@ -649,50 +552,12 @@ def train_one_epoch(
     # - Do not call `torch.no_grad()` while training.
     # - Do not apply softmax before `argmax`; the largest logit gives the predicted class.
     
-    model.train()
+    raise NotImplementedError("Return mean train loss and accuracy.")
 
-    losses, accs = [], []
 
-    for data_dict in loader:
-        input_ids = data_dict["input_ids"]              # [batch_size, max_length]
-        labels = data_dict["labels"]                    # [batch_size]
 
-        # This is a padding mask, not a causal mask.
-        # Shape: [batch_size, max_length].
-        # 1 means "real token"; 0 means "padding token".
-        # Example with batch_size=2 and max_length=6:
-        # [[1, 1, 1, 1, 0, 0],   # 4 real tokens, then 2 padding tokens
-        #  [1, 1, 1, 1, 1, 1]]   # 6 real tokens, no padding
-        # The model uses this during attention so real tokens ignore padding tokens.
-        # Without it, the model may treat padding as if it were real text.
-        # Hugging Face expands it inside the model to the larger attention shape it needs.
-        # A causal mask is different: it blocks a token from looking at future tokens.
-        attention_masks = data_dict["attention_mask"]   # [batch_size, max_length]
 
-        input_ids = input_ids.to(device)
-        labels = labels.to(device)
-        attention_masks = attention_masks.to(device)
 
-        optimizer.zero_grad()
-
-        model_output = model(input_ids=input_ids, attention_mask=attention_masks, labels=labels)
-        loss = model_output["loss"]
-        logits = model_output["logits"]
-        loss.backward()
-        optimizer.step()
-
-        losses.append(loss.item())
-
-        pred = logits.argmax(dim=-1)
-        correct = (pred==labels).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss": mean_loss, "accuracy": mean_acc}
-
-    #raise NotImplementedError("Return mean train loss and accuracy.")
 
 @torch.no_grad()
 def evaluate(model: nn.Module, loader: DataLoader) -> dict[str, float]:
@@ -735,45 +600,11 @@ def evaluate(model: nn.Module, loader: DataLoader) -> dict[str, float]:
     # - Accuracy should be `correct / total`.
     #
 
-    model.train()
+    raise NotImplementedError("Return mean evaluation loss and accuracy.")
 
-    losses, accs = [], []
 
-    for data_dict in loader:
-        input_ids = data_dict["input_ids"]              # [batch_size, max_length]
-        labels = data_dict["labels"]                    # [batch_size]
 
-        # This is a padding mask, not a causal mask.
-        # Shape: [batch_size, max_length].
-        # 1 means "real token"; 0 means "padding token".
-        # Example with batch_size=2 and max_length=6:
-        # [[1, 1, 1, 1, 0, 0],   # 4 real tokens, then 2 padding tokens
-        #  [1, 1, 1, 1, 1, 1]]   # 6 real tokens, no padding
-        # The model uses this during attention so real tokens ignore padding tokens.
-        # Without it, the model may treat padding as if it were real text.
-        # Hugging Face expands it inside the model to the larger attention shape it needs.
-        # A causal mask is different: it blocks a token from looking at future tokens.
-        attention_masks = data_dict["attention_mask"]   # [batch_size, max_length]
 
-        input_ids = input_ids.to(device)
-        labels = labels.to(device)
-        attention_masks = attention_masks.to(device)        
-
-        model_output = model(input_ids=input_ids, attention_mask=attention_masks, labels=labels)
-        loss = model_output["loss"]
-        logits = model_output["logits"]        
-
-        losses.append(loss.item())
-
-        pred = logits.argmax(dim=-1)
-        correct = (pred==labels).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss": mean_loss, "accuracy": mean_acc}
-    #raise NotImplementedError("Return mean evaluation loss and accuracy.")
 
 def compare_lora_tradeoff(parameter_counts: dict[str, float], metrics: dict[str, float]) -> str:
     """Write a short note about the LoRA tradeoff."""
@@ -810,25 +641,9 @@ def compare_lora_tradeoff(parameter_counts: dict[str, float], metrics: dict[str,
     # - Do not use vague words like "good" without numbers.
     # - Keep the note beginner-friendly.
     #
-    trainable_percent = float(parameter_counts["trainable_percent"])
-    trainable_parameters = int(parameter_counts["trainable_parameters"])
-    total_parameters = int(parameter_counts["total_parameters"])
+    raise NotImplementedError("compare_lora_tradeoff.")
 
-    accuracy = metrics.get("val_accuracy", metrics.get("accuracy"))
-    if accuracy is None:
-        return (
-            f"LoRA trained {trainable_parameters:,} of {total_parameters:,} weights "
-            f"({trainable_percent:.2f}%). That means training updated only a small part "
-            "of the model instead of the whole model."
-        )
 
-    accuracy_percent = float(accuracy) * 100.0
-    return (
-        f"LoRA trained {trainable_parameters:,} of {total_parameters:,} weights "
-        f"({trainable_percent:.2f}%) and reached {accuracy_percent:.1f}% validation accuracy. "
-        "That means it used far fewer trainable weights while still learning the task."
-    )
-    #raise NotImplementedError("compare_lora_tradeoff.")
 
 def run_training(config: LoRAFineTuningConfig) -> dict[str, float | str]:
     """Run the full LoRA fine-tuning workflow."""
@@ -872,44 +687,12 @@ def run_training(config: LoRAFineTuningConfig) -> dict[str, float | str]:
     # - The returned dictionary must pass `check_metrics(...)`.
     #
 
-    loaders = load_tokenized_dataloaders(config)
-    lora_model, optimizer, param_counts = build_training_objects(config)
-    train_dict: dict[str, float] = {"loss": 0.0, "accuracy": 0.0}
-    val_dict: dict[str, float] = {"loss": 0.0, "accuracy": 0.0}
+    raise NotImplementedError("Fine-tune with LoRA and return final metrics.")
 
-    for epoch in range(config.epochs):
-        train_dict = train_one_epoch(lora_model, loaders["train"], optimizer)
-        val_dict = evaluate(lora_model, loaders["val"])
 
-        print(
-            f"Epoch {epoch + 1} -> "
-            f"train_loss: {train_dict['loss']:.4f}, "
-            f"train_accuracy: {train_dict['accuracy']:.4f}, "
-            f"val_loss: {val_dict['loss']:.4f}, "
-            f"val_accuracy: {val_dict['accuracy']:.4f}"
-        )
 
-    test_dict = evaluate(lora_model, loaders["test"])
-    print(f"test_loss: {test_dict['loss']:.4f}, "
-          f"test_accuracy: {test_dict['accuracy']:.4f}"
-        )
 
-    metrics = {
-        "train_loss": train_dict["loss"],
-        "train_accuracy": train_dict["accuracy"],
-        "val_loss": val_dict["loss"],
-        "val_accuracy": val_dict["accuracy"],
-        "test_loss": test_dict["loss"],
-        "test_accuracy": test_dict["accuracy"],
-        "total_parameters": param_counts["total_parameters"],
-        "trainable_parameters": param_counts["trainable_parameters"],
-        "trainable_percent": param_counts["trainable_percent"],
-    }
-    metrics["comparison_note"] = compare_lora_tradeoff(param_counts, metrics)
 
-    return metrics
-
-    #raise NotImplementedError("Fine-tune with LoRA and return final metrics.")
 
 def check_metrics(metrics: dict[str, float | str], target: float) -> bool:
     """Return True when the LoRA summary has the expected values."""

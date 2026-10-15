@@ -339,66 +339,11 @@ def build_sft_examples() -> list[SFTExample]:
     # - `examples[0]["prompt"]` is not empty.
     # - `examples[0]["answer"]` is not empty.
 
-    fallback_examples: list[SFTExample] = [
-        {
-            "prompt": "Say hello politely.",
-            "answer": "Hello, nice to meet you.",
-        },
-        {
-            "prompt": "Explain what SFT means in one sentence.",
-            "answer": "SFT means training a model to copy good prompt-answer examples.",
-        },
-        {
-            "prompt": "Write a short thank-you note for help with a project.",
-            "answer": "Thank you for helping with the project. Your support made the work much easier.",
-        },
-        {
-            "prompt": "Turn this into a clearer sentence: the model got better after training.",
-            "answer": "The model improved after training.",
-        },
-        {
-            "prompt": "List two common mistakes when training a small language model.",
-            "answer": "Two common mistakes are training on padding tokens and using examples that are too long.",
-        },
-        {
-            "prompt": "Explain why we use a validation set.",
-            "answer": "A validation set helps us check how the model does on examples it did not train on.",
-        },
-        {
-            "prompt": "Give one simple example of a prompt and answer pair.",
-            "answer": "Prompt: What is PyTorch? Answer: PyTorch is a library for building and training neural networks.",
-        },
-        {
-            "prompt": "Summarize this idea: DPO compares a better answer with a worse answer.",
-            "answer": "DPO teaches a model to prefer the better answer over the worse answer.",
-        },
-    ]
+    raise NotImplementedError("Return small SFT examples with instruction, and answer keys.")
 
-    try:
-        from datasets import load_dataset
 
-        raw_data = load_dataset("databricks/databricks-dolly-15k", split="train[:50]")
-    except Exception:
-        return fallback_examples
 
-    examples: list[SFTExample] = []
-    for row in raw_data:
-        instruction = str(row.get("instruction", "")).strip()
-        context = str(row.get("context", "")).strip()
-        answer = str(row.get("response", "")).strip()
 
-        prompt = instruction
-        if context:
-            prompt = f"{prompt}\n\nContext:\n{context}"
-
-        if prompt and answer:
-            examples.append({"prompt": prompt, "answer": answer})
-
-    if len(examples) < 8:
-        return fallback_examples
-
-    return examples
-    #raise NotImplementedError("Return small SFT examples with instruction, and answer keys.")
 
 # Return a tiny preference dataset.
 # Each example should have:
@@ -568,11 +513,8 @@ def format_sft_example(example: SFTExample) -> str:
     # - The output should contain `"Prompt:"`.
     # - The output should contain `"Answer:"`.
     # - The answer should appear after the prompt.
-    prompt = example["prompt"].strip()
-    answer = example["answer"].strip()
-    return f"Prompt:\n{prompt}\n\nAnswer:\n{answer}"
+    raise NotImplementedError("Format one SFT example.")
 
-    #raise NotImplementedError("Format one SFT example.")
 
 # Format one preference example using either the chosen or rejected answer.
 # This makes it easy to score both answers with the same prompt template.
@@ -605,14 +547,9 @@ def format_preference_example(example: PreferenceExample, answer_key: str) -> st
     # - Chosen and rejected strings should have the same prompt text.
     # - Only the answer part should change.
 
-    if answer_key not in {"chosen", "rejected"}:
-        raise ValueError('answer_key must be "chosen" or "rejected".')
+    raise NotImplementedError("Format one chosen or rejected preference example.")
 
-    prompt = example["prompt"].strip()
-    answer = example[answer_key].strip()
-    return f"Prompt:\n{prompt}\n\nAnswer:\n{answer}"
 
-    #raise NotImplementedError("Format one chosen or rejected preference example.")
 
 # Build the tokenizer used by the toy SFT and DPO runs.
 # It can be very simple.
@@ -660,39 +597,10 @@ def build_tokenizer(
     # - `len(tokenizer.encode("Prompt: hello", config.max_length)["attention_mask"]) == config.max_length`
     # - `tokenizer.decode(tokenizer.encode("hello", config.max_length)["input_ids"])` returns a string.
 
-    from transformers import AutoTokenizer
+    raise NotImplementedError("Return the tokenizer used by the tiny language model.")
 
-    hf_tokenizer = AutoTokenizer.from_pretrained(config.model_name)
-    if hf_tokenizer.pad_token is None:
-        hf_tokenizer.pad_token = hf_tokenizer.eos_token
 
-    class HuggingFaceTextTokenizer:
-        """Small wrapper around a Hugging Face tokenizer."""
 
-        def __init__(self, tokenizer) -> None:
-            self.tokenizer = tokenizer
-            self.pad_token_id = int(tokenizer.pad_token_id)
-            self.eos_token_id = int(tokenizer.eos_token_id)
-
-        def encode(self, text: str, max_length: int) -> TokenizedText:
-            encoded = self.tokenizer(
-                text,
-                truncation=True,
-                padding="max_length",
-                max_length=max_length,
-            )
-            return {
-                "input_ids": list(encoded["input_ids"]),
-                "attention_mask": list(encoded["attention_mask"]),
-            }
-
-        def decode(self, token_ids: list[int] | torch.Tensor) -> str:
-            if isinstance(token_ids, torch.Tensor):
-                token_ids = token_ids.detach().cpu().tolist()
-            return self.tokenizer.decode(token_ids, skip_special_tokens=True)
-
-    return HuggingFaceTextTokenizer(hf_tokenizer)
-    #raise NotImplementedError("Return the tokenizer used by the tiny language model.")
 
 def build_model(config: SFTDPOConfig) -> nn.Module:
     """Return a tiny language model for the exercise."""
@@ -729,15 +637,10 @@ def build_model(config: SFTDPOConfig) -> nn.Module:
     # - For `input_ids` with shape `[2, 8]`, logits should be `[2, 8, vocab_size]`.
     # - Do not apply softmax inside the model.
     # - Cross-entropy expects raw logits.
-    from transformers import AutoModelForCausalLM
+    raise NotImplementedError("Return a tiny causal language model.")
 
-    base_model = AutoModelForCausalLM.from_pretrained(config.model_name)
 
-    if base_model.config.pad_token_id is None:
-        base_model.config.pad_token_id = base_model.config.eos_token_id
 
-    return base_model.to(device)
-    #raise NotImplementedError("Return a tiny causal language model.")
 
 def build_sft_dataloader(
     examples: list[SFTExample],
@@ -817,33 +720,9 @@ def build_sft_dataloader(
     # - `batch["labels"].shape == batch["input_ids"].shape`
     # - padding positions in `labels` should be `-100`.
 
-    encoded_rows = [
-        tokenizer.encode(format_sft_example(example), max_length=config.max_length)
-        for example in examples
-    ]
-    prompt_rows = [
-        tokenizer.encode(f"Prompt:\n{example['prompt'].strip()}\n\nAnswer:\n", max_length=config.max_length)  # only pormpt here, no answer. Because we want prompt length.
-        for example in examples
-    ]
-    input_ids = torch.tensor([row["input_ids"] for row in encoded_rows], dtype=torch.long)
-    attention_mask = torch.tensor([row["attention_mask"] for row in encoded_rows], dtype=torch.long)
-    labels = input_ids.clone()
-    for index, prompt_row in enumerate(prompt_rows):
-        prompt_length = sum(prompt_row["attention_mask"])
-        labels[index, :prompt_length] = -100                # set prompt labels to -100 so we dont train on the prompt.
-    labels[input_ids == tokenizer.pad_token_id] = -100       # set padding labels to -100 so we dont train on the padding.
+    raise NotImplementedError("Return SFT dataloader with input ids and labels.")
 
-    dataset = [
-        {
-            "input_ids": input_ids[index],
-            "attention_mask": attention_mask[index],
-            "labels": labels[index],
-        }
-        for index in range(input_ids.shape[0])
-    ]
 
-    return DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
-    #raise NotImplementedError("Return SFT dataloader with input ids and labels.")
 
 def build_preference_dataloader(
     examples: list[PreferenceExample],
@@ -903,47 +782,11 @@ def build_preference_dataloader(
     # - `batch["chosen_input_ids"].shape[1] == config.max_length`
     # - `batch["rejected_labels"].shape == batch["rejected_input_ids"].shape`
 
-    chosen_rows = [
-        tokenizer.encode(format_preference_example(example, "chosen"), max_length=config.max_length)
-        for example in examples
-    ]
-    rejected_rows = [
-        tokenizer.encode(format_preference_example(example, "rejected"), max_length=config.max_length)
-        for example in examples
-    ]
-    prompt_rows = [
-        tokenizer.encode(f"Prompt:\n{example['prompt'].strip()}\n\nAnswer:\n", max_length=config.max_length) # only pormpt here, no answer. Because we want prompt length.
-        for example in examples
-    ]
+    raise NotImplementedError("Return DPO dataloader with chosen and rejected examples.")
 
-    chosen_input_ids = torch.tensor([row["input_ids"] for row in chosen_rows], dtype=torch.long)
-    chosen_attention_mask = torch.tensor([row["attention_mask"] for row in chosen_rows], dtype=torch.long)
-    rejected_input_ids = torch.tensor([row["input_ids"] for row in rejected_rows], dtype=torch.long)
-    rejected_attention_mask = torch.tensor([row["attention_mask"] for row in rejected_rows], dtype=torch.long)
 
-    chosen_labels = chosen_input_ids.clone()
-    rejected_labels = rejected_input_ids.clone()
-    for index, prompt_row in enumerate(prompt_rows):
-        prompt_length = sum(prompt_row["attention_mask"])
-        chosen_labels[index, :prompt_length] = -100                # set prompt labels to -100 so we dont train on the prompt.
-        rejected_labels[index, :prompt_length] = -100             # set prompt labels to -100 so we dont train on the prompt.
-    chosen_labels[chosen_input_ids == tokenizer.pad_token_id] = -100       # set padding labels to -100 so we dont train on the padding.
-    rejected_labels[rejected_input_ids == tokenizer.pad_token_id] = -100       # set padding labels to -100 so we dont train on the padding.
 
-    dataset = [
-        {
-            "chosen_input_ids": chosen_input_ids[index],
-            "chosen_attention_mask": chosen_attention_mask[index],
-            "chosen_labels": chosen_labels[index],
-            "rejected_input_ids": rejected_input_ids[index],
-            "rejected_attention_mask": rejected_attention_mask[index],
-            "rejected_labels": rejected_labels[index],
-        }
-        for index in range(chosen_input_ids.shape[0])
-    ]
 
-    return DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
-    #raise NotImplementedError("Return DPO dataloader with chosen and rejected examples.")
 
 def compute_sequence_logprob(
     model: nn.Module,
@@ -1032,20 +875,11 @@ def compute_sequence_logprob(
     # - The returned tensor should have one number per input row.
     # - Ignored labels should not change the score.
 
-    input_ids = input_ids.to(device)                    # shape: [batch_size, sequence_length]
-    attention_mask = attention_mask.to(device)          # shape: [batch_size, sequence_length]
-    labels = labels.to(device)                          # shape: [batch_size, sequence_length]
+    raise NotImplementedError("Compute sequence log-probabilities for answer scoring.")
 
-    output = model(input_ids=input_ids, attention_mask=attention_mask)
-    logits = output.logits                             # shape: [batch_size, sequence_length, vocab_size]
 
-    shift_labels = labels[:, 1:]                        # shape: [batch_size, sequence_length - 1]
-    shift_logits = logits[:, :-1, :]                    # shape: [batch_size, sequence_length - 1, vocab_size]
 
-    mask = shift_labels != -100                         # shape: [batch_size, sequence_length - 1]
 
-    safe_labels = shift_labels.clone()                  # shape: [batch_size, sequence_length - 1]
-    safe_labels[~mask] = 0                              # shape stays: [batch_size, sequence_length - 1]
 
     # Softmax formula:
     # softmax(x_i) = exp(x_i) / sum(exp(x_j) for every token j)
@@ -1055,7 +889,6 @@ def compute_sequence_logprob(
     # log_softmax(x_i) = log(softmax(x_i))
     #                  = x_i - log(sum(exp(x_j) for every token j))
     # This turns raw logits into log-probabilities.
-    log_probs = torch.log_softmax(shift_logits, dim=-1)  # shape: [batch_size, sequence_length - 1, vocab_size]
 
     # `gather` picks the log-probability of the correct next token.
     # It picks the value at the position named by the index.
@@ -1072,12 +905,7 @@ def compute_sequence_logprob(
     # - `safe_labels` shape is `[batch_size, sequence_length]`
     # - `safe_labels.unsqueeze(-1)` changes it to `[batch_size, sequence_length, 1]`
     # - `gather(..., dim=-1, ...)` picks one vocab value at each position.
-    token_log_probs = torch.gather(log_probs, dim=-1, index=safe_labels.unsqueeze(-1))  # shape: [batch_size, sequence_length - 1, 1]
-    token_log_probs = token_log_probs.squeeze(-1)                                       # shape: [batch_size, sequence_length - 1]
-    token_log_probs = token_log_probs.masked_fill(~mask, 0.0)                           # shape: [batch_size, sequence_length - 1]
 
-    return token_log_probs.sum(dim=1)  # shape: [batch_size]
-    #raise NotImplementedError("Compute sequence log-probabilities for answer scoring.")
 
 def compute_dpo_loss(
     chosen_logprobs: torch.Tensor,
@@ -1136,9 +964,7 @@ def compute_dpo_loss(
     # - If chosen scores are much higher than rejected scores, loss should be lower.
     # - If chosen and rejected scores are equal to the reference margins, loss is about `0.693`.
 
-    model_margin = chosen_logprobs - rejected_logprobs  # shape: [batch_size]
-    reference_margin = reference_chosen_logprobs - reference_rejected_logprobs  # shape: [batch_size]
-    preference_signal = beta * (model_margin - reference_margin)  # shape: [batch_size]
+    raise NotImplementedError("Compute the DPO-style preference loss.")
 
     # `logsigmoid` turns the preference signal into log-probability.
     # Sigmoid formula:
@@ -1159,10 +985,7 @@ def compute_dpo_loss(
     #
     # The minus sign turns a good log-probability into a loss to minimize.
     # Better chosen-over-rejected scores make this loss smaller.
-    losses = -torch.nn.functional.logsigmoid(preference_signal)  # shape: [batch_size]
 
-    return losses.mean()  # shape: []
-    #raise NotImplementedError("Compute the DPO-style preference loss.")
 
 def train_sft_one_epoch(model: nn.Module, loader: DataLoader, optimizer: torch.optim.Optimizer) -> dict[str, float]:
     """Run one SFT epoch."""
@@ -1216,38 +1039,11 @@ def train_sft_one_epoch(model: nn.Module, loader: DataLoader, optimizer: torch.o
     # - Do not apply softmax before `CrossEntropyLoss`.
     # - Padding labels should be `-100`, so padding does not train the model.
 
-    model.train()
+    raise NotImplementedError("Return mean SFT train loss.")
 
-    loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
-    total_loss = 0.0
-    example_count = 0
 
-    for batch in loader:
-        input_ids = batch["input_ids"].to(device)
-        attention_mask = batch["attention_mask"].to(device)
-        labels = batch["labels"].to(device)
 
-        optimizer.zero_grad()
 
-        output = model(input_ids=input_ids, attention_mask=attention_mask)
-        logits = output.logits                             # shape: [batch_size, sequence_length, vocab_size]
-
-        shift_labels = labels[:, 1:]                        # shape: [batch_size, sequence_length - 1]
-        shift_logits = logits[:, :-1, :]                    # shape: [batch_size, sequence_length - 1, vocab_size]
-
-        batch_size, new_seq_len, vocab_size = shift_logits.shape
-
-        loss = loss_fn(shift_logits.reshape(batch_size*new_seq_len, vocab_size), shift_labels.reshape(batch_size*new_seq_len))
-        loss.backward()
-        optimizer.step()
-
-        total_loss += loss.item() * batch_size
-        example_count += batch_size
-
-    mean_loss = total_loss / example_count
-
-    return {"sft_train_loss": mean_loss}
-    #raise NotImplementedError("Return mean SFT train loss.")
 
 def train_dpo_one_epoch(
     model: nn.Module,
@@ -1305,59 +1101,11 @@ def train_dpo_one_epoch(
     # - Do not swap chosen and rejected.
     # - A positive margin means chosen answers scored higher on average.
 
-    model.train()
-    reference_model.eval()
+    raise NotImplementedError("Return DPO loss and preference margin.")
 
-    total_loss = 0.0
-    total_margin = 0.0
-    example_count = 0
 
-    for batch in loader:
-        chosen_input_ids = batch["chosen_input_ids"].to(device)
-        chosen_attention_mask = batch["chosen_attention_mask"].to(device)
-        chosen_labels = batch["chosen_labels"].to(device)
-        rejected_input_ids = batch["rejected_input_ids"].to(device)
-        rejected_attention_mask = batch["rejected_attention_mask"].to(device)
-        rejected_labels = batch["rejected_labels"].to(device)
 
-        chosen_logprobs = compute_sequence_logprob(model, chosen_input_ids, chosen_attention_mask, chosen_labels)
-        rejected_logprobs = compute_sequence_logprob(model, rejected_input_ids, rejected_attention_mask, rejected_labels)
 
-        with torch.no_grad():
-            reference_chosen_logprobs = compute_sequence_logprob(
-                reference_model,
-                chosen_input_ids,
-                chosen_attention_mask,
-                chosen_labels,
-            )
-            reference_rejected_logprobs = compute_sequence_logprob(
-                reference_model,
-                rejected_input_ids,
-                rejected_attention_mask,
-                rejected_labels,
-            )
-
-        loss = compute_dpo_loss(
-            chosen_logprobs,
-            rejected_logprobs,
-            reference_chosen_logprobs,
-            reference_rejected_logprobs,
-            config.beta,
-        )
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        batch_size = chosen_input_ids.shape[0]
-        total_loss += loss.item() * batch_size
-        total_margin += (chosen_logprobs - rejected_logprobs).mean().item() * batch_size
-        example_count += batch_size
-
-    mean_loss = total_loss / example_count
-    mean_margin = total_margin / example_count
-
-    return {"dpo_train_loss": mean_loss, "preference_margin": mean_margin}
-    #raise NotImplementedError("Return DPO loss and preference margin.")
 
 def generate_sample(model: nn.Module, tokenizer: TinyTextTokenizer, prompt: str, config: SFTDPOConfig) -> str:
     """Generate one short sample answer."""
@@ -1392,34 +1140,11 @@ def generate_sample(model: nn.Module, tokenizer: TinyTextTokenizer, prompt: str,
     # - The return value should be a string.
     # - Keep generation short so the exercise stays fast.
 
-    model.eval()
+    raise NotImplementedError("Return one generated sample.")
 
-    text = f"Prompt:\n{prompt.strip()}\n\nAnswer:\n"
-    encoded = tokenizer.encode(text, max_length=config.max_length)
-    token_ids = [
-        token_id
-        for token_id, mask_value in zip(encoded["input_ids"], encoded["attention_mask"])
-        if mask_value == 1
-    ]  # length: prompt_length
-    attention_values = [1] * len(token_ids)  # length: prompt_length
 
-    input_ids = torch.tensor([token_ids[-config.max_length:]], dtype=torch.long, device=device)  # shape: [1, sequence_length]
-    attention_mask = torch.tensor([attention_values[-config.max_length:]], dtype=torch.long, device=device)  # shape: [1, sequence_length]
 
-    with torch.no_grad():
-        generated_ids = model.generate(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            max_new_tokens=24,
-            do_sample=False,
-            no_repeat_ngram_size=2,
-            pad_token_id=tokenizer.pad_token_id,
-            eos_token_id=tokenizer.eos_token_id,
-        )  # shape: [1, sequence_length + new_tokens]
 
-    new_token_ids = generated_ids[0, input_ids.shape[1]:]  # shape: [new_tokens]
-    return tokenizer.decode(new_token_ids).strip()
-    #raise NotImplementedError("Return one generated sample.")
 
 def run_training(config: SFTDPOConfig) -> SFTDPOMetrics:
     """Run SFT, then DPO, and return a short summary."""
@@ -1464,110 +1189,27 @@ def run_training(config: SFTDPOConfig) -> SFTDPOMetrics:
     # - `before_sample` and `after_sample` should be strings.
     # - The reference model should be frozen during DPO.
 
-    import copy
+    raise NotImplementedError("Run the SFT and DPO workflow.")
 
-    sft_examples = build_sft_examples()
-    preference_examples = build_preference_examples()
-    sample_prompt = "Explain SFT in one sentence."
 
     # Use a sample prompt that is also in the tiny training data.
     # This makes the before/after samples easier to understand.
     # If the real dataset did not contain this prompt, add one small local example.
-    if not any(example["prompt"] == sample_prompt for example in sft_examples):
-        sft_examples.append({
-            "prompt": sample_prompt,
-            "answer": "SFT trains a model to copy good prompt-answer examples.",
-        })
         
-    sample_preference: PreferenceExample = {
-        "prompt": sample_prompt,
-        "chosen": "SFT teaches a model to imitate clear, helpful answers.",
-        "rejected": "SFT is a random way to change a model.",
-    }
-    preference_examples = [
-        example
-        for example in preference_examples
-        if example["prompt"] != sample_prompt
-    ]
-    preference_examples.append(sample_preference)
 
-    tokenizer = build_tokenizer(config, sft_examples, preference_examples)
-    model = build_model(config)
 
-    def print_sample_preference_scores(title: str) -> None:
-        """Print chosen and rejected scores for the fixed sample prompt."""
-        sample_loader = build_preference_dataloader([sample_preference], tokenizer, config)
-        sample_batch = next(iter(sample_loader))
-        was_training = model.training
-        model.eval()
-        with torch.no_grad():
-            chosen_score = compute_sequence_logprob(
-                model,
-                sample_batch["chosen_input_ids"],
-                sample_batch["chosen_attention_mask"],
-                sample_batch["chosen_labels"],
-            ).item()
-            rejected_score = compute_sequence_logprob(
-                model,
-                sample_batch["rejected_input_ids"],
-                sample_batch["rejected_attention_mask"],
-                sample_batch["rejected_labels"],
-            ).item()
-        if was_training:
-            model.train()
-        print(
-            f"{title}: chosen_score={chosen_score:.4f}, "
-            f"rejected_score={rejected_score:.4f}, "
-            f"margin={chosen_score - rejected_score:.4f}"
-        )
 
-    before_sample = generate_sample(model, tokenizer, sample_prompt, config)
-    print("Before training sample:")
-    print(before_sample)
-    print_sample_preference_scores("Before training forced-answer scores")
 
     # SFT part:
     # Train the model to copy good prompt-answer examples.
-    sft_loader = build_sft_dataloader(sft_examples, tokenizer, config)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
-    sft_metrics = {"sft_train_loss": 0.0}
-    for epoch in range(config.sft_epochs):
-        sft_metrics = train_sft_one_epoch(model, sft_loader, optimizer)
-        print(f"SFT epoch {epoch + 1}/{config.sft_epochs}: loss={sft_metrics['sft_train_loss']:.4f}")
-    print_sample_preference_scores("After SFT forced-answer scores")
 
     # DPO part:
     # Freeze the SFT model as the reference, then train the model to prefer chosen answers.
-    reference_model = copy.deepcopy(model).to(device)
-    reference_model.eval()
-    for parameter in reference_model.parameters():
-        parameter.requires_grad = False
 
-    preference_loader = build_preference_dataloader(preference_examples, tokenizer, config)
 
-    dpo_metrics = {"dpo_train_loss": 0.0, "preference_margin": 0.0}
-    for epoch in range(config.dpo_epochs):
-        dpo_metrics = train_dpo_one_epoch(model, reference_model, preference_loader, optimizer, config)
-        print(
-            f"DPO epoch {epoch + 1}/{config.dpo_epochs}: "
-            f"loss={dpo_metrics['dpo_train_loss']:.4f}, "
-            f"margin={dpo_metrics['preference_margin']:.4f}"
-        )
-    print_sample_preference_scores("After DPO forced-answer scores")
 
-    after_sample = generate_sample(model, tokenizer, sample_prompt, config)
-    print("After training sample:")
-    print(after_sample)
 
-    return {
-        "sft_train_loss": float(sft_metrics["sft_train_loss"]),
-        "dpo_train_loss": float(dpo_metrics["dpo_train_loss"]),
-        "preference_margin": float(dpo_metrics["preference_margin"]),
-        "before_sample": before_sample,
-        "after_sample": after_sample,
-    }
-    #raise NotImplementedError("Run the SFT and DPO workflow.")
 
 def check_metrics(metrics: dict[str, float | str]) -> bool:
     """Return True when the SFT/DPO summary has the expected keys."""

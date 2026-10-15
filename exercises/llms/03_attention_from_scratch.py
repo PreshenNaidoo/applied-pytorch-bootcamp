@@ -311,23 +311,15 @@ def make_toy_attention_inputs(config: AttentionExerciseConfig) -> dict[str, torc
 # but the last two dimensions should follow exactly this lower-triangular `True` pattern.
 def build_causal_mask(sequence_length: int) -> torch.Tensor:
 
-    arr = torch.arange(start=0, end=sequence_length, step=1, dtype=torch.long)
-    arr_stack = arr * torch.ones(sequence_length, sequence_length, dtype=torch.long)
-    arr_stack2 = arr_stack.transpose(1, 0)
-    mask_2d = arr_stack <= arr_stack2
-    causal_mask = mask_2d.unsqueeze(dim=0)
+    raise NotImplementedError("Return a boolean causal mask with shape [1, sequence_length, sequence_length].")
 
     # for i in range(causal_mask.shape[0]):
     #     print(causal_mask[i])
 
     # the above was my solution.
     # the alternate way:
-    mask_2d = torch.tril(torch.ones(sequence_length, sequence_length, dtype=torch.bool))
-    causal_mask = mask_2d.unsqueeze(dim=0)
     
 
-    return causal_mask
-    #raise NotImplementedError("Return a boolean causal mask with shape [1, sequence_length, sequence_length].")
 
 
 # Compute scaled dot-product attention by hand.
@@ -406,23 +398,15 @@ def scaled_dot_product_attention(
     # Dot product says: "Are these vectors pointing in a similar direction, and how strong are they?"
     # Cosine similarity says: "Are these vectors pointing in a similar direction, ignoring strength?"
     
-    scores = torch.matmul(query, key.transpose(2, 1))       # output shape is (2, 4, 4)
+    raise NotImplementedError("Return the scaled dot-product attention output and the attention weights.")
     
-    feature_size = key.shape[-1] # 8    
-    scaled = scores / sqrt(feature_size)  
 
-    if mask is not None:
-        scaled = scaled.masked_fill(~mask, float("-inf"))       # The ~ means logical NOT, or "flip true and false."
 
-    weights = scaled.softmax(dim=-1) # (output shape is (2, 4, 4))
     
-    output = torch.matmul(weights, value)      # (2, 4, 4) @ (2, 4, 8) = (2, 4, 8)
 
 
     #`weights` is the attention matrix after softmax with shape `[batch_size, sequence_length, sequence_length]`
     #`output` is the weighted value tensor with shape `[batch_size, sequence_length, model_dim]`
-    return {"output": output, "weights": weights}
-    #raise NotImplementedError("Return the scaled dot-product attention output and the attention weights.")
 
 
 class SingleHeadSelfAttention(nn.Module):
@@ -433,7 +417,7 @@ class SingleHeadSelfAttention(nn.Module):
 
     def __init__(self, model_dim: int) -> None:
         super().__init__()
-        self.model_dim = model_dim
+        raise NotImplementedError("Build the linear layers that produce Q, K, and V for one attention head.")
         # Beginner-friendly build order:
         # - make three linear layers:
         #   - one for query
@@ -455,11 +439,7 @@ class SingleHeadSelfAttention(nn.Module):
         # - one view is for carrying content
         # - this is why Q, K, and V all come from the same input, but use different linear layers
 
-        self.query = nn.Linear(in_features=model_dim, out_features=model_dim)
-        self.key = nn.Linear(in_features=model_dim, out_features=model_dim)
-        self.value = nn.Linear(in_features=model_dim, out_features=model_dim)
 
-        #raise NotImplementedError("Build the linear layers that produce Q, K, and V for one attention head.")
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor | None = None) -> dict[str, torch.Tensor]:
         """Return a dict with exactly these keys:
@@ -482,18 +462,11 @@ class SingleHeadSelfAttention(nn.Module):
         - last, the token receives a mixed summary built from the value vectors
         """
 
-        query = self.query(x)
-        key = self.key(x)
-        value = self.value(x)
+        raise NotImplementedError("Project x into Q, K, and V, then call your attention function.")
 
-        out_dict = scaled_dot_product_attention(query, key, value, mask)
 
-        output = out_dict["output"]
-        weights = out_dict["weights"]
 
-        return out_dict
 
-        #raise NotImplementedError("Project x into Q, K, and V, then call your attention function.")
 
 
 # Run simple sanity checks for one finished attention result.
@@ -530,28 +503,13 @@ def run_attention_sanity_checks(
     atol: float,
 ) -> dict[str, float]:
 
-    weights_row_sum_close_to_one = 0.0
-    output_shape_ok = 0.0
-    mask_respected = 0.0
+    raise NotImplementedError("Check row sums, output shape, and whether masked positions stayed masked.")
 
-    output = attention_result["output"]     #(2, 4, 8)
-    weights = attention_result["weights"]   #(2, 4, 4)
 
-    sums = weights.sum(dim=-1)
-    is_close_to_one = torch.abs(sums - 1.0)
-    weights_row_sum_close_to_one = is_close_to_one.mean().item()
     
-    output_shape_ok = float(output.shape == expected_output_shape)
 
-    if mask is None:
-        mask_respected = 1.0
-    else:
-        blocked_weights = weights.masked_select(~mask)  # tilde means flip for a boolean tensor, output shape is [12]
-        mask_respected = float(torch.all(blocked_weights <= atol).item()) 
         #torch.all() tests if all elements in input evaluate to True.
 
-    return{"weights_row_sum_close_to_one":weights_row_sum_close_to_one, "output_shape_ok":output_shape_ok, "mask_respected":mask_respected}
-    #raise NotImplementedError("Check row sums, output shape, and whether masked positions stayed masked.")
 
 
 

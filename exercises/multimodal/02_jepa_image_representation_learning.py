@@ -324,42 +324,12 @@ def load_cifar_image_dataloaders(config: ImageJEPAConfig) -> dict[str, DataLoade
     # Checks:
     # - one batch should have `image.shape == [batch, 3, 32, 32]`.
     # - one batch should have `label.shape == [batch]`.
-    transform = torchvision.transforms.ToTensor()
+    raise NotImplementedError("Load CIFAR10 and return JEPA image dataloaders.")
 
-    train_base = torchvision.datasets.CIFAR10(
-        root=config.data_root,
-        train=True,
-        transform=transform,
-        download=True,
-    )
-    test_base = torchvision.datasets.CIFAR10(
-        root=config.data_root,
-        train=False,
-        transform=transform,
-        download=True,
-    )
 
-    train_pool_size = len(train_base)
-    train_size = int(train_pool_size * config.train_fraction / (config.train_fraction + config.val_fraction))
-    val_size = train_pool_size - train_size
-    generator = torch.Generator().manual_seed(config.random_state)
-    train_indices, val_indices = torch.utils.data.random_split(
-        range(train_pool_size),
-        [train_size, val_size],
-        generator=generator,
-    )
 
-    train_ds = CIFARImageDataset(torch.utils.data.Subset(train_base, train_indices.indices))
-    val_ds = CIFARImageDataset(torch.utils.data.Subset(train_base, val_indices.indices))
-    test_ds = CIFARImageDataset(test_base)
 
-    return {
-        "train": torch.utils.data.DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True),
-        "val": torch.utils.data.DataLoader(dataset=val_ds, batch_size=config.batch_size),
-        "test": torch.utils.data.DataLoader(dataset=test_ds, batch_size=config.batch_size),
-    }
     
-    #raise NotImplementedError("Load CIFAR10 and return JEPA image dataloaders.")
 
 
 def make_target_patch_mask(
@@ -391,7 +361,7 @@ def make_target_patch_mask(
     # - each row should have exactly `num_target_patches` true values.
 
 
-    target_mask = torch.zeros(size=[batch_size, num_patches], dtype=torch.bool, device=device)
+    raise NotImplementedError("Create random target patch masks.")
 
     # for i in range(batch_size):
     #     rand_ints = torch.randperm(num_patches, device = device)
@@ -400,14 +370,8 @@ def make_target_patch_mask(
     #         target_mask[i][index] = torch.tensor(1, dtype=torch.bool, device = device)
 
     # alternate and better way:
-    for batch_index in range(batch_size):
-        patch_ids = torch.randperm(num_patches, device=device)      # num_patches is the total number of patches in the image i.e 16 in this case
-        target_patch_ids = patch_ids[:num_target_patches]           # num_target_patches is the number of target patches to predict i.e 4 in this case
-        target_mask[batch_index, target_patch_ids] = True
 
-    return target_mask  # shape [batch_size, num_patches]
 
-    #raise NotImplementedError("Create random target patch masks.")
 
 
 def apply_patch_mask(
@@ -446,11 +410,9 @@ def apply_patch_mask(
     # - output shape should match input shape.
     # - non-target patches should stay unchanged.
 
-    masked_images = images.clone()
+    raise NotImplementedError("Create masked images for JEPA visual checks.")
 
-    batch_size, channels, image_height, image_width = images.shape
 
-    patches_per_side = image_height // patch_size
 
     # target_mask has shape [batch_size, num_patches] of type bool
     # `True` means "this patch is a target patch to predict"
@@ -466,17 +428,6 @@ def apply_patch_mask(
     # 8  9  10 11
     # 12 13 14 15
 
-    for patch_row in range(patches_per_side):
-        for patch_col in range(patches_per_side):
-            patch_index = patch_row * patches_per_side + patch_col
-
-            row_start = patch_row * patch_size
-            row_end = row_start + patch_size
-            col_start = patch_col * patch_size
-            col_end = col_start + patch_size
-
-            images_to_mask = target_mask[:, patch_index]
-            masked_images[images_to_mask, :, row_start:row_end, col_start:col_end,] = mask_value
             # `images_to_mask` has shape `[batch_size]`.
             # It is one True/False value for each image in the batch.
             # PyTorch lets a boolean tensor select rows from a tensor.
@@ -498,8 +449,6 @@ def apply_patch_mask(
             #         col_start:col_end,
             #     ] = mask_value
 
-    return masked_images
-    #raise NotImplementedError("Create masked images for JEPA visual checks.")
 
 
 class TinyViTImageEncoder(nn.Module):
@@ -548,15 +497,13 @@ class TinyViTImageEncoder(nn.Module):
         # - `TinyViTImageEncoder(config)(torch.randn(4, 3, 32, 32)).shape`
         #   should be `[4, 16, config.latent_dim]`.
 
-        self.num_patches = config.num_patches
-        self.latent_dim = config.latent_dim
+        raise NotImplementedError("Build the tiny ViT image encoder.")
 
         # This is the usual ViT patch embedding trick.
         # A Conv2d with `kernel_size=patch_size` looks at one whole patch at a time.
         # A Conv2d with `stride=patch_size` jumps by one full patch, so the patches do not overlap.
         # For a `[batch, 3, 32, 32]` image and `patch_size=8`, this gives `[batch, latent_dim, 4, 4]`.
         # Each of the 4 by 4 positions is one learned vector for one image patch.
-        self.patch_embed = nn.Conv2d(in_channels = config.channels, out_channels=config.latent_dim, kernel_size=config.patch_size, stride=config.patch_size)
 
         # This is a learned position embedding table.
         # Shape `[1, num_patches, latent_dim]` means there is one learned vector
@@ -578,22 +525,11 @@ class TinyViTImageEncoder(nn.Module):
         # This file uses the simpler ViT style instead: the position vector table
         # is already shaped like `[1, num_patches, latent_dim]`, so it can be
         # added directly to `patch_tokens` without a lookup step.
-        self.pos_embed = nn.Parameter(torch.zeros(1, config.num_patches, config.latent_dim))        # [1, 16, 96] position embedding table for the online encoder
 
-        self.hidden_patch_token = nn.Parameter(torch.zeros(size=[1, 1, config.latent_dim]))        # [1, 1, 96] hidden patch token for the online encoder
 
-        encoder_layer = nn.TransformerEncoderLayer(d_model = config.latent_dim, 
-                                                    nhead=config.encoder_num_heads, 
-                                                    dim_feedforward=config.encoder_mlp_dim, 
-                                                    dropout=0.0,
-                                                    activation='gelu',
-                                                    batch_first=True)
 
-        self.transformer = nn.TransformerEncoder(encoder_layer=encoder_layer, num_layers = config.encoder_depth)
 
-        self.norm = nn.LayerNorm(config.latent_dim)
 
-        #raise NotImplementedError("Build the tiny ViT image encoder.")
 
     def forward(self, images: torch.Tensor, visible_mask: torch.Tensor | None = None) -> torch.Tensor:
         """Encode images into patch latent vectors."""
@@ -633,12 +569,9 @@ class TinyViTImageEncoder(nn.Module):
         # The online encoder is guided by patch tokens and a context mask.
         # It is not mainly learning from a pixel-masked image.
 
-        batch_size = images.shape[0]
+        raise NotImplementedError("Run the tiny ViT image encoder forward pass.")
 
-        patch_tokens = self.patch_embed(images)                         # [batch_size, latent_dim, num_patches, num_patches] = [batch_size, 96, 4, 4]
 
-        patch_tokens = torch.flatten(patch_tokens, start_dim=2)         # [batch_size, 96, 16]   num_patches * num_patches = 4 * 4 = 16 patches per image
-        patch_tokens = torch.transpose(patch_tokens, dim0=1, dim1=2)    # [batch_size, 16, 96]  each patch has a feature vector of size latent_dim
 
         # if the visible mask is not None, then we need to hide the target patches from the online encoder (context encoder)
         # self.hidden_patch_token is learnable because it stands in for a missing patch.
@@ -659,19 +592,8 @@ class TinyViTImageEncoder(nn.Module):
         # learned hidden token + patch 7 position embedding
         # This tells the transformer:
         # "patch 7 exists, but you cannot see its real pixels."
-        if visible_mask is not None:
-            # expand the hidden patch token to the batch size
-            hidden_tokens = self.hidden_patch_token.expand(size=[batch_size, self.num_patches, self.latent_dim]) # [1, 1, 96] -> [batch_size, 16, 96]
-            mask = visible_mask.unsqueeze(-1)                           # [batch, 16]  -> [batch, 16, 1]
-            # `torch.where` chooses one value for every patch token.
-            # If `mask` is True, keep the real patch token from `patch_tokens`.
-            # If `mask` is False, replace that patch with `hidden_tokens`.
-            # The final `1` in `mask` is copied across the whole latent vector,
-            # so one True/False value controls the full vector for that patch.
-            patch_tokens = torch.where(condition=mask, input=patch_tokens, other=hidden_tokens) # [batch_size, 16, 96]
 
         # PyTorch broadcasts the 1 in the batch dimension, so the same position embeddings are added to every image in the batch.
-        patch_tokens = patch_tokens + self.pos_embed                    # [batch_size, 16, latent_dim] + [1, 16, latent_dim]
 
         # Each patch token gets extra information about where it came from in the image.
         # Patch 0 gets position vector 0.
@@ -682,24 +604,12 @@ class TinyViTImageEncoder(nn.Module):
         # So the transformer can tell the difference between, for example, “top-left patch” and “bottom-right patch.”
 
         # if its not none, this will be for the target encoder path
-        if visible_mask is None:
-            patch_tokens = self.transformer(patch_tokens)  # [batch_size, 16, latent_dim] -> [batch_size, 16, latent_dim]
-        else:
-            # `visible_mask` uses True for patches the online encoder may read.
-            # PyTorch's `src_key_padding_mask` uses True for tokens it should ignore.
-            # That is why we use `~visible_mask`: it flips visible patches to False
-            # and hidden target patches to True.
-            # This means hidden target patches do not act as source tokens for attention.
-            patch_tokens = self.transformer(patch_tokens, src_key_padding_mask=~visible_mask)  # [batch_size, 16, latent_dim] -> [batch_size, 16, latent_dim]
 
         # In this encoder:
         # visible_mask is used to decide which real patch tokens the online encoder can read.
         # target_patch_mask is used later to select the target patch latents we want the predictor to match.
 
-        patch_tokens = self.norm(patch_tokens)  # [batch_size, 16, latent_dim] -> [batch_size, 16, latent_dim]
 
-        return patch_tokens  # [batch_size, 16, latent_dim]
-        #raise NotImplementedError("Run the tiny ViT image encoder forward pass.")
 
 
 class TinyJEPAPredictor(nn.Module):
@@ -741,23 +651,12 @@ class TinyJEPAPredictor(nn.Module):
         # Output:
         # - `predicted_patch_latents`: `[batch, 16, latent_dim]`
 
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, config.latent_dim))                        # [1, 1, 96]
-        self.pos_embed = nn.Parameter(torch.zeros(1, config.num_patches, config.latent_dim))        # [1, 16, 96]
+        raise NotImplementedError("Build the tiny JEPA predictor.")
         
-        encoder_layer = nn.TransformerEncoderLayer(d_model=config.latent_dim,
-                                                    nhead=config.predictor_num_heads,
-                                                    dim_feedforward=config.predictor_mlp_dim,
-                                                    dropout=0.0,
-                                                    activation="gelu",
-                                                    batch_first=True)
 
-        self.transformer = nn.TransformerEncoder(encoder_layer = encoder_layer, num_layers=config.predictor_depth)
 
-        self.norm = nn.LayerNorm(config.latent_dim)
 
-        self.proj = nn.Linear(in_features = config.latent_dim, out_features=config.latent_dim)
 
-        #raise NotImplementedError("Build the tiny JEPA predictor.")
 
     def forward(self, context_patch_latents: torch.Tensor, target_mask: torch.Tensor) -> torch.Tensor:
         """Predict patch latents from context patch latents."""
@@ -780,9 +679,8 @@ class TinyJEPAPredictor(nn.Module):
         # target_mask is [batch_size, num_patches]
         # target_mask is the opposite of visible mask and shows which positions the predictor should predict.
 
-        batch_size, num_patches, latent_dim = context_patch_latents.shape                       # [batch_size, 16, latent_dim]
+        raise NotImplementedError("Run the tiny JEPA predictor forward pass.")
 
-        mask_token = self.mask_token.expand(size=[batch_size, num_patches, latent_dim])         # [1, 1, latent_dim] -> [batch_size, 16, latent_dim]
 
         # `target_mask` starts with shape `[batch_size, num_patches]`  i.e [batch_size, 16].
         # In this exercise that is usually `[batch_size, 16]`.
@@ -792,16 +690,9 @@ class TinyJEPAPredictor(nn.Module):
         # If `target_mask` is True, this uses the learned `mask_token`.
         # If `target_mask` is False, this keeps the real context patch latent.
         # mask_token this means that this is a target position the predictor should fill in
-        tokens = torch.where(condition=target_mask.unsqueeze(-1), input=mask_token, other=context_patch_latents)  # [batch_size, 16, latent_dim]
 
-        tokens = tokens + self.pos_embed                # [batch_size, 16, latent_dim] + [1, 16, latent_dim] -> [batch_size, 16, latent_dim]
 
-        tokens = self.transformer(tokens)               # [batch_size, 16, latent_dim] -> [batch_size, 16, latent_dim]
-        tokens = self.norm(tokens)                      # [batch_size, 16, latent_dim] -> [batch_size, 16, latent_dim]
-        predicted_patch_latents = self.proj(tokens)     # [batch_size, 16, latent_dim] -> [batch_size, 16, latent_dim]
 
-        return predicted_patch_latents  # [batch_size, 16, latent_dim]
-        #raise NotImplementedError("Run the tiny JEPA predictor forward pass.")
 
 
 def build_jepa_modules(config: ImageJEPAConfig) -> tuple[nn.Module, nn.Module, nn.Module]:
@@ -822,19 +713,11 @@ def build_jepa_modules(config: ImageJEPAConfig) -> tuple[nn.Module, nn.Module, n
     # 6. Move all modules to `device`.
     # 7. Return them.
 
-    online_encoder = TinyViTImageEncoder(config)
-    target_encoder = TinyViTImageEncoder(config)
+    raise NotImplementedError("Build the JEPA modules.")
 
-    target_encoder.load_state_dict(state_dict=online_encoder.state_dict())
 
-    for param in target_encoder.parameters():
-        param.requires_grad = False
 
-    predictor = TinyJEPAPredictor(config)
 
-    online_encoder = online_encoder.to(device)
-    target_encoder = target_encoder.to(device)
-    predictor = predictor.to(device)
 
 
     # exercise name      paper name
@@ -887,9 +770,7 @@ def build_jepa_modules(config: ImageJEPAConfig) -> tuple[nn.Module, nn.Module, n
     # The loss compares:
     # predictor's guessed target vectors vs target_encoder's target vectors
 
-    return online_encoder, target_encoder, predictor
 
-    #raise NotImplementedError("Build the JEPA modules.")
 
 
 @torch.no_grad()
@@ -913,14 +794,8 @@ def update_ema_target_encoder(
     # 1. Loop over matching parameters from both encoders.
     # 2. Update target parameters in place with the formula above.
     # 3. Do this inside `torch.no_grad()`.
-    for online_param, target_param in zip(online_encoder.parameters(), target_encoder.parameters()):
-        # target_param.data.mul_(ema_decay)
-        # target_param.data.add_(online_param.data, alpha=1.0 - ema_decay)
+    raise NotImplementedError("Update the target encoder with EMA.")
 
-        # The above is same as: 
-        target_param.data = (ema_decay * target_param.data + (1.0 - ema_decay) * online_param.data)
-
-    #raise NotImplementedError("Update the target encoder with EMA.")
 
 
 def select_target_patches(patch_latents: torch.Tensor, target_mask: torch.Tensor) -> torch.Tensor:
@@ -943,21 +818,16 @@ def select_target_patches(patch_latents: torch.Tensor, target_mask: torch.Tensor
     # - the output batch size should match the input batch size.
     # - the middle dimension should equal the number of true values per row.
 
-    batch_size, num_patches, latent_dim = patch_latents.shape  # [batch_size, 16, 96]
-    num_target_patches = target_mask.sum(dim=1)[0].item()  # one row's True count, usually 4
+    raise NotImplementedError("Select the target patch latents.")
 
     # `target_mask` has shape `[batch_size, 16]`.
     # Boolean indexing keeps only the patch vectors where the mask is True.
     # If `batch_size=2` and each image has 4 target patches, this gives
     # `[8, latent_dim]`: all selected patch vectors from the whole batch.
-    selected = patch_latents[target_mask]  # [batch_size * num_target_patches, latent_dim]
 
     # Put the flat selected vectors back into one group per image.
     # This works because every image has the same number of True values.
-    selected = selected.view(batch_size, num_target_patches, latent_dim)  # [batch_size, num_target_patches, latent_dim] = [batch_size, 4, 96]
 
-    return selected  # [batch_size, num_target_patches, latent_dim] = [batch_size, 4, 96]
-    #raise NotImplementedError("Select the target patch latents.")
 
 
 def train_one_epoch(
@@ -987,69 +857,13 @@ def train_one_epoch(
     # 10. Call `update_ema_target_encoder(...)`.
     # 11. Track latent MSE and cosine similarity.
 
-    online_encoder.train()
-    target_encoder.eval()
-    predictor.train()
+    raise NotImplementedError("Train image JEPA for one epoch.")
 
-    total_loss = 0.0
-    total_cosine_similarity = 0.0
-    total_images = 0
 
-    for data in loader:
-        images = data["image"].to(device)  # [batch_size, 3, 32, 32]
-
-        batch_size = images.shape[0]
-        
-        # Get a mask containing true/false value for 16 positions for every sample in the batch, randomly putting True for positions that
-        # need to be masked out. Four random positions will be masked out for each sample in the batch.
-        # Positions here refer to which patch positions.
-        target_mask = make_target_patch_mask(batch_size, config.num_patches, config.num_target_patches, device) # shape [batch_size, num_patches] = [batch_size, 16]
-
-        # context block = visible patches used by the context encoder
-        # target blocks = hidden patches whose representations must be predicted
-        # In the I-JEPA paper, the context encoder reads a context block and
-        # the predictor tries to predict target blocks from that context.
-        # In this small exercise:
-        # - `target_mask == True` marks the target patches to predict.
-        # - `visible_mask == True` marks the context patches the encoder may read.
-        # So `visible_mask = ~target_mask` means every non-target patch becomes
-        # part of the context, and every target patch is hidden from the encoder.
-        visible_mask = ~target_mask
-
-        context_patch_latents = online_encoder(images, visible_mask)                # [batch_size, 16, latent_dim]
-
-        with (torch.no_grad()):
-            target_patch_latents = target_encoder(images)
-
-        predicted_patch_latents = predictor(context_patch_latents, target_mask)     # Target mask is passed here so the predictor knows which positions to produce guesses for target patches.
-
-        # predicted_target_latents = the predictor's guesses for hidden target patches
-        # target_latents = the target encoder's answer vectors for those same patches
-        # We select only the 4 target patches/blocks to compute the loss on because this is what the predictor needed to guess.
-        target_latents = select_target_patches(target_patch_latents, target_mask)  # [batch_size, num_target_patches, latent_dim]
-        predicted_target_latents = select_target_patches(predicted_patch_latents, target_mask)  # [batch_size, num_target_patches, latent_dim]
-        
-        loss = loss_fn(predicted_target_latents, target_latents.detach())
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        update_ema_target_encoder(online_encoder=online_encoder, target_encoder=target_encoder, ema_decay=config.ema_decay)
-
-        cosine_similarity = F.cosine_similarity(predicted_target_latents, target_latents.detach(), dim=-1).mean()
-        total_loss += loss.item() * batch_size
-        total_cosine_similarity += cosine_similarity.item() * batch_size
-        total_images += batch_size
 
     #
     # Cosine similarity:
     # `F.cosine_similarity(predicted_target_latents, target_latents.detach(), dim=-1).mean()`
-    return {
-        "latent_mse": total_loss / total_images,
-        "cosine_similarity": total_cosine_similarity / total_images,
-    }
-    #raise NotImplementedError("Train image JEPA for one epoch.")
 
 
 @torch.no_grad()
@@ -1076,40 +890,10 @@ def evaluate(
     # 6. Predict patch latents with `predictor(context_patch_latents, target_mask)`.
     # 7. Select only target patches.
     # 8. Track average MSE and average cosine similarity.
-    online_encoder.eval()
-    target_encoder.eval()
-    predictor.eval()
+    raise NotImplementedError("Evaluate image JEPA latent metrics.")
 
-    total_loss = 0.0
-    total_cosine_similarity = 0.0
-    total_images = 0
 
-    for data in loader:
-        images = data["image"].to(device)  # [batch_size, 3, 32, 32]
-        batch_size = images.shape[0]
 
-        target_mask = make_target_patch_mask(batch_size, config.num_patches, config.num_target_patches, device)  # [batch_size, 16]
-        visible_mask = ~target_mask  # [batch_size, 16]
-
-        context_patch_latents = online_encoder(images, visible_mask)  # [batch_size, 16, latent_dim]
-        target_patch_latents = target_encoder(images)  # [batch_size, 16, latent_dim]
-        predicted_patch_latents = predictor(context_patch_latents, target_mask)  # [batch_size, 16, latent_dim]
-
-        predicted_target_latents = select_target_patches(predicted_patch_latents, target_mask)  # [batch_size, num_target_patches, latent_dim]
-        target_latents = select_target_patches(target_patch_latents, target_mask)  # [batch_size, num_target_patches, latent_dim]
-
-        loss = loss_fn(predicted_target_latents, target_latents)  # scalar
-        cosine_similarity = F.cosine_similarity(predicted_target_latents, target_latents, dim=-1).mean()  # scalar
-
-        total_loss += loss.item() * batch_size
-        total_cosine_similarity += cosine_similarity.item() * batch_size
-        total_images += batch_size
-
-    return {
-        "latent_mse": total_loss / total_images,
-        "cosine_similarity": total_cosine_similarity / total_images,
-    }
-    #raise NotImplementedError("Evaluate image JEPA latent metrics.")
 
 
 def train_linear_probe(
@@ -1143,79 +927,15 @@ def train_linear_probe(
     # - `features.shape` should be `[batch, latent_dim]`.
     # - classifier logits should be `[batch, 10]`.
 
-    frozen_encoder.eval()
-    for param in frozen_encoder.parameters():
-        param.requires_grad = False
+    raise NotImplementedError("Train a linear probe on frozen JEPA features.")
 
-    linear_probe = nn.Linear(config.latent_dim, 10).to(device)
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(linear_probe.parameters(), lr=config.probe_learning_rate)
 
-    mean_training_loss = 0.0
-    mean_training_accuracy = 0.0
 
-    for epoch in range(config.linear_probe_epochs):
-        linear_probe.train()
 
-        total_loss = 0.0
-        total_samples = 0
-        total_correct = 0
 
-        for data in train_loader:
-            images = data["image"].to(device)  # [batch_size, 3, 32, 32]
-            labels = data["label"].to(device)  # [batch_size]
-            batch_size = images.shape[0]
 
-            with torch.no_grad():
-                patch_latents = frozen_encoder(images)  # [batch_size, 16, latent_dim]
-                features = patch_latents.mean(dim=1)  # [batch_size, latent_dim]
 
-            logits = linear_probe(features)  # [batch_size, 10]
-            loss = loss_fn(logits, labels)  # scalar
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            total_loss += loss.item() * batch_size
-            preds = logits.argmax(dim=-1)  # [batch_size]            
-            total_correct += (preds == labels).sum().item()
-            total_samples += batch_size
-
-        mean_training_loss = total_loss / total_samples
-        mean_training_accuracy = total_correct / total_samples
-        print(
-            f"linear probe epoch {epoch + 1}/{config.linear_probe_epochs}: "
-            f"loss={mean_training_loss:.4f}, accuracy={mean_training_accuracy:.4f}"
-        )
-
-    linear_probe.eval()
-
-    total_correct = 0
-    total_samples = 0
-
-    with torch.no_grad():
-        for data in val_loader:
-            images = data["image"].to(device)  # [batch_size, 3, 32, 32]
-            labels = data["label"].to(device)  # [batch_size]
-            batch_size = images.shape[0]
-
-            patch_latents = frozen_encoder(images)  # [batch_size, 16, latent_dim]
-            features = patch_latents.mean(dim=1)  # [batch_size, latent_dim]
-            logits = linear_probe(features)  # [batch_size, 10]
-
-            preds = logits.argmax(dim=-1)  # [batch_size]
-            total_correct += (preds == labels).sum().item()
-            total_samples += batch_size
-
-    mean_val_accuracy = total_correct / total_samples
-
-    return {
-        "train_loss": mean_training_loss,
-        "train_accuracy": mean_training_accuracy,
-        "val_accuracy": mean_val_accuracy,
-    }
-    #raise NotImplementedError("Train a linear probe on frozen JEPA features.")
 
 
 def save_jepa_visuals(
@@ -1245,103 +965,22 @@ def save_jepa_visuals(
     # Checks:
     # - output paths should point inside `outputs/jepa_30/`.
     # - at least one visual should show which target patches were hidden.
-    output_dir = Path(config.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    raise NotImplementedError("Save image JEPA visuals.")
 
-    visual_paths: dict[str, str] = {}
 
-    images = sample_batch["image"].to(device)  # [batch_size, 3, 32, 32]
-    labels = sample_batch["label"].to(device)  # [batch_size]
-    num_examples = min(6, images.shape[0])
 
-    target_mask = make_target_patch_mask(
-        batch_size=images.shape[0],
-        num_patches=config.num_patches,
-        num_target_patches=config.num_target_patches,
-        device=device,
-    )  # [batch_size, 16]
-    masked_images = apply_patch_mask(images, target_mask, config.patch_size)  # [batch_size, 3, 32, 32]
 
-    image_path = output_dir / "masked_image_examples.png"
-    fig, axes = plt.subplots(num_examples, 2, figsize=(5, 2.2 * num_examples))
-    if num_examples == 1:
-        axes = axes.reshape(1, 2)
 
-    for index in range(num_examples):
-        clean_image = images[index].detach().cpu().permute(1, 2, 0)  # [32, 32, 3]
-        masked_image = masked_images[index].detach().cpu().permute(1, 2, 0)  # [32, 32, 3]
 
-        axes[index, 0].imshow(clean_image)
-        axes[index, 0].set_title(f"original label {int(labels[index].item())}")
-        axes[index, 0].axis("off")
 
-        axes[index, 1].imshow(masked_image)
-        axes[index, 1].set_title("target patches hidden")
-        axes[index, 1].axis("off")
 
-    fig.tight_layout()
-    fig.savefig(image_path, dpi=160)
-    plt.close(fig)
-    visual_paths["masked_images"] = str(image_path)
 
-    curve_path = output_dir / "latent_metric_curves.png"
-    fig, ax = plt.subplots(figsize=(7, 4))
-    epochs = list(range(1, len(history) + 1))
 
-    train_values = [
-        item.get("train_latent_mse", item.get("train_mse", item.get("latent_mse")))
-        for item in history
-    ]
-    val_values = [
-        item.get("val_latent_mse", item.get("val_mse"))
-        for item in history
-    ]
 
-    if any(value is not None for value in train_values):
-        ax.plot(epochs, train_values, marker="o", label="train latent MSE")
-    if any(value is not None for value in val_values):
-        ax.plot(epochs, val_values, marker="o", label="val latent MSE")
 
-    ax.set_title("JEPA latent prediction error")
-    ax.set_xlabel("epoch")
-    ax.set_ylabel("MSE")
-    ax.grid(True, alpha=0.3)
-    ax.legend()
-    fig.tight_layout()
-    fig.savefig(curve_path, dpi=160)
-    plt.close(fig)
-    visual_paths["metric_curves"] = str(curve_path)
 
-    pca_path = output_dir / "encoder_feature_pca.png"
-    online_encoder.eval()
-    with torch.no_grad():
-        patch_latents = online_encoder(images)  # [batch_size, 16, latent_dim]
-        features = patch_latents.mean(dim=1).detach().cpu()  # [batch_size, latent_dim]
 
-    centered_features = features - features.mean(dim=0, keepdim=True)  # [batch_size, latent_dim]
-    q = min(2, centered_features.shape[0], centered_features.shape[1])
 
-    fig, ax = plt.subplots(figsize=(5, 4))
-    if q >= 2:
-        _, _, v = torch.pca_lowrank(centered_features, q=2)
-        points = centered_features @ v[:, :2]  # [batch_size, 2]
-        scatter = ax.scatter(points[:, 0], points[:, 1], c=labels.detach().cpu(), cmap="tab10", s=35)
-        fig.colorbar(scatter, ax=ax, label="CIFAR10 label")
-        ax.set_xlabel("PC 1")
-        ax.set_ylabel("PC 2")
-    else:
-        ax.text(0.5, 0.5, "Need at least 2 samples for PCA", ha="center", va="center")
-        ax.set_xticks([])
-        ax.set_yticks([])
-
-    ax.set_title("Frozen encoder features")
-    fig.tight_layout()
-    fig.savefig(pca_path, dpi=160)
-    plt.close(fig)
-    visual_paths["feature_pca"] = str(pca_path)
-
-    return visual_paths
-    #raise NotImplementedError("Save image JEPA visuals.")
 
 
 def run_image_jepa_experiment(config: ImageJEPAConfig) -> dict[str, object]:
@@ -1368,119 +1007,17 @@ def run_image_jepa_experiment(config: ImageJEPAConfig) -> dict[str, object]:
     # - `test_cosine_similarity`
     # - `linear_probe_val_accuracy`
     # - `visual_paths`
-    dataloaders = load_cifar_image_dataloaders(config)
-    train_loader = dataloaders["train"]
-    val_loader = dataloaders["val"]
-    test_loader = dataloaders["test"]
+    raise NotImplementedError("Run the full image JEPA experiment.")
 
-    online_encoder, target_encoder, predictor = build_jepa_modules(config)
 
-    optimizer = torch.optim.AdamW(
-        list(online_encoder.parameters()) + list(predictor.parameters()),
-        lr=config.learning_rate,
-        weight_decay=config.weight_decay,
-    )
-    loss_fn = nn.MSELoss()
 
-    print(f"device: {device}")
-    print(f"train batches: {len(train_loader)}, val batches: {len(val_loader)}, test batches: {len(test_loader)}")
-    print(f"image size: {config.image_size}x{config.image_size}, patch size: {config.patch_size}")
-    print(f"patches per image: {config.num_patches}, target patches per image: {config.num_target_patches}")
 
-    history: list[dict[str, float]] = []
 
-    for epoch in range(config.epochs):
-        train_metrics = train_one_epoch(
-            online_encoder=online_encoder,
-            target_encoder=target_encoder,
-            predictor=predictor,
-            loader=train_loader,
-            optimizer=optimizer,
-            loss_fn=loss_fn,
-            config=config,
-        )
-        val_metrics = evaluate(
-            online_encoder=online_encoder,
-            target_encoder=target_encoder,
-            predictor=predictor,
-            loader=val_loader,
-            loss_fn=loss_fn,
-            config=config,
-        )
 
-        epoch_record = {
-            "epoch": float(epoch + 1),
-            "train_latent_mse": train_metrics["latent_mse"],
-            "train_cosine_similarity": train_metrics["cosine_similarity"],
-            "val_latent_mse": val_metrics["latent_mse"],
-            "val_cosine_similarity": val_metrics["cosine_similarity"],
-        }
-        history.append(epoch_record)
 
-        print(
-            f"epoch {epoch + 1}/{config.epochs}: "
-            f"train_mse={train_metrics['latent_mse']:.4f}, "
-            f"train_cos={train_metrics['cosine_similarity']:.4f}, "
-            f"val_mse={val_metrics['latent_mse']:.4f}, "
-            f"val_cos={val_metrics['cosine_similarity']:.4f}"
-        )
 
-    test_metrics = evaluate(
-        online_encoder=online_encoder,
-        target_encoder=target_encoder,
-        predictor=predictor,
-        loader=test_loader,
-        loss_fn=loss_fn,
-        config=config,
-    )
-    print(
-        f"test: latent_mse={test_metrics['latent_mse']:.4f}, "
-        f"cosine_similarity={test_metrics['cosine_similarity']:.4f}"
-    )
 
-    probe_metrics = train_linear_probe(
-        frozen_encoder=online_encoder,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        config=config,
-    )
-    print(
-        f"linear probe: train_loss={probe_metrics['train_loss']:.4f}, "
-        f"train_accuracy={probe_metrics['train_accuracy']:.4f}, "
-        f"val_accuracy={probe_metrics['val_accuracy']:.4f}"
-    )
 
-    sample_batch = next(iter(val_loader))
-    visual_paths = save_jepa_visuals(
-        history=history,
-        sample_batch=sample_batch,
-        online_encoder=online_encoder,
-        config=config,
-    )
-    print("saved visuals:")
-    for name, path in visual_paths.items():
-        print(f"- {name}: {path}")
-
-    final_train_metrics = history[-1]
-    print("final metrics:")
-    print(f"train_latent_mse: {final_train_metrics['train_latent_mse']:.4f}")
-    print(f"val_latent_mse: {final_train_metrics['val_latent_mse']:.4f}")
-    print(f"test_latent_mse: {test_metrics['latent_mse']:.4f}")
-    print(f"val_cosine_similarity: {final_train_metrics['val_cosine_similarity']:.4f}")
-    print(f"test_cosine_similarity: {test_metrics['cosine_similarity']:.4f}")
-    print(f"linear_probe_val_accuracy: {probe_metrics['val_accuracy']:.4f}")
-
-    return {
-        "train_latent_mse": final_train_metrics["train_latent_mse"],
-        "val_latent_mse": final_train_metrics["val_latent_mse"],
-        "test_latent_mse": test_metrics["latent_mse"],
-        "val_cosine_similarity": final_train_metrics["val_cosine_similarity"],
-        "test_cosine_similarity": test_metrics["cosine_similarity"],
-        "linear_probe_val_accuracy": probe_metrics["val_accuracy"],
-        "history": history,
-        "visual_paths": visual_paths,
-    }
-    #raise NotImplementedError("Run the full image JEPA experiment.")
 
 
 def report_task_progress(task_name: str, task_fn, *args):

@@ -344,12 +344,8 @@ class TinyPPOEnv:
         # - `state.sum()` should be `1.0`.
         # - `self.position` should be `0` after reset.
 
-        self.position = 0
-        state = torch.zeros(self.config.state_dim, dtype=torch.float32)
-        state[self.position] = 1.0
+        raise NotImplementedError("Return the starting state vector.")
 
-        return state
-        #raise NotImplementedError("Return the starting state vector.")
 
 
     def step(self, action: int) -> tuple[torch.Tensor, float, bool]:
@@ -390,20 +386,10 @@ class TinyPPOEnv:
         # - The position should never go above `state_dim - 1`.
         # - `done` should be `True` only at the goal.
 
-        goal_position = self.config.state_dim - 1  # 5 - 1 = 4
-        if action == 0:
-            self.position = max(self.position - 1, 0)
-        elif action == 1:
-            self.position = min(self.position + 1, goal_position)
+        raise NotImplementedError("Return next state, reward, and done flag.")
         
-        done = self.position == goal_position
-        reward = 1.0 if done else -0.01
 
-        next_state_vec = torch.zeros(self.config.state_dim, dtype=torch.float32)
-        next_state_vec[self.position] = 1.0
 
-        return next_state_vec, reward, done
-        #raise NotImplementedError("Return next state, reward, and done flag.")
 
 class PPOPolicyValueNetwork(nn.Module):
     """Tiny network with policy and value outputs."""
@@ -449,12 +435,8 @@ class PPOPolicyValueNetwork(nn.Module):
         # - For input shape `[batch_size, state_dim]`, values should be `[batch_size]`.
         super().__init__()
 
-        self.trunk = nn.Sequential(nn.Linear(in_features = config.state_dim, out_features=config.hidden_dim),
-                                    nn.ReLU(inplace = True))
+        raise NotImplementedError("Build a tiny shared network with policy and value heads.")
 
-        self.policy_head = nn.Linear(config.hidden_dim, config.num_actions)
-        self.value_head = nn.Linear(config.hidden_dim, 1)
-        #raise NotImplementedError("Build a tiny shared network with policy and value heads.")
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Return action logits and state values."""
@@ -488,12 +470,8 @@ class PPOPolicyValueNetwork(nn.Module):
         # - Do not apply softmax to logits in `forward`.
         # - Do not use `.squeeze()` without a dimension, because a batch of size 1 could become shape `[]`.
 
-        features = self.trunk(x)  # shape: [batch_size, hidden_dim]
-        logits = self.policy_head(features)  # shape: [batch_size, num_actions]
-        values = self.value_head(features).squeeze(dim=-1) # shape [batch_size, 1] becomes [batch_size]
+        raise NotImplementedError("Return policy logits and critic values.")
 
-        return logits, values
-        #raise NotImplementedError("Return policy logits and critic values.")
 
 # Collect one PPO rollout batch.
 # Return at least:
@@ -578,99 +556,12 @@ def collect_rollout_batch(
     # - `old_log_probs` should not require gradients.
     # - `predicted_values` should not require gradients in the stored rollout batch.
 
-    model.train()
-    model_device = next(model.parameters()).device
+    raise NotImplementedError("Return one PPO rollout batch with old policy information.")
 
-    state = env.reset()
 
-    states, actions, rewards, dones, old_log_probs, predicted_values = [], [], [], [], [], []
 
-    for i in range(config.rollout_steps):
-
-        model_state = state.to(model_device).unsqueeze(dim=0)  # shape: [1, state_dim]
-        logits, values = model(model_state)
-
-        # `logits` has shape `[1, num_actions]` because the policy saw one state.
-        # The first `1` is the batch size.
-        # `logits.squeeze(0)` removes that batch wrapper, so the scores become shape `[num_actions]`.
-        #
-        # `Categorical(logits=...)` is the PyTorch distribution for choosing one item
-        # from a short list of choices. Here the choices are actions:
-        # - action 0 = left
-        # - action 1 = right
-        #
-        # This is very similar to:
-        # ```python
-        # probs = torch.softmax(logits.squeeze(0), dim=-1)
-        # action_tensor = torch.multinomial(probs, num_samples=1)
-        # ```
-        #
-        # Both versions mean:
-        # turn raw action scores into probabilities, then randomly pick one action
-        # using those probabilities.
-        #
-        # Small example:
-        # ```python
-        # action_scores = torch.tensor([2.0, 0.5])
-        # probs = torch.softmax(action_scores, dim=-1)
-        # # probs is about tensor([0.8176, 0.1824])
-        # ```
-        #
-        # So action 0 is picked about 82% of the time,
-        # and action 1 is picked about 18% of the time.
-        #
-        # `Categorical` is nicer here because PPO needs `log_prob`.
-        # `log_prob` means "the log of the probability of the action we actually picked".
-        #
-        # Example:
-        # If the policy probabilities are:
-        # - action 0: 0.82
-        # - action 1: 0.18
-        #
-        # and the sampled action is action 0, then:
-        # ```python
-        # log_prob = torch.log(torch.tensor(0.82))
-        # about -0.20
-        # ```
-        #
-        # If the sampled action is action 1, then:
-        # ```python
-        # log_prob = torch.log(torch.tensor(0.18))
-        # about -1.71
-        # ```
-        #
-        # A more likely action has a log_prob closer to 0.
-        # A less likely action has a more negative log_prob.
-
-        dist = torch.distributions.Categorical(logits = logits.squeeze(dim=0))
-        action_tensor = dist.sample()
-        old_log_prob = dist.log_prob(action_tensor)
-        action = int(action_tensor.item())
-
-        next_state, reward, done = env.step(action)
-
-        #actions, rewards, dones, old_log_probs, predicted_values
-        states.append(state)
-        actions.append(action)
-        rewards.append(reward)
-        dones.append(done)
-        old_log_probs.append(float(old_log_prob.detach().cpu().item()))
-        predicted_values.append(float(values.squeeze().detach().cpu().item()))
-
-        if done:
-            state = env.reset()            
-        else:
-            state = next_state
     
-    states = torch.stack(states)  # shape: [rollout_steps, state_dim]
-    actions = torch.tensor(actions, dtype=torch.long)  # shape: [rollout_steps]
-    rewards = torch.tensor(rewards, dtype=torch.float32)  # shape: [rollout_steps]
-    dones = torch.tensor(dones, dtype=torch.float32)  # shape: [rollout_steps]
-    old_log_probs = torch.tensor(old_log_probs, dtype=torch.float32)  # shape: [rollout_steps]
-    predicted_values = torch.tensor(predicted_values)  # shape: [rollout_steps]
 
-    return {"states":states, "actions":actions, "rewards":rewards, "dones":dones, "old_log_probs": old_log_probs, "predicted_values": predicted_values}
-    #raise NotImplementedError("Return one PPO rollout batch with old policy information.")
 
 def compute_returns_and_advantages(
     rewards: torch.Tensor,
@@ -886,20 +777,12 @@ def compute_returns_and_advantages(
     # - With `values` all zeros, advantages should equal returns.
 
 
-    num = rewards.shape[0]
+    raise NotImplementedError("Return rollout returns and advantages.")
 
-    returns = torch.zeros_like(rewards)
 
-    running_return = 0.0
 
-    for i in range(num-1, -1, -1):
-        running_return = rewards[i] + gamma * running_return * (1 - dones[i])
-        returns[i] = running_return
 
-    advantages = returns - values
 
-    return returns, advantages
-    #raise NotImplementedError("Return rollout returns and advantages.")
 
 # Compute the PPO clipped policy loss.
 # In plain words:
@@ -1028,13 +911,8 @@ def ppo_policy_loss(
     # - With `clip_epsilon=0.2`, ratios should be clipped to the range `[0.8, 1.2]`.
     # - The returned loss should be a scalar tensor.
 
-    ratio = torch.exp(new_log_probs - old_log_probs)
-    clipped_ratio = torch.clamp(ratio, 1.0 - clip_epsilon, 1.0 + clip_epsilon)
-    unclipped = ratio * advantages.detach()
-    clipped = clipped_ratio * advantages.detach()
-    loss = -torch.min(unclipped, clipped).mean()
+    raise NotImplementedError("Return the PPO clipped policy loss.")
 
-    return loss
     # Why `advantages.detach()` is used above:
     #
     # `detach` means:
@@ -1075,7 +953,6 @@ def ppo_policy_loss(
     # actor, use this advantage number as a fixed score
     # critic, do not learn from this policy loss
     # ```
-    #raise NotImplementedError("Return the PPO clipped policy loss.")
 
 def ppo_value_loss(predicted_values: torch.Tensor, returns: torch.Tensor) -> torch.Tensor:
     """Return the PPO critic loss."""
@@ -1115,9 +992,7 @@ def ppo_value_loss(predicted_values: torch.Tensor, returns: torch.Tensor) -> tor
     # - Do not detach `predicted_values`, because this loss should train the value head.
     # - Detaching `returns` is fine because returns are targets, not model outputs.
 
-    loss = nn.functional.mse_loss(predicted_values, returns)
-    return loss
-    #raise NotImplementedError("Return the value loss for PPO.")
+    raise NotImplementedError("Return the value loss for PPO.")
 
 def entropy_bonus(action_logits: torch.Tensor) -> torch.Tensor:
     """Return the policy entropy bonus."""
@@ -1190,11 +1065,8 @@ def entropy_bonus(action_logits: torch.Tensor) -> torch.Tensor:
     # - For two equally likely actions, entropy should be near `0.693`.
     # - Entropy should be lower when one action is much more likely than the other.
 
-    dist = torch.distributions.Categorical(logits=action_logits)
-    entropy = dist.entropy().mean()
+    raise NotImplementedError("Return the entropy bonus from the policy logits.")
 
-    return entropy
-    #raise NotImplementedError("Return the entropy bonus from the policy logits.")
 
 def train_ppo(config: PPOConfig) -> PPOSummary:
     """Run the full tiny PPO workflow."""
@@ -1275,14 +1147,8 @@ def train_ppo(config: PPOConfig) -> PPOSummary:
     # - `new_log_probs`, `old_log_probs`, `returns`, and `advantages` should all have shape `[rollout_steps]`.
 
 
-    env = TinyPPOEnv(config)
-    model = PPOPolicyValueNetwork(config).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+    raise NotImplementedError("Collect rollouts, run PPO updates, and return a summary.")
 
-    rollout_returns: list[float] = []
-    last_policy_loss = 0.0
-    last_value_loss = 0.0
-    num_updates = 0
 
     # How to read the two PPO training loops:
     # ```text
@@ -1296,73 +1162,10 @@ def train_ppo(config: PPOConfig) -> PPOSummary:
     # Inner loop: train on that same batch.
     # Total optimizer updates: 40 * 3 = 120.
     
-    for _ in range(config.updates):
 
-        batch_dict = collect_rollout_batch(model, env, config)
-        batch_dict = {key: value.to(device) for key, value in batch_dict.items()}
 
-        returns, advantages = compute_returns_and_advantages(batch_dict["rewards"], batch_dict["dones"], batch_dict["predicted_values"], config.gamma)
 
-        for _ in range(config.ppo_epochs_per_rollout):
-            logits, new_values = model(batch_dict["states"])
-            
-            dist = torch.distributions.Categorical(logits=logits)
-            new_log_probs = dist.log_prob(batch_dict["actions"])
 
-            policy_loss = ppo_policy_loss(new_log_probs, batch_dict["old_log_probs"], advantages, config.clip_epsilon)
-            value_loss = ppo_value_loss(new_values, returns)
-            entropy = entropy_bonus(logits)
-
-            loss = (policy_loss + config.value_loss_weight * value_loss - config.entropy_weight * entropy)
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            num_updates += 1
-            last_policy_loss = float(policy_loss.item())
-            last_value_loss = float(value_loss.item())
-
-        rollout_returns.append(float(batch_dict["rewards"].sum().item()))
-
-    mean_return = sum(rollout_returns) / len(rollout_returns)
-    summary: PPOSummary = {
-        "mean_return": float(mean_return),
-        "last_policy_loss": last_policy_loss,
-        "last_value_loss": last_value_loss,
-        "num_updates": num_updates,
-        "note": "",
-    }
-    summary["note"] = explain_clipping(summary)
-
-    model.eval()
-    eval_env = TinyPPOEnv(config)
-    eval_episodes = 5
-    eval_max_steps = config.state_dim * 2
-    eval_returns: list[float] = []
-    eval_successes = 0
-
-    with torch.no_grad():
-        for _ in range(eval_episodes):
-            state = eval_env.reset()
-            episode_return = 0.0
-            reached_goal = False
-
-            for _ in range(eval_max_steps):
-                logits, _ = model(state.to(device).unsqueeze(0))
-                action = int(torch.argmax(logits.squeeze(0)).item())
-                state, reward, done = eval_env.step(action)
-                episode_return += reward
-
-                if done:
-                    reached_goal = True
-                    break
-
-            eval_returns.append(episode_return)
-            eval_successes += int(reached_goal)
-
-    eval_mean_return = sum(eval_returns) / len(eval_returns)
-    expected_updates = config.updates * config.ppo_epochs_per_rollout
 
     # How to read the eval return:
     # In this LineWorld, the agent gets `+1.00` when it reaches the goal
@@ -1400,14 +1203,6 @@ def train_ppo(config: PPOConfig) -> PPOSummary:
     #
     # Plus some extra collected steps, so `6.279` is not bad.
     # It means the agent is reaching the goal multiple times inside the rollout batch.
-    print("PPO learned-policy check:")
-    print(f"- greedy eval success: {eval_successes}/{eval_episodes} episodes reached the goal")
-    print(f"- greedy eval mean return: {eval_mean_return:.3f} (higher is better; near 1.0 means it reaches the goal quickly)")
-    print(f"- training rollout mean return: {summary['mean_return']:.3f} (total reward per {config.rollout_steps}-step rollout)")
-    print(f"- optimizer updates: {summary['num_updates']} / {expected_updates}")
-    print(f"- final losses: policy={summary['last_policy_loss']:.3f}, value={summary['last_value_loss']:.3f} (losses are debug numbers, not the main pass check)")
-    return summary
-    #raise NotImplementedError("Collect rollouts, run PPO updates, and return a summary.")
 
 def explain_clipping(summary: PPOSummary) -> str:
     """Write a short note explaining PPO clipping."""
@@ -1439,12 +1234,7 @@ def explain_clipping(summary: PPOSummary) -> str:
     # - Keep the note short and plain.
     # - Do not say clipping prevents all bad updates.
     # - Do not say old log-probabilities should be recomputed after training.
-    return (
-        "PPO compares the new policy with the old policy on the same sampled actions, "
-        f"then clips large probability changes so one update does not jump too far. "
-        f"This run used {summary['num_updates']} optimizer updates."
-    )
-    #raise NotImplementedError("Explain PPO clipping in simple words.")
+    raise NotImplementedError("Explain PPO clipping in simple words.")
 
 def check_metrics(metrics: PPOSummary) -> bool:
     """Return True when the PPO summary has the expected keys."""

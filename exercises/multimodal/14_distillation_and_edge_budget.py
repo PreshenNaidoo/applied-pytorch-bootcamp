@@ -231,39 +231,10 @@ def build_image_classification_dataset(config: DistillationEdgeConfig) -> list[I
     # Checks:
     # - `0 <= label < config.num_classes`.
     # - Images are tensors, not feature vectors.
-    transform = torchvision.transforms.Compose(
-        [
-            torchvision.transforms.Resize((config.image_size, config.image_size)),
-            torchvision.transforms.ToTensor(),
-        ]
-    )
-    dataset = torchvision.datasets.CIFAR10(
-        root=str(PROJECT_ROOT / "data"),
-        train=True,
-        transform=transform,
-        download=True,
-    )
+    raise NotImplementedError("Build image classification dataset for teacher and student.")
 
-    examples: list[ImageClassExample] = []
-    class_names = dataset.classes
 
-    for image, label in dataset:
-        if label >= config.num_classes:
-            continue
 
-        examples.append(
-            {
-                "image": image,
-                "label": label,
-                "label_name": class_names[label],
-            }
-        )
-
-        if len(examples) >= config.sample_size:
-            break
-
-    return examples
-    #raise NotImplementedError("Build image classification dataset for teacher and student.")
 
 
 class TeacherModel(nn.Module):
@@ -298,20 +269,7 @@ class TeacherModel(nn.Module):
         # Checks:
         # - The final layer output width is `config.num_classes`.
         # - Teacher parameter count should be greater than student parameter count.
-        self.net = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2),
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool2d((1, 1)),
-            nn.Flatten(),
-            nn.Linear(128, config.num_classes),
-        )
-        #raise NotImplementedError("Build teacher model.")
+        raise NotImplementedError("Build teacher model.")
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         """Return class logits."""
@@ -333,8 +291,7 @@ class TeacherModel(nn.Module):
         #
         # Check:
         # - Return raw logits. Do not apply softmax in `forward`.
-        return self.net(images)
-        #raise NotImplementedError("Return teacher logits.")
+        raise NotImplementedError("Return teacher logits.")
 
 
 class StudentModel(nn.Module):
@@ -368,17 +325,7 @@ class StudentModel(nn.Module):
         # Checks:
         # - The final layer output width is `config.num_classes`.
         # - The student should be smaller and faster than the teacher.
-        self.net = nn.Sequential(
-            nn.Conv2d(3, 16, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2),
-            nn.Conv2d(16, 32, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool2d((1, 1)),
-            nn.Flatten(),
-            nn.Linear(32, config.num_classes),
-        )
-        #raise NotImplementedError("Build student model.")
+        raise NotImplementedError("Build student model.")
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         """Return class logits."""
@@ -400,8 +347,7 @@ class StudentModel(nn.Module):
         #
         # Check:
         # - The student should have fewer parameters than the teacher.
-        return self.net(images)
-        #raise NotImplementedError("Return student logits.")
+        raise NotImplementedError("Return student logits.")
 
 
 def compute_distillation_loss(
@@ -444,8 +390,7 @@ def compute_distillation_loss(
     #
     # Check:
     # - The returned value should be a scalar tensor.
-    temperature = config.distillation_temperature
-    alpha = config.distillation_alpha
+    raise NotImplementedError("Compute teacher-student distillation loss.")
 
     # `teacher_probs` uses softmax because it is the target distribution: normal
     # probabilities like `[0.70, 0.20, 0.10]`.
@@ -462,15 +407,8 @@ def compute_distillation_loss(
     # The teacher part is the target. The student part is what the model changes.
     # Both use the same temperature so the teacher and student are compared at
     # the same softness level.
-    teacher_probs = torch.softmax(teacher_logits / temperature, dim=-1)
-    student_log_probs = torch.log_softmax(student_logits / temperature, dim=-1)
 
-    soft_loss = nn.KLDivLoss(reduction="batchmean")(student_log_probs, teacher_probs)
-    soft_loss = soft_loss * (temperature ** 2)
-    hard_loss = nn.CrossEntropyLoss()(student_logits, hard_labels)
 
-    return alpha * soft_loss + (1.0 - alpha) * hard_loss
-    #raise NotImplementedError("Compute teacher-student distillation loss.")
 
 
 def train_teacher(model: TeacherModel, loader: DataLoader, config: DistillationEdgeConfig) -> list[float]:
@@ -497,36 +435,9 @@ def train_teacher(model: TeacherModel, loader: DataLoader, config: DistillationE
     #
     # Check:
     # - Return one loss value per teacher epoch.
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
-    loss_fn = nn.CrossEntropyLoss()
-    losses: list[float] = []
+    raise NotImplementedError("Train teacher model.")
 
-    for _ in range(config.teacher_epochs):
-        model.train()
-        total_loss = 0.0
-        total_examples = 0
 
-        for batch in loader:
-            images = batch["image"].to(device)
-            labels = batch["label"].to(device)
-            batch_size = images.size(0)
-
-            logits = model(images)
-            loss = loss_fn(logits, labels)
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            total_loss += loss.item() * batch_size
-            total_examples += batch_size
-
-        epoch_loss = total_loss / max(total_examples, 1)
-        losses.append(epoch_loss)
-        print(f"Teacher epoch {len(losses)}/{config.teacher_epochs}: loss={epoch_loss:.4f}")
-
-    return losses
-    #raise NotImplementedError("Train teacher model.")
 
 
 def train_student_with_distillation(teacher: TeacherModel, student: StudentModel, loader: DataLoader, config: DistillationEdgeConfig) -> list[float]:
@@ -554,39 +465,9 @@ def train_student_with_distillation(teacher: TeacherModel, student: StudentModel
     #
     # Check:
     # - Teacher parameters should not change during this function.
-    optimizer = torch.optim.AdamW(student.parameters(), lr=config.learning_rate)
-    losses: list[float] = []
-    teacher.eval()
+    raise NotImplementedError("Train student with distillation.")
 
-    for _ in range(config.student_epochs):
-        student.train()
-        total_loss = 0.0
-        total_examples = 0
 
-        for batch in loader:
-            images = batch["image"].to(device)
-            labels = batch["label"].to(device)
-            batch_size = images.size(0)
-
-            with torch.no_grad():
-                teacher_logits = teacher(images)
-
-            student_logits = student(images)
-            loss = compute_distillation_loss(student_logits, teacher_logits, labels, config)
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            total_loss += loss.item() * batch_size
-            total_examples += batch_size
-
-        epoch_loss = total_loss / max(total_examples, 1)
-        losses.append(epoch_loss)
-        print(f"Student epoch {len(losses)}/{config.student_epochs}: loss={epoch_loss:.4f}")
-
-    return losses
-    #raise NotImplementedError("Train student with distillation.")
 
 
 def evaluate_accuracy(model: nn.Module, loader: DataLoader) -> float:
@@ -610,23 +491,9 @@ def evaluate_accuracy(model: nn.Module, loader: DataLoader) -> float:
     #
     # Check:
     # - Return a float between `0.0` and `1.0`.
-    model.eval()
-    correct = 0
-    total = 0
+    raise NotImplementedError("Evaluate model accuracy.")
 
-    with torch.no_grad():
-        for batch in loader:
-            images = batch["image"].to(device)
-            labels = batch["label"].to(device)
 
-            logits = model(images)
-            predictions = logits.argmax(dim=-1)
-
-            correct += (predictions == labels).sum().item()
-            total += labels.numel()
-
-    return correct / max(total, 1)
-    #raise NotImplementedError("Evaluate model accuracy.")
 
 
 def measure_model_size_mb(model: nn.Module) -> float:
@@ -649,11 +516,7 @@ def measure_model_size_mb(model: nn.Module) -> float:
     #
     # Check:
     # - Student size should be smaller than teacher size.
-    total_bytes = 0
-    for param in model.parameters():
-        total_bytes += param.numel() * param.element_size()
-    return total_bytes / (1024 ** 2)
-    #raise NotImplementedError("Measure model size.")
+    raise NotImplementedError("Measure model size.")
 
 
 def measure_latency_ms(model: nn.Module, example_batch: torch.Tensor, repeats: int = 50) -> float:
@@ -679,26 +542,9 @@ def measure_latency_ms(model: nn.Module, example_batch: torch.Tensor, repeats: i
     #
     # Check:
     # - Use `torch.no_grad()` so timing does not include gradient work.
-    model.eval()
+    raise NotImplementedError("Measure average latency in milliseconds.")
 
-    with torch.no_grad():
-        for _ in range(5):
-            model(example_batch)
 
-        if example_batch.is_cuda:
-            torch.cuda.synchronize()
-
-        start = time.perf_counter()
-        for _ in range(repeats):
-            model(example_batch)
-
-        if example_batch.is_cuda:
-            torch.cuda.synchronize()
-
-        end = time.perf_counter()
-
-    return (end - start) * 1000 / repeats
-    #raise NotImplementedError("Measure average latency in milliseconds.")
 
 
 def check_edge_budget(metrics: EdgeMetrics, config: DistillationEdgeConfig) -> bool:
@@ -732,50 +578,13 @@ def save_distillation_visuals(losses: list[float], metrics: EdgeMetrics, config:
     #
     # Check:
     # - The budget chart should make pass/fail easy to see.
-    import matplotlib
+    raise NotImplementedError("Save distillation and edge-budget charts.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    loss_curve_path = config.output_dir / "distillation_loss_curve.png"
-    budget_chart_path = config.output_dir / "edge_budget_chart.png"
 
-    plt.figure(figsize=(7, 4))
-    plt.plot(range(1, len(losses) + 1), losses, marker="o")
-    plt.xlabel("Student epoch")
-    plt.ylabel("Distillation loss")
-    plt.title("Student distillation loss")
-    plt.tight_layout()
-    plt.savefig(loss_curve_path)
-    plt.close()
 
-    names = ["accuracy", "size MB", "latency ms"]
-    values = [
-        metrics["student_accuracy"],
-        metrics["student_size_mb"],
-        metrics["student_latency_ms"],
-    ]
-    limits = [
-        config.min_accuracy,
-        config.max_model_size_mb,
-        config.max_latency_ms,
-    ]
 
-    x_positions = range(len(names))
-    plt.figure(figsize=(8, 4))
-    plt.bar(x_positions, values, label="student")
-    plt.scatter(x_positions, limits, color="red", label="budget")
-    plt.xticks(list(x_positions), names)
-    plt.ylabel("value")
-    plt.title("Student edge budget")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(budget_chart_path)
-    plt.close()
 
-    return str(loss_curve_path), str(budget_chart_path)
-    #raise NotImplementedError("Save distillation and edge-budget charts.")
 
 
 def run_exercise(config: DistillationEdgeConfig) -> EdgeMetrics:

@@ -830,56 +830,13 @@ def build_training_verb_vocabulary(
     # - no held-out split may contribute to counts
     # - `vocabulary.num_classes == config.num_common_verbs`
     # - print every small ID, name, raw ID, and count
-    training_steps = [step for step in steps if step["experiment_split"] == "train"]
-    if not training_steps:
-        raise ValueError("Cannot build the vocabulary because there are no training actions.")
+    raise NotImplementedError("Build a training-only verb vocabulary.")
 
-    verb_counts = Counter(step["verb_class"] for step in training_steps)
-    ordered_verb_classes = sorted(
-        verb_counts,
-        key=lambda verb_class: (-verb_counts[verb_class], verb_class),
-    )
-    selected_verb_classes = ordered_verb_classes[: config.num_common_verbs]
-    if len(selected_verb_classes) < config.num_common_verbs:
-        raise ValueError(
-            f"Training data contains only {len(selected_verb_classes)} verb classes, "
-            f"but the config asks for {config.num_common_verbs}."
-        )
 
-    verb_name_counts_by_class: dict[int, Counter[str]] = {}
-    for step in training_steps:
-        verb_class = step["verb_class"]
-        verb_name = step["verb_name"]
-        verb_name_counts_by_class.setdefault(verb_class, Counter())[verb_name] += 1
 
-    verb_name_by_class = {
-        verb_class: sorted(
-            name_counts,
-            key=lambda verb_name: (-name_counts[verb_name], verb_name),
-        )[0]
-        for verb_class, name_counts in verb_name_counts_by_class.items()
-    }
 
-    vocabulary = VerbVocabulary(
-        verb_class_to_label_id={
-            verb_class: label_id
-            for label_id, verb_class in enumerate(selected_verb_classes)
-        },
-        label_id_to_name=[
-            verb_name_by_class[verb_class] for verb_class in selected_verb_classes
-        ],
-        training_counts=[verb_counts[verb_class] for verb_class in selected_verb_classes],
-    )
 
-    print("Training-only verb vocabulary:")
-    for label_id, verb_class in enumerate(selected_verb_classes):
-        print(
-            f"  label {label_id}: {verb_name_by_class[verb_class]} "
-            f"(raw class {verb_class}, count {verb_counts[verb_class]})"
-        )
 
-    # raise NotImplementedError("Build a training-only verb vocabulary.")
-    return vocabulary
 
 
 def build_consecutive_windows(
@@ -918,95 +875,11 @@ def build_consecutive_windows(
     # - each window has five real consecutive actions
     # - final and masked verbs are in the vocabulary
     # - print candidates, kept windows, and coverage for every split
-    split_names: tuple[SplitName, ...] = ("train", "val", "unseen_kitchen", "test")
-    steps_by_video: dict[tuple[SplitName, str], list[ActionStep]] = {}
-    for step in steps:
-        group_key = (step["experiment_split"], step["video_id"])
-        steps_by_video.setdefault(group_key, []).append(step)
+    raise NotImplementedError("Build real consecutive action windows.")
 
-    windows_by_split: dict[SplitName, list[ForecastWindow]] = {
-        split_name: [] for split_name in split_names
-    }
-    candidate_counts = {split_name: 0 for split_name in split_names}
-    known_target_counts = {split_name: 0 for split_name in split_names}
-    window_size = config.history_steps + 1
 
-    for (split_name, video_id), video_steps in steps_by_video.items():
-        ordered_steps = sorted(video_steps, key=lambda step: step["raw_order_index"])
 
-        for start_index in range(len(ordered_steps) - window_size + 1):
-            sequence_steps = ordered_steps[start_index : start_index + window_size]
 
-            has_consecutive_order = all(
-                next_step["raw_order_index"] == current_step["raw_order_index"] + 1
-                for current_step, next_step in zip(sequence_steps, sequence_steps[1:])
-            )
-            has_acceptable_gaps = all(
-                next_step["start_seconds"] - current_step["end_seconds"]
-                <= config.max_gap_seconds
-                for current_step, next_step in zip(sequence_steps, sequence_steps[1:])
-            )
-            if not has_consecutive_order or not has_acceptable_gaps:
-                continue
-
-            candidate_counts[split_name] += 1
-            if sequence_steps[-1]["verb_class"] not in vocabulary.verb_class_to_label_id:
-                continue
-
-            known_positions = [
-                position
-                for position, step in enumerate(sequence_steps)
-                if step["verb_class"] in vocabulary.verb_class_to_label_id
-            ]
-            if not known_positions:
-                continue
-
-            known_target_counts[split_name] += 1
-            first_raw_index = sequence_steps[0]["raw_order_index"]
-            mask_rng = random.Random(
-                f"{config.random_state}:{split_name}:{video_id}:{first_raw_index}"
-            )
-            mask_index = mask_rng.choice(known_positions)
-            windows_by_split[split_name].append(
-                ForecastWindow(
-                    video_id=video_id,
-                    sequence_steps=sequence_steps,
-                    mask_index=mask_index,
-                )
-            )
-
-    known_label_coverage: dict[str, float] = {}
-    for split_name in split_names:
-        candidate_count = candidate_counts[split_name]
-        known_label_coverage[split_name] = (
-            known_target_counts[split_name] / candidate_count if candidate_count else 0.0
-        )
-
-        split_rng = random.Random(f"{config.random_state}:{split_name}")
-        split_rng.shuffle(windows_by_split[split_name])
-        maximum_windows = (
-            config.max_train_windows if split_name == "train" else config.max_eval_windows
-        )
-        windows_by_split[split_name] = windows_by_split[split_name][:maximum_windows]
-
-        if not windows_by_split[split_name]:
-            raise ValueError(
-                f"No usable {split_name} windows were built. Check action counts, "
-                "time gaps, and training-vocabulary coverage."
-            )
-
-        print(
-            f"{split_name}: {candidate_count} candidates, "
-            f"{len(windows_by_split[split_name])} kept, "
-            f"known-label coverage {known_label_coverage[split_name]:.1%}"
-        )
-
-    # raise NotImplementedError("Build real consecutive action windows.")
-    return WindowBuildResult(
-        windows_by_split=windows_by_split,
-        known_label_coverage=known_label_coverage,
-        candidate_counts=candidate_counts,
-    )
 
 
 def sample_action_frames(step: ActionStep, config: ActionForecastingConfig) -> list[np.ndarray]:
@@ -1036,87 +909,12 @@ def sample_action_frames(step: ActionStep, config: ActionForecastingConfig) -> l
     # Checks:
     # - never return generated or zero-filled frames
     # - raise a path-and-timestamp error if eight real frames cannot be returned
-    video_path = Path(step["video_path"])
-    if not video_path.exists():
-        raise FileNotFoundError(
-            f"Video for action {step['step_key']} does not exist: {video_path}"
-        )
-    if step["end_seconds"] <= step["start_seconds"]:
-        raise ValueError(
-            f"Action {step['step_key']} has an invalid time range: "
-            f"{step['start_seconds']:.3f}s to {step['end_seconds']:.3f}s."
-        )
+    raise NotImplementedError("Sample real frames from one EPIC action segment.")
 
-    target_seconds = np.linspace(
-        step["start_seconds"],
-        step["end_seconds"],
-        config.frames_per_step + 2,
-    )[1:-1].tolist()
-    sampled_frames: list[np.ndarray] = []
 
-    try:
-        with av.open(str(video_path)) as container:
-            if not container.streams.video:
-                raise ValueError(f"The file has no video stream: {video_path}")
 
-            video_stream = container.streams.video[0]
-            video_stream.thread_type = "AUTO"
-            if video_stream.time_base is None:
-                raise ValueError(f"The video stream has no time base: {video_path}")
 
-            seek_offset = max(
-                0,
-                int(target_seconds[0] / float(video_stream.time_base)),
-            )
-            container.seek(
-                seek_offset,
-                backward=True,
-                any_frame=False,
-                stream=video_stream,
-            )
 
-            target_index = 0
-            for frame in container.decode(video_stream):
-                frame_seconds = frame.time
-                if frame_seconds is None and frame.pts is not None:
-                    frame_seconds = float(frame.pts * video_stream.time_base)
-                if frame_seconds is None:
-                    continue
-
-                rgb_frame: np.ndarray | None = None
-                while (
-                    target_index < len(target_seconds)
-                    and float(frame_seconds) >= target_seconds[target_index]
-                ):
-                    if rgb_frame is None:
-                        rgb_frame = frame.to_ndarray(format="rgb24")
-                    sampled_frames.append(rgb_frame)
-                    target_index += 1
-
-                if target_index == len(target_seconds):
-                    break
-    except (av.FFmpegError, OSError) as error:
-        raise RuntimeError(
-            f"Could not decode {video_path} for action {step['step_key']} "
-            f"between {step['start_seconds']:.3f}s and {step['end_seconds']:.3f}s."
-        ) from error
-
-    if len(sampled_frames) != config.frames_per_step:
-        raise RuntimeError(
-            f"Decoded only {len(sampled_frames)} of {config.frames_per_step} frames "
-            f"from {video_path} for action {step['step_key']} between "
-            f"{step['start_seconds']:.3f}s and {step['end_seconds']:.3f}s."
-        )
-
-    for frame in sampled_frames:
-        if frame.ndim != 3 or frame.shape[-1] != 3 or frame.dtype != np.uint8:
-            raise ValueError(
-                f"Action {step['step_key']} produced an invalid RGB frame with "
-                f"shape {frame.shape} and dtype {frame.dtype}."
-            )
-
-    # raise NotImplementedError("Sample real frames from one EPIC action segment.")
-    return sampled_frames
 
 
 def load_frozen_timesformer(
@@ -1145,21 +943,11 @@ def load_frozen_timesformer(
     # - no model parameter requires gradients
     # - print model name and hidden size
 
-    from transformers import AutoImageProcessor, TimesformerModel
-    processor = AutoImageProcessor.from_pretrained(config.timesformer_model_name)
-    model = TimesformerModel.from_pretrained(config.timesformer_model_name, use_safetensors=True)
+    raise NotImplementedError("Load and freeze the pretrained TimeSformer.")
 
-    model = model.to(device)
-    model.eval()    
 
-    for param in model.parameters():
-        param.requires_grad = False
 
-    if model.config.hidden_size != config.timesformer_feature_dim:
-        raise ValueError("The hidden dimensions are not compatible.")    
 
-    return processor, model
-    #raise NotImplementedError("Load and freeze the pretrained TimeSformer.")
 
 
 def extract_and_cache_step_features(
@@ -1205,143 +993,15 @@ def extract_and_cache_step_features(
     # - every required key exists exactly once
     # - every feature is finite and shaped `[768]`
     # - a rerun reuses the cache without decoding again
-    required_steps: dict[str, ActionStep] = {}
-    for windows in windows_by_split.values():
-        for window in windows:
-            for step in window["sequence_steps"]:
-                step_key = step["step_key"]
-                if step_key in required_steps:
-                    previous_step = required_steps[step_key]
-                    if (
-                        previous_step["video_id"] != step["video_id"]
-                        or previous_step["start_seconds"] != step["start_seconds"]
-                        or previous_step["end_seconds"] != step["end_seconds"]
-                    ):
-                        raise ValueError(f"Step key {step_key!r} refers to two different actions.")
-                else:
-                    required_steps[step_key] = step
+    raise NotImplementedError("Extract and cache frozen TimeSformer step features.")
 
-    if not required_steps:
-        raise ValueError("No action steps were provided for feature extraction.")
 
-    config.feature_cache_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_cache_path = config.feature_cache_path.with_suffix(
-        config.feature_cache_path.suffix + ".tmp"
-    )
 
-    def save_feature_checkpoint(features_to_save: dict[str, torch.Tensor]) -> None:
-        torch.save(
-            {
-                "model_name": config.timesformer_model_name,
-                "frames_per_step": config.frames_per_step,
-                "features": features_to_save,
-            },
-            temporary_cache_path,
-        )
-        temporary_cache_path.replace(config.feature_cache_path)
 
-    features: dict[str, torch.Tensor] = {}
-    if config.feature_cache_path.exists():
-        cache = torch.load(
-            config.feature_cache_path,
-            map_location="cpu",
-            weights_only=True,
-        )
-        settings_match = (
-            isinstance(cache, dict)
-            and cache.get("model_name") == config.timesformer_model_name
-            and cache.get("frames_per_step") == config.frames_per_step
-            and isinstance(cache.get("features"), dict)
-        )
 
-        if settings_match:
-            cached_features = cache["features"]
-            for step_key in required_steps:
-                cached_feature = cached_features.get(step_key)
-                if (
-                    isinstance(cached_feature, torch.Tensor)
-                    and cached_feature.shape == (config.timesformer_feature_dim,)
-                    and torch.isfinite(cached_feature).all().item()
-                ):
-                    features[step_key] = cached_feature.detach().float().cpu()
 
-            if len(features) == len(required_steps):
-                print(
-                    f"Reusing {len(required_steps)} step features from "
-                    f"{config.feature_cache_path}."
-                )
-                return features
-            if features:
-                print(
-                    f"Resuming from {len(features)} cached features in "
-                    f"{config.feature_cache_path}."
-                )
-        else:
-            print("The existing feature cache does not match this run. Rebuilding it.")
 
-    total_steps = len(required_steps)
-    steps_to_extract = [
-        (step_key, step)
-        for step_key, step in required_steps.items()
-        if step_key not in features
-    ]
-    starting_feature_count = len(features)
-    progress = (
-        tqdm(
-            steps_to_extract,
-            desc="extract features",
-            initial=starting_feature_count,
-            total=total_steps,
-            unit="step",
-        )
-        if tqdm is not None
-        else steps_to_extract
-    )
 
-    try:
-        with torch.no_grad():
-            for new_step_number, (step_key, step) in enumerate(progress, start=1):
-                if tqdm is None:
-                    current_step_number = starting_feature_count + new_step_number
-                    print(f"Extracting feature {current_step_number}/{total_steps}: {step_key}")
-
-                frames = sample_action_frames(step, config)
-                processed = processor(frames, return_tensors="pt")
-                if "pixel_values" not in processed:
-                    raise KeyError("The image processor did not return pixel_values.")
-
-                pixel_values = processed["pixel_values"]
-                expected_pixel_shape = (1, config.frames_per_step, 3, 224, 224)
-                if tuple(pixel_values.shape) != expected_pixel_shape:
-                    raise ValueError(
-                        f"The processor returned shape {tuple(pixel_values.shape)} for "
-                        f"{step_key}; expected {expected_pixel_shape}."
-                    )
-
-                outputs = timesformer(pixel_values=pixel_values.to(device))
-                feature = outputs.last_hidden_state[:, 0].squeeze(0).detach().float().cpu()
-                expected_feature_shape = (config.timesformer_feature_dim,)
-                if tuple(feature.shape) != expected_feature_shape:
-                    raise ValueError(
-                        f"The feature for {step_key} has shape {tuple(feature.shape)}; "
-                        f"expected {expected_feature_shape}."
-                    )
-                if not torch.isfinite(feature).all().item():
-                    raise ValueError(f"The feature for {step_key} contains NaN or infinity.")
-
-                features[step_key] = feature
-                if new_step_number % 10 == 0:
-                    save_feature_checkpoint(features)
-                if tqdm is not None:
-                    progress.set_postfix(saved=f"{len(features)}/{total_steps}")
-    finally:
-        if len(features) > starting_feature_count:
-            save_feature_checkpoint(features)
-
-    print(f"Saved {len(features)} step features to {config.feature_cache_path}.")
-
-    # raise NotImplementedError("Extract and cache frozen TimeSformer step features.")
-    return features
 
 
 def build_cached_dataloaders(
@@ -1369,79 +1029,12 @@ def build_cached_dataloaders(
     # - print dataset and batch counts
     # - inspect one real batch against the five shapes listed at the top
     # - raise an error when any split has zero usable windows
-    split_names: tuple[SplitName, ...] = ("train", "val", "unseen_kitchen", "test")
-    dataloaders: dict[SplitName, DataLoader] = {}
+    raise NotImplementedError("Build cached-feature dataloaders.")
 
-    for split_name in split_names:
-        windows = window_result.windows_by_split[split_name]
-        if not windows:
-            raise ValueError(f"Cannot build the {split_name} DataLoader: it has no windows.")
 
-        required_step_keys = {
-            step["step_key"]
-            for window in windows
-            for step in window["sequence_steps"]
-        }
-        missing_step_keys = sorted(required_step_keys - set(feature_by_step_key))
-        if missing_step_keys:
-            raise KeyError(
-                f"The feature cache is missing {len(missing_step_keys)} steps needed by "
-                f"{split_name}, including {missing_step_keys[:5]}."
-            )
 
-        for step_key in required_step_keys:
-            feature = feature_by_step_key[step_key]
-            expected_shape = (config.timesformer_feature_dim,)
-            if tuple(feature.shape) != expected_shape:
-                raise ValueError(
-                    f"Cached feature {step_key!r} has shape {tuple(feature.shape)}; "
-                    f"expected {expected_shape}."
-                )
-            if not torch.isfinite(feature).all().item():
-                raise ValueError(f"Cached feature {step_key!r} contains NaN or infinity.")
 
-        dataset = CachedWindowDataset(
-            windows=windows,
-            feature_by_step_key=feature_by_step_key,
-            vocabulary=vocabulary,
-            history_steps=config.history_steps,
-        )
-        dataloaders[split_name] = DataLoader(
-            dataset,
-            batch_size=config.batch_size,
-            shuffle=split_name == "train",
-            num_workers=0,
-        )
-        print(
-            f"{split_name} DataLoader: {len(dataset)} examples, "
-            f"{len(dataloaders[split_name])} batches"
-        )
 
-    example_batch = next(iter(dataloaders["val"]))
-    expected_trailing_shapes = {
-        "history_features": (config.history_steps, config.timesformer_feature_dim),
-        "masked_features": (config.history_steps + 1, config.timesformer_feature_dim),
-    }
-    for key, expected_shape in expected_trailing_shapes.items():
-        if tuple(example_batch[key].shape[1:]) != expected_shape:
-            raise ValueError(
-                f"Batch field {key!r} has shape {tuple(example_batch[key].shape)}; "
-                f"expected [batch, {', '.join(str(size) for size in expected_shape)}]."
-            )
-
-    for key in ("mask_index", "next_label", "masked_label"):
-        if example_batch[key].ndim != 1:
-            raise ValueError(
-                f"Batch field {key!r} has shape {tuple(example_batch[key].shape)}; "
-                "expected [batch]."
-            )
-
-    print("Example validation batch shapes:")
-    for key, value in example_batch.items():
-        print(f"  {key}: {tuple(value.shape)}")
-
-    # raise NotImplementedError("Build cached-feature dataloaders.")
-    return dataloaders
 
 
 class VideoTaskformerStudent(nn.Module):
@@ -1472,43 +1065,20 @@ class VideoTaskformerStudent(nn.Module):
         # - projection maps `768 -> 256`
         # - position embedding has room for five steps
         # - classifier output size equals `num_classes`
-        self.feature_projection = nn.Linear(
-            config.timesformer_feature_dim,
-            config.hidden_dim,
-        )
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, config.hidden_dim))
-        self.position_embedding = nn.Parameter(torch.zeros(1, config.history_steps + 1, config.hidden_dim))
+        raise NotImplementedError("Build the step-context transformer.")
 
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=config.hidden_dim,
-            nhead=config.num_heads,
-            dim_feedforward=config.mlp_dim,
-            dropout=config.dropout,
-            activation="gelu",
-            batch_first=True,
-            norm_first=True,
-        )
-        self.step_transformer = nn.TransformerEncoder(
-            encoder_layer,
-            num_layers=config.transformer_depth,
-        )
-        self.output_norm = nn.LayerNorm(config.hidden_dim)
-        self.classifier = nn.Linear(config.hidden_dim, num_classes)
 
         # Fill the learned mask token with small random starting values. The
         # values come from a normal distribution centred on 0. A standard
         # deviation of 0.02 means most values start close to 0, so the token
         # does not create a very large signal before training begins.
-        nn.init.normal_(self.mask_token, mean=0.0, std=0.02)
 
         # Give each learned step-position vector small random starting values.
         # This lets positions start slightly different from one another, while
         # keeping their initial effect small. The trailing `_` in `normal_`
         # means PyTorch changes this parameter directly instead of returning a
         # separate tensor.
-        nn.init.normal_(self.position_embedding, mean=0.0, std=0.02)
 
-        # raise NotImplementedError("Build the step-context transformer.")
 
     def forward(
         self,
@@ -1539,59 +1109,12 @@ class VideoTaskformerStudent(nn.Module):
         # Checks:
         # - both outputs have the same class dimension
         # - neither output contains `NaN` or infinity
-        if history_features.ndim != 3 or masked_features.ndim != 3:
-            raise ValueError("History and masked features must both have three dimensions.")
-        if history_features.shape[0] != masked_features.shape[0]:
-            raise ValueError("History and masked features must have the same batch size.")
-        if history_features.shape[2] != self.feature_projection.in_features:
-            raise ValueError(
-                f"History feature size is {history_features.shape[2]}; "
-                f"expected {self.feature_projection.in_features}."
-            )
-        if masked_features.shape[2] != self.feature_projection.in_features:
-            raise ValueError(
-                f"Masked feature size is {masked_features.shape[2]}; "
-                f"expected {self.feature_projection.in_features}."
-            )
-        if history_features.shape[1] != self.position_embedding.shape[1] - 1:
-            raise ValueError(
-                f"History contains {history_features.shape[1]} steps; "
-                f"expected {self.position_embedding.shape[1] - 1}."
-            )
-        if masked_features.shape[1] != self.position_embedding.shape[1]:
-            raise ValueError(
-                f"Masked input contains {masked_features.shape[1]} steps; "
-                f"expected {self.position_embedding.shape[1]}."
-            )
-        if mask_index.ndim != 1 or mask_index.shape[0] != masked_features.shape[0]:
-            raise ValueError("mask_index must have shape [batch].")
+        raise NotImplementedError("Run forecasting and masked-step prediction.")
 
-        mask_index = mask_index.to(device=masked_features.device, dtype=torch.long)
-        if torch.any(mask_index < 0) or torch.any(mask_index >= masked_features.shape[1]):
-            raise ValueError("mask_index contains a position outside the masked sequence.")
 
-        history_tokens = self.feature_projection(history_features)
-        history_tokens = history_tokens + self.position_embedding[:, : history_tokens.shape[1]]
-        history_context = self.step_transformer(history_tokens)
-        forecast_vector = self.output_norm(history_context[:, -1])
-        forecast_logits = self.classifier(forecast_vector)
 
-        masked_tokens = self.feature_projection(masked_features).clone()
-        batch_ids = torch.arange(masked_tokens.shape[0], device=masked_tokens.device)
-        masked_tokens[batch_ids, mask_index] = self.mask_token[0, 0]
-        masked_tokens = masked_tokens + self.position_embedding[:, : masked_tokens.shape[1]]
-        masked_context = self.step_transformer(masked_tokens)
-        masked_vector = self.output_norm(masked_context[batch_ids, mask_index])
-        masked_logits = self.classifier(masked_vector)
 
-        if not torch.isfinite(forecast_logits).all() or not torch.isfinite(masked_logits).all():
-            raise ValueError("The model produced NaN or infinity in its logits.")
 
-        # raise NotImplementedError("Run forecasting and masked-step prediction.")
-        return ModelOutputs(
-            forecast_logits=forecast_logits,
-            masked_logits=masked_logits,
-        )
 
 
 class LastStepBaseline(nn.Module):
@@ -1642,77 +1165,13 @@ def train_one_epoch(
     # Checks:
     # - no optimizer contains a frozen TimeSformer parameter
     # - returned accuracies are between `0.0` and `1.0`
-    model.train()
-    baseline.train()
+    raise NotImplementedError("Train one cached-feature epoch.")
 
-    total_examples = 0
-    total_loss = 0.0
-    forecast_correct = 0
-    masked_correct = 0
-    last_step_correct = 0
 
-    progress = tqdm(loader, desc="train", leave=False) if tqdm is not None else loader
 
-    for step_number, batch in enumerate(progress, start=1):
-        history_features = batch["history_features"].to(device)
-        masked_features = batch["masked_features"].to(device)
-        mask_index = batch["mask_index"].to(device)
-        next_label = batch["next_label"].to(device)
-        masked_label = batch["masked_label"].to(device)
 
-        model_optimizer.zero_grad(set_to_none=True)
-        outputs = model(history_features, masked_features, mask_index)
-        forecast_loss = loss_fn(outputs["forecast_logits"], next_label)
-        masked_loss = loss_fn(outputs["masked_logits"], masked_label)
-        loss = forecast_loss + config.masked_loss_weight * masked_loss
-        if not torch.isfinite(loss).item():
-            raise ValueError("The main model produced a non-finite training loss.")
-        loss.backward()
-        model_optimizer.step()
 
-        baseline_optimizer.zero_grad(set_to_none=True)
-        last_step_logits = baseline(history_features)
-        baseline_loss = loss_fn(last_step_logits, next_label)
-        if not torch.isfinite(baseline_loss).item():
-            raise ValueError("The last-step baseline produced a non-finite training loss.")
-        baseline_loss.backward()
-        baseline_optimizer.step()
 
-        batch_size = next_label.shape[0]
-        total_examples += batch_size
-        total_loss += loss.item() * batch_size
-        forecast_correct += (
-            outputs["forecast_logits"].argmax(dim=-1) == next_label
-        ).sum().item()
-        masked_correct += (
-            outputs["masked_logits"].argmax(dim=-1) == masked_label
-        ).sum().item()
-        last_step_correct += (last_step_logits.argmax(dim=-1) == next_label).sum().item()
-
-        if tqdm is not None:
-            progress.set_postfix(
-                step=f"{step_number}/{len(loader)}",
-                loss=f"{loss.item():.4f}",
-                forecast=f"{forecast_correct / total_examples:.3f}",
-                masked=f"{masked_correct / total_examples:.3f}",
-                last_step=f"{last_step_correct / total_examples:.3f}",
-            )
-
-    if total_examples == 0:
-        raise ValueError("Cannot train on an empty DataLoader.")
-
-    metrics = EpochMetrics(
-        mean_loss=total_loss / total_examples,
-        forecast_accuracy=forecast_correct / total_examples,
-        masked_accuracy=masked_correct / total_examples,
-        last_step_accuracy=last_step_correct / total_examples,
-    )
-    for metric_name in ("forecast_accuracy", "masked_accuracy", "last_step_accuracy"):
-        if not 0.0 <= metrics[metric_name] <= 1.0:
-            raise ValueError(f"{metric_name} is outside the valid range from 0 to 1.")
-
-    # raise NotImplementedError("Train one cached-feature epoch.")
-    return metrics
 
 
 @torch.no_grad()
@@ -1744,109 +1203,14 @@ def evaluate_models(
     # Checks:
     # - every probability row sums to about `1.0`
     # - probability shape is `[len(loader.dataset), num_classes]`
-    if num_classes < 1:
-        raise ValueError("num_classes must be at least 1.")
-    if not 0 <= majority_label_id < num_classes:
-        raise ValueError("majority_label_id must be a valid class ID.")
+    raise NotImplementedError("Evaluate next-action forecasting and baselines.")
 
-    model.eval()
-    baseline.eval()
 
-    total_examples = 0
-    total_loss = 0.0
-    forecast_correct = 0
-    top3_correct = 0
-    masked_correct = 0
-    majority_correct = 0
-    last_step_correct = 0
-    labels: list[int] = []
-    predictions: list[int] = []
-    probability_batches: list[torch.Tensor] = []
 
-    for batch in loader:
-        history_features = batch["history_features"].to(device)
-        masked_features = batch["masked_features"].to(device)
-        mask_index = batch["mask_index"].to(device)
-        next_label = batch["next_label"].to(device)
-        masked_label = batch["masked_label"].to(device)
 
-        outputs = model(history_features, masked_features, mask_index)
-        forecast_logits = outputs["forecast_logits"]
-        masked_logits = outputs["masked_logits"]
-        last_step_logits = baseline(history_features)
 
-        expected_logit_shape = (next_label.shape[0], num_classes)
-        for name, logits in (
-            ("forecast_logits", forecast_logits),
-            ("masked_logits", masked_logits),
-            ("last_step_logits", last_step_logits),
-        ):
-            if tuple(logits.shape) != expected_logit_shape:
-                raise ValueError(
-                    f"{name} has shape {tuple(logits.shape)}; "
-                    f"expected {expected_logit_shape}."
-                )
 
-        forecast_loss = loss_fn(forecast_logits, next_label)
-        probabilities = torch.softmax(forecast_logits, dim=-1)
-        forecast_prediction = forecast_logits.argmax(dim=-1)
-        masked_prediction = masked_logits.argmax(dim=-1)
-        last_step_prediction = last_step_logits.argmax(dim=-1)
-        top3_indices = forecast_logits.topk(k=min(3, num_classes), dim=-1).indices
 
-        batch_size = next_label.shape[0]
-        total_examples += batch_size
-        total_loss += forecast_loss.item() * batch_size
-        forecast_correct += (forecast_prediction == next_label).sum().item()
-        top3_correct += (
-            top3_indices == next_label.unsqueeze(dim=1)
-        ).any(dim=1).sum().item()
-        masked_correct += (masked_prediction == masked_label).sum().item()
-        majority_correct += (next_label == majority_label_id).sum().item()
-        last_step_correct += (last_step_prediction == next_label).sum().item()
-
-        labels.extend(next_label.cpu().tolist())
-        predictions.extend(forecast_prediction.cpu().tolist())
-        probability_batches.append(probabilities.cpu())
-
-    if total_examples == 0:
-        raise ValueError("Cannot evaluate an empty DataLoader.")
-
-    all_probabilities = torch.cat(probability_batches, dim=0)
-    expected_probability_shape = (total_examples, num_classes)
-    if tuple(all_probabilities.shape) != expected_probability_shape:
-        raise ValueError(
-            f"Probability tensor has shape {tuple(all_probabilities.shape)}; "
-            f"expected {expected_probability_shape}."
-        )
-    if not torch.allclose(
-        all_probabilities.sum(dim=-1),
-        torch.ones(total_examples),
-        atol=1e-5,
-    ):
-        raise ValueError("One or more probability rows do not sum to 1.")
-
-    macro_f1 = f1_score(
-        labels,
-        predictions,
-        labels=list(range(num_classes)),
-        average="macro",
-        zero_division=0,
-    )
-
-    # raise NotImplementedError("Evaluate next-action forecasting and baselines.")
-    return EvaluationMetrics(
-        mean_loss=total_loss / total_examples,
-        top1_accuracy=forecast_correct / total_examples,
-        top3_accuracy=top3_correct / total_examples,
-        macro_f1=float(macro_f1),
-        masked_accuracy=masked_correct / total_examples,
-        majority_accuracy=majority_correct / total_examples,
-        last_step_accuracy=last_step_correct / total_examples,
-        labels=labels,
-        predictions=predictions,
-        probabilities=all_probabilities,
-    )
 
 
 def save_action_forecasting_visuals(
@@ -1879,165 +1243,19 @@ def save_action_forecasting_visuals(
     # - all returned paths exist and end in `.png`
     # - probability row zero matches `example_window`
     # - never display raw IDs without names
-    if not training_history:
-        raise ValueError("training_history must contain at least one epoch.")
+    raise NotImplementedError("Save action-forecasting metrics and real timelines.")
 
-    history_keys = (
-        "train_loss",
-        "validation_loss",
-        "train_accuracy",
-        "validation_accuracy",
-    )
-    for epoch_index, epoch_metrics in enumerate(training_history, start=1):
-        missing_keys = [key for key in history_keys if key not in epoch_metrics]
-        if missing_keys:
-            raise KeyError(f"Training epoch {epoch_index} is missing keys: {missing_keys}")
 
-    num_classes = vocabulary.num_classes
-    if num_classes == 0:
-        raise ValueError("Cannot draw plots for an empty vocabulary.")
-    if len(vocabulary.training_counts) != num_classes:
-        raise ValueError("Vocabulary names and training counts must have the same length.")
-    if len(test_metrics["labels"]) != len(test_metrics["predictions"]):
-        raise ValueError("Test labels and predictions must have the same length.")
-    if not test_metrics["labels"]:
-        raise ValueError("Test metrics contain no examples to plot.")
 
-    probabilities = test_metrics["probabilities"]
-    if probabilities.ndim != 2 or probabilities.shape[1] != num_classes:
-        raise ValueError(
-            f"Test probabilities have shape {tuple(probabilities.shape)}; "
-            f"expected [examples, {num_classes}]."
-        )
-    if probabilities.shape[0] != len(test_metrics["labels"]):
-        raise ValueError("Probability rows must match the number of test labels.")
 
-    sequence_steps = example_window["sequence_steps"]
-    if len(sequence_steps) != config.history_steps + 1:
-        raise ValueError(
-            f"The example window has {len(sequence_steps)} steps; "
-            f"expected {config.history_steps + 1}."
-        )
-    true_label_id = vocabulary.label_id(sequence_steps[-1])
-    if test_metrics["labels"][0] != true_label_id:
-        raise ValueError("Probability row zero does not match the supplied example window.")
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    visual_paths = {
-        "training_curves": config.output_dir / "training_curves.png",
-        "confusion_matrix": config.output_dir / "confusion_matrix.png",
-        "forecast_timeline": config.output_dir / "forecast_timeline.png",
-        "next_verb_probabilities": config.output_dir / "next_verb_probabilities.png",
-        "class_distribution": config.output_dir / "class_distribution.png",
-    }
 
-    epochs = list(range(1, len(training_history) + 1))
-    figure, axes = plt.subplots(1, 2, figsize=(11, 4))
-    axes[0].plot(epochs, [row["train_loss"] for row in training_history], label="Train")
-    axes[0].plot(
-        epochs,
-        [row["validation_loss"] for row in training_history],
-        label="Validation",
-    )
-    axes[0].set_title("Forecasting loss")
-    axes[0].set_xlabel("Epoch")
-    axes[0].set_ylabel("Cross-entropy loss")
-    axes[0].legend()
-    axes[1].plot(
-        epochs,
-        [row["train_accuracy"] for row in training_history],
-        label="Train",
-    )
-    axes[1].plot(
-        epochs,
-        [row["validation_accuracy"] for row in training_history],
-        label="Validation",
-    )
-    axes[1].set_title("Next-verb accuracy")
-    axes[1].set_xlabel("Epoch")
-    axes[1].set_ylabel("Accuracy")
-    axes[1].set_ylim(0.0, 1.0)
-    axes[1].legend()
-    figure.tight_layout()
-    figure.savefig(visual_paths["training_curves"], dpi=150)
-    plt.close(figure)
 
-    matrix = confusion_matrix(
-        test_metrics["labels"],
-        test_metrics["predictions"],
-        labels=list(range(num_classes)),
-    )
-    figure, axis = plt.subplots(figsize=(8, 7))
-    image = axis.imshow(matrix, cmap="Blues")
-    axis.set_title("Next-verb confusion matrix")
-    axis.set_xlabel("Predicted verb")
-    axis.set_ylabel("True verb")
-    axis.set_xticks(range(num_classes), vocabulary.label_id_to_name, rotation=45, ha="right")
-    axis.set_yticks(range(num_classes), vocabulary.label_id_to_name)
-    for true_id in range(num_classes):
-        for predicted_id in range(num_classes):
-            axis.text(predicted_id, true_id, str(matrix[true_id, predicted_id]), ha="center", va="center")
-    figure.colorbar(image, ax=axis, label="Number of examples")
-    figure.tight_layout()
-    figure.savefig(visual_paths["confusion_matrix"], dpi=150)
-    plt.close(figure)
 
-    first_start = sequence_steps[0]["start_seconds"]
-    relative_starts = [step["start_seconds"] - first_start for step in sequence_steps]
-    durations = [step["end_seconds"] - step["start_seconds"] for step in sequence_steps]
-    positions = list(range(len(sequence_steps)))
-    colors = ["tab:blue"] * config.history_steps + ["tab:orange"]
-    predicted_label_id = int(probabilities[0].argmax().item())
-    figure, axis = plt.subplots(figsize=(11, 5))
-    axis.barh(positions, durations, left=relative_starts, color=colors)
-    axis.set_yticks(
-        positions,
-        [f"{index + 1}. {step['narration']}" for index, step in enumerate(sequence_steps)],
-    )
-    axis.invert_yaxis()
-    axis.set_xlabel("Seconds from the start of this window")
-    axis.set_title(
-        f"True next verb: {vocabulary.label_id_to_name[true_label_id]} | "
-        f"Predicted: {vocabulary.label_id_to_name[predicted_label_id]}"
-    )
-    figure.tight_layout()
-    figure.savefig(visual_paths["forecast_timeline"], dpi=150)
-    plt.close(figure)
 
-    top_count = min(5, num_classes)
-    top_probabilities, top_label_ids = torch.topk(probabilities[0], k=top_count)
-    top_names = [vocabulary.label_id_to_name[label_id] for label_id in top_label_ids.tolist()]
-    figure, axis = plt.subplots(figsize=(8, 4))
-    axis.bar(top_names, top_probabilities.tolist(), color="tab:purple")
-    axis.set_title("Top next-verb predictions")
-    axis.set_xlabel("Verb")
-    axis.set_ylabel("Probability")
-    axis.set_ylim(0.0, 1.0)
-    axis.tick_params(axis="x", rotation=45)
-    figure.tight_layout()
-    figure.savefig(visual_paths["next_verb_probabilities"], dpi=150)
-    plt.close(figure)
 
-    figure, axis = plt.subplots(figsize=(9, 4))
-    axis.bar(
-        vocabulary.label_id_to_name,
-        vocabulary.training_counts,
-        color="tab:green",
-    )
-    axis.set_title("Training examples per verb")
-    axis.set_xlabel("Verb")
-    axis.set_ylabel("Number of actions")
-    axis.tick_params(axis="x", rotation=45)
-    figure.tight_layout()
-    figure.savefig(visual_paths["class_distribution"], dpi=150)
-    plt.close(figure)
 
-    for path in visual_paths.values():
-        if not path.exists() or path.suffix.lower() != ".png":
-            raise RuntimeError(f"Expected visual was not saved: {path}")
 
-    # raise NotImplementedError("Save action-forecasting metrics and real timelines.")
-    return {name: str(path) for name, path in visual_paths.items()}
 
 
 def run_action_forecasting_experiment(config: ActionForecastingConfig) -> ExperimentResult:
@@ -2061,206 +1279,20 @@ def run_action_forecasting_experiment(config: ActionForecastingConfig) -> Experi
     # - never select settings from held-out-kitchen or test accuracy
     # - print split sizes, coverage, main accuracy, and both baselines together
     # - raise a clear error if no best validation state was saved
-    set_seed(config.random_state)
+    raise NotImplementedError("Run the full VideoTaskformer-style exercise.")
 
-    steps = load_manifested_action_steps(config)
-    vocabulary = build_training_verb_vocabulary(steps, config)
-    window_result = build_consecutive_windows(steps, vocabulary, config)
-    processor, timesformer = load_frozen_timesformer(config)
-    feature_by_step_key = extract_and_cache_step_features(
-        window_result.windows_by_split,
-        processor,
-        timesformer,
-        config,
-    )
-    dataloaders = build_cached_dataloaders(
-        window_result,
-        feature_by_step_key,
-        vocabulary,
-        config,
-    )
 
-    del processor
-    del timesformer
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
 
-    model = VideoTaskformerStudent(config, vocabulary.num_classes).to(device)
-    baseline = LastStepBaseline(
-        config.timesformer_feature_dim,
-        vocabulary.num_classes,
-    ).to(device)
-    model_optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=config.learning_rate,
-        weight_decay=config.weight_decay,
-    )
-    baseline_optimizer = torch.optim.AdamW(
-        baseline.parameters(),
-        lr=config.learning_rate,
-        weight_decay=config.weight_decay,
-    )
-    loss_fn = nn.CrossEntropyLoss()
 
-    main_parameter_count = sum(
-        parameter.numel() for parameter in model.parameters() if parameter.requires_grad
-    )
-    baseline_parameter_count = sum(
-        parameter.numel() for parameter in baseline.parameters() if parameter.requires_grad
-    )
-    print("\nAction-forecasting training setup")
-    print(f"  device: {device}")
-    print(f"  verb classes: {vocabulary.num_classes}")
-    print(f"  main model trainable parameters: {main_parameter_count:,}")
-    print(f"  baseline trainable parameters: {baseline_parameter_count:,}")
-    print(
-        "  windows: "
-        + ", ".join(
-            f"{split_name}={len(window_result.windows_by_split[split_name])}"
-            for split_name in ("train", "val", "unseen_kitchen", "test")
-        )
-    )
 
-    training_target_counts = Counter(
-        vocabulary.label_id(window["sequence_steps"][-1])
-        for window in window_result.windows_by_split["train"]
-    )
-    if not training_target_counts:
-        raise ValueError("Cannot find a majority label because training has no windows.")
-    majority_label_id = min(
-        training_target_counts,
-        key=lambda label_id: (-training_target_counts[label_id], label_id),
-    )
-    print(
-        f"Majority baseline always predicts label {majority_label_id}: "
-        f"{vocabulary.label_id_to_name[majority_label_id]}"
-    )
 
-    training_history: list[dict[str, float]] = []
-    best_validation_accuracy = -1.0
-    best_model_state: dict[str, torch.Tensor] | None = None
-    best_baseline_state: dict[str, torch.Tensor] | None = None
 
-    for epoch in range(1, config.epochs + 1):
-        train_metrics = train_one_epoch(
-            model,
-            baseline,
-            dataloaders["train"],
-            model_optimizer,
-            baseline_optimizer,
-            loss_fn,
-            config,
-        )
-        validation_metrics = evaluate_models(
-            model,
-            baseline,
-            dataloaders["val"],
-            loss_fn,
-            majority_label_id,
-            vocabulary.num_classes,
-        )
 
-        training_history.append(
-            {
-                "train_loss": train_metrics["mean_loss"],
-                "validation_loss": validation_metrics["mean_loss"],
-                "train_accuracy": train_metrics["forecast_accuracy"],
-                "validation_accuracy": validation_metrics["top1_accuracy"],
-            }
-        )
-        print(f"\nepoch {epoch}/{config.epochs}")
-        print(
-            f"  train | combined loss {train_metrics['mean_loss']:.4f} | "
-            f"forecast accuracy {100.0 * train_metrics['forecast_accuracy']:.2f}% | "
-            f"masked accuracy {100.0 * train_metrics['masked_accuracy']:.2f}% | "
-            f"last-step accuracy {100.0 * train_metrics['last_step_accuracy']:.2f}%"
-        )
-        print(
-            f"  val   | forecast loss {validation_metrics['mean_loss']:.4f} | "
-            f"top-1 {100.0 * validation_metrics['top1_accuracy']:.2f}% | "
-            f"top-3 {100.0 * validation_metrics['top3_accuracy']:.2f}% | "
-            f"macro F1 {validation_metrics['macro_f1']:.3f} | "
-            f"masked {100.0 * validation_metrics['masked_accuracy']:.2f}% | "
-            f"last-step {100.0 * validation_metrics['last_step_accuracy']:.2f}%"
-        )
 
-        if validation_metrics["top1_accuracy"] > best_validation_accuracy:
-            best_validation_accuracy = validation_metrics["top1_accuracy"]
-            best_model_state = deepcopy(model.state_dict())
-            best_baseline_state = deepcopy(baseline.state_dict())
 
-    if best_model_state is None or best_baseline_state is None:
-        raise RuntimeError("Training finished without saving a best validation model.")
 
-    model.load_state_dict(best_model_state)
-    baseline.load_state_dict(best_baseline_state)
 
-    validation_metrics = evaluate_models(
-        model,
-        baseline,
-        dataloaders["val"],
-        loss_fn,
-        majority_label_id,
-        vocabulary.num_classes,
-    )
-    unseen_kitchen_metrics = evaluate_models(
-        model,
-        baseline,
-        dataloaders["unseen_kitchen"],
-        loss_fn,
-        majority_label_id,
-        vocabulary.num_classes,
-    )
-    test_metrics = evaluate_models(
-        model,
-        baseline,
-        dataloaders["test"],
-        loss_fn,
-        majority_label_id,
-        vocabulary.num_classes,
-    )
 
-    final_metrics = {
-        "validation": validation_metrics,
-        "unseen_kitchen": unseen_kitchen_metrics,
-        "test": test_metrics,
-    }
-    print("\nFinal action-forecasting metrics")
-    for split_name, metrics in final_metrics.items():
-        coverage_split_name = "val" if split_name == "validation" else split_name
-        print(
-            f"  {split_name:<14} | loss {metrics['mean_loss']:.4f} | "
-            f"top-1 {100.0 * metrics['top1_accuracy']:.2f}% | "
-            f"top-3 {100.0 * metrics['top3_accuracy']:.2f}% | "
-            f"macro F1 {metrics['macro_f1']:.3f} | "
-            f"masked {100.0 * metrics['masked_accuracy']:.2f}%"
-        )
-        print(
-            f"  {'':<14} | majority {100.0 * metrics['majority_accuracy']:.2f}% | "
-            f"last-step {100.0 * metrics['last_step_accuracy']:.2f}% | "
-            f"known-label coverage "
-            f"{100.0 * window_result.known_label_coverage[coverage_split_name]:.2f}%"
-        )
-
-    visual_paths = save_action_forecasting_visuals(
-        training_history,
-        test_metrics,
-        window_result.windows_by_split["test"][0],
-        vocabulary,
-        config,
-    )
-    print(f"visuals saved in: {config.output_dir}")
-    for visual_name, visual_path in visual_paths.items():
-        print(f"  {visual_name}: {visual_path}")
-
-    # raise NotImplementedError("Run the full VideoTaskformer-style exercise.")
-    return ExperimentResult(
-        validation=validation_metrics,
-        unseen_kitchen=unseen_kitchen_metrics,
-        test=test_metrics,
-        known_label_coverage=window_result.known_label_coverage,
-        visual_paths=visual_paths,
-    )
 
 
 def report_task_progress(task_name: str, task_fn, *args):

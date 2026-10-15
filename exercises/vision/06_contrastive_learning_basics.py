@@ -199,7 +199,6 @@ from common.reproducibility import set_seed
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-@dataclass
 
 def load_dataloaders(config: ContrastiveLearningConfig) -> dict[str, DataLoader]:
 
@@ -233,6 +232,7 @@ def load_dataloaders(config: ContrastiveLearningConfig) -> dict[str, DataLoader]
     return {"contrastive_train": DataLoader(dataset = train_ds, batch_size=config.batch_size, shuffle=True),
             "eval": DataLoader(dataset=val_ds, batch_size=config.batch_size)}
 
+@dataclass
 class ContrastiveLearningConfig:
     """Settings for the contrastive learning exercise."""
 
@@ -271,24 +271,11 @@ class ContrastiveModel(nn.Module):
   
     def __init__(self, input_channels: int, feature_dim: int, projection_dim: int) -> None:
         super().__init__()
-        self.input_channels = input_channels
-        self.feature_dim = feature_dim
-        self.projection_dim = projection_dim
+        raise NotImplementedError("Build an encoder and a projection head for contrastive learning.")
 
-        self.weights = torchvision.models.MobileNet_V3_Small_Weights.DEFAULT
-        self.backbone = torchvision.models.mobilenet_v3_small(weights=self.weights)
 
-        backbone_out_dim  = self.backbone.classifier[0].in_features
-        self.backbone.classifier = nn.Identity()
-        self.feature_head = nn.Linear(backbone_out_dim, feature_dim)
 
-        self.projector = nn.Sequential(
-            nn.Linear(in_features = feature_dim, out_features=projection_dim),
-            nn.ReLU(inplace=True),
-            nn.Linear(in_features = projection_dim, out_features=projection_dim)
-        )
 
-        # raise NotImplementedError("Build an encoder and a projection head for contrastive learning.")
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         """Return encoder features and projection features.
@@ -302,14 +289,10 @@ class ContrastiveModel(nn.Module):
         - `projections`: `[batch_size, projection_dim]`
         """
 
-        x = self.backbone(x)
-        features = self.feature_head(x)
+        raise NotImplementedError("Return a dict with encoder features and projection features.")
 
-        projections = self.projector(features)
 
-        return {"features": features, "projections":projections}
 
-        #raise NotImplementedError("Return a dict with encoder features and projection features.")
 
 
 # Build the contrastive train loader and one eval loader.
@@ -387,11 +370,8 @@ class EvalDataset(torch.utils.data.Dataset):
         return len(self.dataset)
 
     def __getitem__(self, index):
-        image, label = self.dataset[index]
-        image_transformed = self.transform(image)
-        return image_transformed, label
+        raise NotImplementedError("Return the contrastive train loader and one downstream eval loader.")
 
-    #raise NotImplementedError("Return the contrastive train loader and one downstream eval loader.")
 
 
 # Build the model and optimizer.
@@ -400,13 +380,9 @@ class EvalDataset(torch.utils.data.Dataset):
 # - optimizer: `torch.optim.Optimizer`
 def build_training_objects(config: ContrastiveLearningConfig) -> tuple[nn.Module, torch.optim.Optimizer]:
 
-    model = ContrastiveModel(input_channels = config.image_channels, feature_dim=config.feature_dim, projection_dim=config.projection_dim)
-    model.to(device)
+    raise NotImplementedError("Return the contrastive model and optimizer.")
 
-    optimizer = torch.optim.SGD(lr=config.learning_rate, params = model.parameters())
 
-    return model, optimizer
-    #raise NotImplementedError("Return the contrastive model and optimizer.")
 
 
 # Compute one contrastive loss value for one batch.
@@ -542,44 +518,30 @@ def build_training_objects(config: ContrastiveLearningConfig) -> tuple[nn.Module
 # - all other positions in that row act like negatives
 def contrastive_loss(projections_a: torch.Tensor, projections_b: torch.Tensor, temperature: float) -> torch.Tensor:
 
-    if projections_a.dim() != 2 or projections_b.dim() != 2:
-        raise ValueError("Incorrect input parameter dimensions")
+    raise NotImplementedError("Return one scalar contrastive loss for the batch.")
 
-    if projections_a.shape != projections_b.shape:
-        raise ValueError("Incorrect input parameter shape mismatch")
 
-    batch_size = projections_a.shape[0]
 
     # normalise so dot products are cosine similarity score
-    projections_a = F.normalize(projections_a, dim=-1)
-    projections_b = F.normalize(projections_b, dim=-1)
 
     # output matrix of scores with shape batch_size x batch_size
     #each sample/row in a is compared with each sample/row in b
-    similarity_matrix = torch.matmul(projections_a, projections_b.transpose(0, 1))
 
-    similarity_matrix = similarity_matrix / temperature
 
-    targets = torch.arange(start=0, end=batch_size, step=1, device=projections_a.device)
 
     # loss from a to b
-    loss1 = F.cross_entropy(input = similarity_matrix, target=targets)
     
     # loss from b to a
     # You can transpose here, or you can redo the matmul step but this time transpose_a and then divide by temperature again
     # Transposing is easier:
-    loss2 = F.cross_entropy(input = similarity_matrix.transpose(0, 1), target=targets)
     
     # By default, F.cross_entropy(...) already reduces the batch losses to one scalar by taking the mean.
     # So no need to do:
     #loss = loss1.mean(dim=0) + loss2.mean(dim=0)    
     #loss/=2.0
 
-    loss = (loss1 + loss2)/2.0
 
-    return loss
 
-    #raise NotImplementedError("Return one scalar contrastive loss for the batch.")
 
 
 # Run one full contrastive training epoch.
@@ -605,33 +567,11 @@ def train_one_epoch(
     # - you are not building two separate models
     # - calling the same model twice is the normal contrastive pattern
 
-    model.train()
+    raise NotImplementedError("Return the mean contrastive train loss for one full epoch.")
 
-    c, sum = 0,0
-    for view_a, view_b in loader:
-        view_a = view_a.to(device)
-        view_b = view_b.to(device)
 
-        optimizer.zero_grad()
 
-        a_dict = model(view_a)
-        b_dict = model(view_b)
 
-        projections_a = a_dict["projections"]
-        projections_b = b_dict["projections"]
-
-        loss = contrastive_loss(projections_a, projections_b, temperature)
-        loss.backward()
-        optimizer.step()
-
-        sum+=loss.item()
-        c+=1
-
-    mean_loss = sum/c
-
-    return {"loss": mean_loss}
-
-    #raise NotImplementedError("Return the mean contrastive train loss for one full epoch.")
 
 
 # Run one simple downstream sanity check.
@@ -652,27 +592,13 @@ def train_one_epoch(
 @torch.no_grad()
 def run_representation_sanity_check(model: nn.Module, loader: DataLoader) -> dict[str, object]:
 
-    all_features = []
-    all_labels = []
+    raise NotImplementedError("Return one simple downstream representation sanity-check result.")
 
-    model.eval()
 
-    for images, y_targets in loader:
-        images = images.to(device)
-        y_targets = y_targets.to(device)
-        
-        outputs_dict = model(images)
-        features = outputs_dict["features"]
 
-        all_features.append(features)
-        all_labels.append(y_targets)
-
-    all_features = torch.concat(all_features)
-    all_labels = torch.concat(all_labels)
 
     # If you normalize first, the dot product becomes cosine similarity.
     # That means similar direction in feature space = higher score
-    all_features = F.normalize(all_features, dim=1)
 
     # Imagine you have 5 eval images.
     # After encoding them, you get 5 feature vectors.
@@ -684,25 +610,15 @@ def run_representation_sanity_check(model: nn.Module, loader: DataLoader) -> dic
     # Do that for every example.
     # Then average correctness.
 
-    similarity_matrix = torch.matmul(all_features, all_features.transpose(0, 1))
 
     # so we dont do self-match because cosine sim with itself will always be 1
     # do not use fill_value = 0 because some real similarities to other examples can be negative
     # if all the other values in a row are less than 0, then the diagonal 0 becomes the biggest value
     # then argmax will pick the same example itself
-    similarity_matrix.fill_diagonal_(fill_value=float("-inf"))
 
-    nearest_indices = similarity_matrix.argmax(dim=1)
-    predicted_labels = all_labels[nearest_indices]
 
-    accuracy = (predicted_labels == all_labels).float().mean().item()
 
-    return {
-        "metric_name": "nearest_neighbor_accuracy",
-        "metric_value": accuracy,
-    }
 
-    #raise NotImplementedError("Return one simple downstream representation sanity-check result.")
 
 
 # Run the full contrastive workflow.
@@ -712,21 +628,10 @@ def run_representation_sanity_check(model: nn.Module, loader: DataLoader) -> dic
 # - `nearest_neighbor_accuracy`
 def run_training(config: ContrastiveLearningConfig) -> dict[str, float | str]:
 
-    loaders = load_dataloaders(config)
-    model, optimizer = build_training_objects(config)
-
-    train_dict = None
-    eval_dict = None
-    for i in range(config.epochs):
-
-        train_dict = train_one_epoch(model, loaders["contrastive_train"], optimizer, config.temperature)
-        eval_dict = run_representation_sanity_check(model, loaders["eval"])
-
-        print(f"Epoch {i} -> contrastive_loss: {train_dict['loss']} , {eval_dict['metric_name']}:{eval_dict['metric_value']}")
+    raise NotImplementedError("Run the full contrastive workflow and return the final loss and downstream check.")
 
 
-    return {"train_loss": train_dict['loss'], "": eval_dict['metric_name'], "": eval_dict['metric_value']}
-    #raise NotImplementedError("Run the full contrastive workflow and return the final loss and downstream check.")
+
 
 
 def check_metrics(metrics: dict[str, float | str]) -> bool:

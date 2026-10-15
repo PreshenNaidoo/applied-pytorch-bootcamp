@@ -111,6 +111,7 @@ from common.data_utils import (
     train_val_test_split,
 )
 
+@dataclass
 class DataLoaderBasicsConfig:
     """Settings for the synthetic dataset and loaders."""
 
@@ -130,24 +131,12 @@ class DataLoaderBasicsConfig:
 # Use a 60% train / 20% val / 20% test split.
 # Keep this step in NumPy only.
 def load_numpy_splits(config: DataLoaderBasicsConfig) -> dict[str, object]:
-    x = np.random.randint(low=3, high=10, size=(DataLoaderBasicsConfig.num_samples, DataLoaderBasicsConfig.num_features))
-    y = np.random.randint(low=0, high=2, size=(DataLoaderBasicsConfig.num_samples))
+    raise NotImplementedError("Return the NumPy train, validation, and test splits.")
 
-    val_size = int(DataLoaderBasicsConfig.num_samples * 0.2)
-    test_size = int(DataLoaderBasicsConfig.num_samples * 0.2)
-    train_size = int(DataLoaderBasicsConfig.num_samples * 0.6)
 
-    X_train = x[:train_size,:]
-    Y_train = y[:train_size]
 
-    X_val = x[train_size:train_size+val_size,:]
-    Y_val = y[train_size:train_size+val_size:]
 
-    X_test = x[train_size+val_size:,:]
-    Y_test = x[train_size+val_size:]
 
-    return {"X_train":X_train, "X_val":X_val, "X_test":X_test,
-            "Y_train":Y_train, "Y_val":Y_val, "Y_test":Y_test}
 
 
 
@@ -155,13 +144,7 @@ def load_numpy_splits(config: DataLoaderBasicsConfig) -> dict[str, object]:
 # Return the same six keys as load_numpy_splits(...), but now each value is a tensor.
 # Features should be float tensors. Labels should be integer class tensors.
 def convert_splits_to_tensors(split_dict: dict[str, object]) -> dict[str, torch.Tensor]:
-    split_dict["X_train"] = torch.tensor(split_dict["X_train"], dtype=torch.float)
-    split_dict["X_val"] = torch.tensor(split_dict["X_val"], dtype=torch.float)
-    split_dict["X_test"] = torch.tensor(split_dict["X_test"], dtype=torch.float)
-    split_dict["Y_train"] = torch.tensor(split_dict["Y_train"], dtype=torch.int64)
-    split_dict["Y_val"] = torch.tensor(split_dict["Y_val"], dtype=torch.int64)
-    split_dict["Y_test"] = torch.tensor(split_dict["Y_test"], dtype=torch.int64)
-    return split_dict
+    raise NotImplementedError("Convert every split array to the correct PyTorch tensor type.")
 
 
 
@@ -171,11 +154,7 @@ def convert_splits_to_tensors(split_dict: dict[str, object]) -> dict[str, torch.
 # - "val"
 # - "test"
 def build_tensor_datasets(tensor_dict: dict[str, torch.Tensor]) -> dict[str, TensorDataset]:
-    dict1 = {}
-    dict1["train"] = TensorDataset(tensor_dict["X_train"], tensor_dict["Y_train"])
-    dict1["val"] = TensorDataset(tensor_dict["X_val"], tensor_dict["Y_val"])
-    dict1["test"] = TensorDataset(tensor_dict["X_test"], tensor_dict["Y_test"])
-    return dict1
+    raise NotImplementedError("Return train, validation, and test TensorDataset objects.")
 
 
 
@@ -183,12 +162,11 @@ class VectorClassificationDataset(Dataset):
     """Custom dataset stub for vector classification data."""
 
     def __init__(self, features: torch.Tensor, labels: torch.Tensor) -> None:
-        self.features = features
-        self.labels = labels
+        raise NotImplementedError("Store the feature and label tensors.")
 
     def __len__(self) -> int:
         """Return the number of examples."""
-        return len(self.features)
+        raise NotImplementedError("Return the number of examples.")
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
         """Return one example.
@@ -200,22 +178,17 @@ class VectorClassificationDataset(Dataset):
         Smallest correct answer:
         return self.features[index], self.labels[index]
         """
-        return self.features[index], self.labels[index]
+        raise NotImplementedError("Return one feature row and its matching label.")
 
 
 
 # Wrap each tensor split in your custom dataset class.
 # Return the same three keys: "train", "val", and "test".
 def build_custom_datasets(tensor_dict: dict[str, torch.Tensor]) -> dict[str, VectorClassificationDataset]:
-    dict1 = {}
-    dict1["train"] = VectorClassificationDataset(tensor_dict["X_train"], tensor_dict["Y_train"])    
-    dict1["val"] = VectorClassificationDataset(tensor_dict["X_val"], tensor_dict["Y_val"])
-    dict1["test"] = VectorClassificationDataset(tensor_dict["X_test"], tensor_dict["Y_test"])
-    return dict1
+    raise NotImplementedError("Return train, validation, and test custom datasets.")
 
 
 
-@dataclass
 
 
 # Build the DataLoader objects.
@@ -223,11 +196,7 @@ def build_custom_datasets(tensor_dict: dict[str, torch.Tensor]) -> dict[str, Vec
 # Use shuffle=True for train.
 # Use shuffle=False for val and test.
 def build_dataloaders(config: DataLoaderBasicsConfig, datasets: dict[str, Dataset]) -> dict[str, DataLoader]:
-    dict1 = {}
-    dict1["train"] = DataLoader(dataset=datasets["train"], batch_size=DataLoaderBasicsConfig.batch_size, shuffle=True)
-    dict1["val"] = DataLoader(dataset=datasets["val"], batch_size=DataLoaderBasicsConfig.batch_size)
-    dict1["test"] = DataLoader(dataset=datasets["test"], batch_size=DataLoaderBasicsConfig.batch_size)
-    return dict1
+    raise NotImplementedError("Return the train, validation, and test dataloaders.")
 
 
 
@@ -238,16 +207,10 @@ def build_dataloaders(config: DataLoaderBasicsConfig, datasets: dict[str, Datase
 # - "label_batch_shape"
 # Store the shapes as tuples.
 def inspect_one_batch(loaders: dict[str, DataLoader]) -> dict[str, object]:
-    batch_shape_dict = {}
+    raise NotImplementedError("Inspect one training batch and return its shapes.")
 
-    data_loader_train = loaders["train"]
 
-    for batch_x, batch_y in data_loader_train:
-        batch_shape_dict["feature_batch_shape"] = tuple(batch_x.shape)
-        batch_shape_dict["label_batch_shape"] = tuple(batch_y.shape)
-        break
 
-    return batch_shape_dict
 
 
 # Connect the whole data pipeline.
@@ -259,19 +222,13 @@ def inspect_one_batch(loaders: dict[str, DataLoader]) -> dict[str, object]:
 # 5. inspect one train batch
 # Return the summary from inspect_one_batch(...).
 def run_training_stub(config: DataLoaderBasicsConfig) -> dict[str, object]:    
-    dict_splits = load_numpy_splits(DataLoaderBasicsConfig)
-    tensor_splits = convert_splits_to_tensors(dict_splits)
-    tensor_datasets = build_tensor_datasets(tensor_splits)
-    custom_datasets = build_custom_datasets(tensor_splits)
-    loaders = build_dataloaders(DataLoaderBasicsConfig, custom_datasets)
-    shapes_dict = inspect_one_batch(loaders)
-    return shapes_dict
+    raise NotImplementedError("Run the full data pipeline and return the batch summary.")
 
 
 # Keep this simple.
 # Smallest correct answer: return summary unchanged.
 def evaluate_stub(summary: dict[str, object]) -> dict[str, object]:
-    return summary
+    raise NotImplementedError("Return the evaluation summary.")
 
 
 
