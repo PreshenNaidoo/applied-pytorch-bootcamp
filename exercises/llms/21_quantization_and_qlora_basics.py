@@ -273,13 +273,8 @@ def estimate_model_size_mb(parameter_count: int, bits_per_parameter: int) -> flo
     # - `estimate_model_size_mb(1_000_000, 32)` should be about `3.8147`.
     # - `estimate_model_size_mb(1_000_000, 8)` should be about `0.9537`.
 
-    size_in_bits = parameter_count * bits_per_parameter
-    size_in_bytes = size_in_bits / 8.0
-    size_in_kb = size_in_bytes / 1024.0
-    size_in_mb = size_in_kb / 1024.0
+    raise NotImplementedError("Estimate size from parameter count and bits per parameter.")
 
-    return size_in_mb
-    #raise NotImplementedError("Estimate size from parameter count and bits per parameter.")
 
 
 # Beginner hints for this file:
@@ -325,11 +320,8 @@ class QuantizationToyModel(nn.Module):
         #
         super().__init__()
 
-        self.model = nn.Sequential(nn.Linear(in_features=config.input_dim, out_features=config.hidden_dim),
-                                    nn.ReLU(inplace=True),
-                                    nn.Linear(in_features=config.hidden_dim, out_features=config.num_classes))
+        raise NotImplementedError("Build a small MLP model.")
 
-        #raise NotImplementedError("Build a small MLP model.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return raw logits."""
@@ -354,9 +346,7 @@ class QuantizationToyModel(nn.Module):
         # - Do not apply softmax here.
 
 
-        logits = self.model(x)
-        return logits
-        #raise NotImplementedError("Return model outputs.")
+        raise NotImplementedError("Return model outputs.")
 
 # Count how many parameters the model has in total.
 # This is the starting point for every size estimate.
@@ -388,7 +378,7 @@ def count_parameters(model: nn.Module) -> int:
     # Checks:
     # - For `nn.Linear(3, 2)`, the answer is `3 * 2 + 2 = 8`.
 
-    sum = 0
+    raise NotImplementedError("Count model parameters.")
     # `param` is not a whole layer.
     # It is one trainable tensor inside a layer.
     # A layer can own more than one trainable tensor.
@@ -402,11 +392,7 @@ def count_parameters(model: nn.Module) -> int:
     # So `len(list(model.parameters()))` would count 2 tensors.
     # But the model has 8 scalar parameters: 6 weights + 2 bias values.
     # `param.numel()` means "how many numbers are inside this tensor".
-    for param in model.parameters():
-        sum+=param.numel()
 
-    return sum
-    #raise NotImplementedError("Count model parameters.")
 
 # Return a quantized model or a simple simulated quantized copy.
 # The important thing is that this path uses fewer bits than float32.
@@ -448,8 +434,7 @@ def quantize_model(model: nn.Module, config: QuantizationConfig) -> nn.Module:
     # - The returned model should return `[batch_size, config.num_classes]`.
     # - The original model should still work after this function.
 
-    model.eval()
-    quantized_model = torch.quantization.quantize_dynamic(model, qconfig_spec={nn.Linear}, dtype=torch.qint8)
+    raise NotImplementedError("Quantize the model or simulate quantization.")
 
     # Alternate simulated path, if dynamic quantization is not available.
     # Leave this commented out unless you want to test the fallback idea.
@@ -486,8 +471,6 @@ def quantize_model(model: nn.Module, config: QuantizationConfig) -> nn.Module:
     #
     # return simulated_model
 
-    return quantized_model
-    #raise NotImplementedError("Quantize the model or simulate quantization.")
 
 # Compare original and quantized outputs on the same input batch.
 # You are not expecting perfect equality.
@@ -530,16 +513,10 @@ def compare_outputs(original_model: nn.Module, quantized_model: nn.Module, input
     # - Use the same input tensor for both models.
     # - Do not expect the difference to be exactly zero.
 
-    original_model.eval()
-    quantized_model.eval()
+    raise NotImplementedError("Return output difference between original and quantized models.")
 
-    logits1 = original_model(inputs)     # shape = [batch_size, num_classes]
-    logits2 = quantized_model(inputs)    # shape = [batch_size, num_classes]
 
-    difference = torch.abs(logits1 - logits2)
 
-    return {"mean_output_difference": difference.mean().item(), "max_output_difference": difference.max().item()}
-    #raise NotImplementedError("Return output difference between original and quantized models.")
 
 # Explain QLoRA in plain words.
 # Important:
@@ -589,13 +566,7 @@ def explain_qlora(config: QuantizationConfig) -> str:
     # - The note should include the words `quantized` and `LoRA`.
     # - The note should be easy to say out loud.
 
-    qlora_note = (
-        f"QLoRA uses a quantized base model, often around {config.simulated_bits} bits, "
-        "to save memory. The large base weights stay mostly frozen, and small LoRA "
-        "adapter weights are trained instead."
-    )
-    return qlora_note
-    #raise NotImplementedError("Explain QLoRA in simple words.")
+    raise NotImplementedError("Explain QLoRA in simple words.")
 
 # Run the full quantization comparison.
 # Return a summary with:
@@ -650,39 +621,13 @@ def run_quantization_demo(config: QuantizationConfig) -> QuantizationRunSummary:
     # - `mean_output_difference >= 0.0`.
     # - `check_metrics(metrics)` should return True.
 
-    model = QuantizationToyModel(config)
-    original_count = count_parameters(model)
-    original_size = estimate_model_size_mb(original_count, 32)
+    raise NotImplementedError("Return model sizes, output difference, and QLoRA note.")
 
-    inputs = torch.randn(config.batch_size, config.input_dim)
-    quantized_model = quantize_model(model, config)
-    comparison_dict = compare_outputs(model, quantized_model, inputs)
 
-    qmodel_size = estimate_model_size_mb(original_count, config.simulated_bits)
 
-    size_reduction_percentage = 100 * (original_size - qmodel_size) / original_size
-    qlora_note = explain_qlora(config)
 
-    assert qmodel_size < original_size
 
-    print(f"Parameter count: {original_count}")
-    print(f"Float32 size estimate: {original_size:.6f} MB")
-    print(f"Quantized size estimate: {qmodel_size:.6f} MB")
-    print(f"Size reduction: {size_reduction_percentage:.2f}%")
-    print(f"Mean output difference: {comparison_dict['mean_output_difference']:.6f}")
-    print(f"Max output difference: {comparison_dict['max_output_difference']:.6f}")
-    print(f"QLoRA note: {qlora_note}")
 
-    return {
-        "parameter_count": original_count,
-        "float32_size_mb": original_size,
-        "quantized_size_mb": qmodel_size,
-        "size_reduction_percent": size_reduction_percentage,
-        "mean_output_difference": comparison_dict["mean_output_difference"],
-        "max_output_difference": comparison_dict["max_output_difference"],
-        "qlora_note": qlora_note,
-    }
-    #raise NotImplementedError("Return model sizes, output difference, and QLoRA note.")
 
 def check_metrics(metrics: dict[str, float | str]) -> bool:
     """Return True when quantization summary values are present."""

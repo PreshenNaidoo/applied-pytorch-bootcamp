@@ -288,31 +288,10 @@ def build_document_set() -> list[RetrievalDocument]:
     # - `documents[0]["doc_id"] == 0`
     # - `set(documents[0]) == {"doc_id", "title", "text"}`
     # - `len(documents) >= 90`
-    dataset_path = BOOTCAMP_ROOT / "data" / "dual_encoder_retriever_pairs.json"
-    with dataset_path.open("r", encoding="utf-8") as file:
-        data_dict = json.load(file)
+    raise NotImplementedError("Return a small local document set.")
 
-    pairs = data_dict["pairs"]
-    documents = []
-    document_id_by_text = {}
 
-    for pair in pairs:
-        document_text = pair["document"]
-        if document_text in document_id_by_text:
-            continue
 
-        doc_id = len(documents)
-        document_id_by_text[document_text] = doc_id
-        documents.append(
-            {
-                "doc_id": doc_id,
-                "title": f"Document {doc_id}",
-                "text": document_text,
-            }
-        )
-
-    return documents
-    #raise NotImplementedError("Return a small local document set.")
 
 # Build the query set from the same JSON pair dataset.
 # Each query should include the correct document id.
@@ -356,25 +335,11 @@ def build_query_set(documents: list[RetrievalDocument]) -> list[RetrievalQuery]:
     # - `set(queries[0]) == {"query", "correct_doc_id"}`
     # - Every `correct_doc_id` should exist in the document set.
     # - `len(queries) >= 500`
-    document_id_by_text = {document["text"]: document["doc_id"] for document in documents}
+    raise NotImplementedError("Return queries and matching document ids.")
 
-    dataset_path = BOOTCAMP_ROOT / "data" / "dual_encoder_retriever_pairs.json"
-    with dataset_path.open("r", encoding="utf-8") as file:
-        data_dict = json.load(file)
 
-    pairs = data_dict["pairs"]
-    queries = []
 
-    for pair in pairs:
-        queries.append(
-            {
-                "query": pair["query"],
-                "correct_doc_id": document_id_by_text[pair["document"]],
-            }
-        )
 
-    return queries
-    #raise NotImplementedError("Return queries and matching document ids.")
 
 def build_vocabulary(texts: list[str]) -> dict[str, int]:
     """Build a simple vocabulary for a beginner-friendly embedding baseline."""
@@ -409,20 +374,9 @@ def build_vocabulary(texts: list[str]) -> dict[str, int]:
     # - `isinstance(vocabulary["tensor"], int)` if `"tensor"` appears in the texts.
     # - Running the function twice on the same texts should give the same ids.
 
-    vocab = {}
-    unique_words = set()
-    for text in texts:
-        words = text.lower().split()
-        words = [word.strip(string.punctuation) for word in words]
-        for word in words:
-            if word and word not in unique_words:
-                unique_words.add(word)
+    raise NotImplementedError("Build a vocabulary from document and query text.")
 
-    sorted_words = sorted(unique_words)
-    vocab = {word:i for i, word in enumerate(sorted_words)}
 
-    return vocab
-    #raise NotImplementedError("Build a vocabulary from document and query text.")
 
 def encode_texts(texts: list[str], vocabulary: dict[str, int], config: RetrievalConfig) -> torch.Tensor:
     """Encode texts into embedding vectors.
@@ -473,22 +427,9 @@ def encode_texts(texts: list[str], vocabulary: dict[str, int], config: Retrieval
     # Checks:
     # - `embeddings.shape == (len(texts), config.embedding_dim)`
     # - A text with known tokens should not produce an all-zero row.
-    embeddings = torch.zeros(len(texts), config.embedding_dim)
+    raise NotImplementedError("Return text embeddings with shape [num_texts, embedding_dim].")
 
-    for text_index, text in enumerate(texts):
-        words = text.lower().split()
-        words = [word.strip(string.punctuation) for word in words]
 
-        for word in words:
-            if word not in vocabulary:
-                continue
-
-            token_id = vocabulary[word]
-            bucket = token_id % config.embedding_dim
-            embeddings[text_index, bucket] += 1.0
-
-    return embeddings
-    #raise NotImplementedError("Return text embeddings with shape [num_texts, embedding_dim].")
 
 def normalize_embeddings(embeddings: torch.Tensor) -> torch.Tensor:
     """Normalize embeddings so dot product becomes cosine similarity."""
@@ -518,9 +459,7 @@ def normalize_embeddings(embeddings: torch.Tensor) -> torch.Tensor:
     # - `normalized.shape == embeddings.shape`
     # - For non-zero rows, `normalized.norm(dim=1)` should be close to `1`.
 
-    normalized = torch.nn.functional.normalize(embeddings, p=2, dim=1)
-    return normalized
-    #raise NotImplementedError("Return normalized embeddings.")
+    raise NotImplementedError("Return normalized embeddings.")
 
 # Compute the full query-document similarity table.
 # Return shape:
@@ -556,9 +495,7 @@ def compute_similarity_matrix(query_embeddings: torch.Tensor, document_embedding
     # - If query embeddings are `[3, 64]` and document embeddings are `[8, 64]`,
     #   the output should be `[3, 8]`.
 
-    similarity_matrix = query_embeddings @ document_embeddings.T
-    return similarity_matrix
-    #raise NotImplementedError("Return the query-document similarity matrix.")
+    raise NotImplementedError("Return the query-document similarity matrix.")
 
 def retrieve_top_k(similarity_matrix: torch.Tensor, top_k: int) -> torch.Tensor:
     """Return top-k document indices for each query."""
@@ -591,12 +528,9 @@ def retrieve_top_k(similarity_matrix: torch.Tensor, top_k: int) -> torch.Tensor:
     # - `top_k_indices.shape[0] == similarity_matrix.shape[0]`
     # - `top_k_indices.shape[1] == min(top_k, num_documents)`
 
-    safe_k = min(top_k, similarity_matrix.shape[1])                 # int, at most num_documents
-    top_k_result = torch.topk(similarity_matrix, k=safe_k, dim=1)    # shape [num_queries, safe_k]
+    raise NotImplementedError("Return top-k document ids or indices for each query.")
 
-    return top_k_result.indices                                      # shape [num_queries, safe_k]
 
-    #raise NotImplementedError("Return top-k document ids or indices for each query.")
 
 # Compute top-1 and top-k retrieval accuracy.
 # Reading rule:
@@ -639,18 +573,13 @@ def compute_retrieval_metrics(top_k_indices: torch.Tensor, correct_doc_ids: torc
     # - top-k asks: was the correct result somewhere in the first k results?
     # - top-k accuracy should be greater than or equal to top-1 accuracy.
 
-    top1_correct = top_k_indices[:, 0] == correct_doc_ids
-    top1_accuracy = top1_correct.float().mean().item()
+    raise NotImplementedError("Compute top-1 and top-k accuracy.")
 
     # `top_k_indices` has shape [num_queries, top_k].
     # `correct_doc_ids.unsqueeze(1)` changes its shape from [num_queries] into [num_queries, 1],
     # so each correct id can be compared with every retrieved id in that row.
     # `.any(dim=1)` means: for each query row, did the correct document appear anywhere in top-k?
-    topk_correct = (top_k_indices == correct_doc_ids.unsqueeze(1)).any(dim=1)
-    topk_accuracy = topk_correct.float().mean().item()
 
-    return {"top1_accuracy": top1_accuracy, "top5_accuracy": topk_accuracy}
-    #raise NotImplementedError("Compute top-1 and top-k accuracy.")
 
 def inspect_failed_queries(
     queries: list[RetrievalQuery],
@@ -694,34 +623,9 @@ def inspect_failed_queries(
     # Checks:
     # - Every failure should have `retrieved_doc_id != correct_doc_id`.
     # - If there are no failures, return an empty list.
-    documents_by_id = {document["doc_id"]: document for document in documents}
-    failed_queries: list[FailedRetrieval] = []
+    raise NotImplementedError("Return failed queries with retrieved and correct documents.")
 
-    for query_index, query in enumerate(queries):
-        correct_doc_id = int(correct_doc_ids[query_index].item())
-        retrieved_doc_id = int(top_k_indices[query_index, 0].item())
 
-        if retrieved_doc_id == correct_doc_id:
-            continue
-
-        correct_document = documents_by_id[correct_doc_id]
-        retrieved_document = documents_by_id[retrieved_doc_id]
-
-        failed_queries.append(
-            {
-                "query": query["query"],
-                "correct_doc_id": correct_doc_id,
-                "correct_title": correct_document["title"],
-                "retrieved_doc_id": retrieved_doc_id,
-                "retrieved_title": retrieved_document["title"],
-            }
-        )
-
-        if len(failed_queries) == 3:
-            break
-
-    return failed_queries
-    #raise NotImplementedError("Return failed queries with retrieved and correct documents.")
 
 def write_failure_note(failed_queries: list[FailedRetrieval]) -> str:
     """Write a short note about why retrieval failed."""
@@ -750,16 +654,8 @@ def write_failure_note(failed_queries: list[FailedRetrieval]) -> str:
     # Checks:
     # - The note should be readable out loud.
     # - The note should not be a long log dump.
-    if not failed_queries:
-        return "Top-1 retrieval found the correct document for every query."
+    raise NotImplementedError("Write a plain-language retrieval failure note.")
 
-    first_failure = failed_queries[0]
-    return (
-        f"For the query '{first_failure['query']}', retrieval picked "
-        f"'{first_failure['retrieved_title']}' instead of "
-        f"'{first_failure['correct_title']}'."
-    )
-    #raise NotImplementedError("Write a plain-language retrieval failure note.")
 
 def run_retrieval(config: RetrievalConfig) -> RetrievalRunSummary:
     """Run the full retrieval workflow."""
@@ -802,42 +698,15 @@ def run_retrieval(config: RetrievalConfig) -> RetrievalRunSummary:
     # Checks:
     # - `similarity_shape == (len(queries), len(documents))`
     # - The returned dictionary should pass `check_metrics(metrics)`.
-    documents = build_document_set()
-    queries = build_query_set(documents)
+    raise NotImplementedError("Run retrieval and return metrics plus failure analysis.")
 
-    document_texts = [document["text"] for document in documents]
-    query_texts = [query["query"] for query in queries]
 
-    vocabulary = build_vocabulary(document_texts + query_texts)
 
-    document_embeddings = encode_texts(document_texts, vocabulary, config)
-    query_embeddings = encode_texts(query_texts, vocabulary, config)
 
-    if config.use_cosine_similarity:
-        document_embeddings = normalize_embeddings(document_embeddings)
-        query_embeddings = normalize_embeddings(query_embeddings)
 
-    similarity_matrix = compute_similarity_matrix(query_embeddings, document_embeddings)
-    top_k_indices = retrieve_top_k(similarity_matrix, config.top_k)
-    correct_doc_ids = torch.tensor([int(query["correct_doc_id"]) for query in queries], dtype=torch.long)
 
-    metrics = compute_retrieval_metrics(top_k_indices, correct_doc_ids)
-    failed_queries = inspect_failed_queries(queries, documents, top_k_indices, correct_doc_ids)
-    failure_note = write_failure_note(failed_queries)
 
-    print(f"top1_accuracy: {metrics['top1_accuracy']:.4f}")
-    print(f"top{config.top_k}_accuracy: {metrics['top5_accuracy']:.4f}")
-    print(f"similarity_shape: {tuple(similarity_matrix.shape)}")
-    print(f"failure_note: {failure_note}")
 
-    return {
-        "top1_accuracy": metrics["top1_accuracy"],
-        "top5_accuracy": metrics["top5_accuracy"],
-        "similarity_shape": tuple(similarity_matrix.shape),
-        "failed_queries": failed_queries,
-        "failure_note": failure_note,
-    }
-    #raise NotImplementedError("Run retrieval and return metrics plus failure analysis.")
 
 def check_metrics(metrics: RetrievalRunSummary) -> bool:
     """Return True when the retrieval summary has the expected keys."""

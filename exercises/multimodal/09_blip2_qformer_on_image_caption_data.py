@@ -211,44 +211,13 @@ def build_caption_dataset(config: QFormerConfig) -> list[CaptionExample]:
     # - `label_id` values start at 0 and are valid class ids.
 
 
-    from datasets import load_dataset
+    raise NotImplementedError("Build image-caption data for Q-Former training.")
 
-    data = load_dataset(path=config.hf_dataset_name, split=f"train[:{config.sample_size}]")
 
-    transform = torchvision.transforms.Compose([
-        torchvision.transforms.Resize((config.image_size, config.image_size)),
-        torchvision.transforms.ToTensor(),
-    ])
 
-    label_keywords = {
-        0: ("person", "people", "man", "woman", "child", "boy", "girl", "skier", "player"),
-        1: ("car", "truck", "bus", "train", "bike", "bicycle", "motorcycle", "vehicle", "boat"),
-        2: ("dog", "cat", "horse", "bird", "animal", "elephant", "bear", "zebra", "giraffe"),
-        3: ("food", "pizza", "sandwich", "cake", "banana", "apple", "orange", "meal", "plate"),
-    }
 
-    examples: list[CaptionExample] = []
-    for row in data:
-        image = row["image"].convert("RGB")
-        image_tensor = transform(image)
 
-        caption = row["caption"]
-        if isinstance(caption, list):
-            caption = caption[0]
-        caption = str(caption)
-        caption_lower = caption.lower()
-
-        label_id = 4
-        for candidate_label, keywords in label_keywords.items():
-            if any(keyword in caption_lower for keyword in keywords):
-                label_id = candidate_label
-                break
-
-        examples.append({"image": image_tensor, "caption": caption, "label_id": label_id})
-
-    return examples
     
-    #raise NotImplementedError("Build image-caption data for Q-Former training.")
 
 
 class PatchImageEncoder(nn.Module):
@@ -274,14 +243,10 @@ class PatchImageEncoder(nn.Module):
         # - `config.image_size` should divide cleanly by `config.patch_grid_size`.
         # - The convolution output grid should be `[patch_grid_size, patch_grid_size]`.
 
-        self.patch_size = config.image_size // config.patch_grid_size
+        raise NotImplementedError("Build patch image encoder.")
 
-        if config.image_size % config.patch_grid_size != 0:
-            raise ValueError("Image_size is not divisible by patch size")
 
-        self.patch_conv = nn.Conv2d(in_channels = 3, out_channels=config.vision_hidden_size, kernel_size=self.patch_size, stride=self.patch_size)
         
-        #raise NotImplementedError("Build patch image encoder.")
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         """Return patch features."""
@@ -322,15 +287,11 @@ class PatchImageEncoder(nn.Module):
         # [batch_size, 3, 48, 48] -> [batch_size, 64, 6, 6]
         # num_patches = 6x6 = 36 total number of patches
 
-        features = self.patch_conv(images)  # [batch_size, vision_hidden_size, patch_grid_size, patch_grid_size]
+        raise NotImplementedError("Return image patch features.")
 
-        features = features.flatten(start_dim = 2)  # [batch_size, vision_hidden_size, num_patches]
 
-        features = features.transpose(1, 2)  # [batch_size, num_patches, vision_hidden_size]
 
-        return features
 
-        #raise NotImplementedError("Return image patch features.")
 
 
 class TinyQFormer(nn.Module):
@@ -360,11 +321,9 @@ class TinyQFormer(nn.Module):
         # - Query token shape should be `[num_query_tokens, query_hidden_size]`.
         # - `query_hidden_size` must match the attention `embed_dim`.
 
-        self.query_tokens = nn.Parameter(torch.randn(config.num_query_tokens, config.query_hidden_size) * 0.02)
+        raise NotImplementedError("Build learned queries and attention.")
         
-        self.cross_attention = nn.MultiheadAttention(embed_dim=config.query_hidden_size, num_heads=config.num_attention_heads, batch_first=True)
 
-        #raise NotImplementedError("Build learned queries and attention.")
 
     def forward(self, image_features: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Return query outputs and attention weights."""
@@ -394,14 +353,12 @@ class TinyQFormer(nn.Module):
         # Check:
         # - Attention should have one value per image patch for each query.
 
-        batch_size = image_features.shape[0]
+        raise NotImplementedError("Let learned queries attend to image patch features.")
 
         # image_features has shape [batch_size, 36, 64]
         # query_tokens has shape [8, 64]
 
-        queries = self.query_tokens.unsqueeze(dim=0).expand(size=(batch_size, -1, -1))  # [batch_size, 8, 64]
 
-        outputs, weights = self.cross_attention(query=queries, key=image_features, value=image_features, need_weights=True)
 
         # The query tokens are learned because they are `nn.Parameter`s.
         # That means gradient descent updates them during training, just like layer weights.
@@ -441,8 +398,6 @@ class TinyQFormer(nn.Module):
         # - this query looked 24% at patch 1
         # - this query looked 9% at patch 2
 
-        return outputs, weights     # [batch_size, 8, 64], [batch_size, 8, 36]
-        #raise NotImplementedError("Let learned queries attend to image patch features.")
 
 
 class TinyBLIP2Bridge(nn.Module):
@@ -472,15 +427,11 @@ class TinyBLIP2Bridge(nn.Module):
         # Check:
         # - The final logits should have shape `[batch_size, num_labels]`.
 
-        self.config = config
+        raise NotImplementedError("Build the tiny BLIP-2 bridge model.")
 
-        self.image_encoder = PatchImageEncoder(config)
 
-        self.qformer = TinyQFormer(config)
 
-        self.label_head = nn.Linear(config.query_hidden_size, num_labels)
 
-        #raise NotImplementedError("Build the tiny BLIP-2 bridge model.")
 
     def forward(self, images: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Return label logits and attention weights."""
@@ -503,13 +454,10 @@ class TinyBLIP2Bridge(nn.Module):
 
         #images shape is [B, 3, 48, 48]
 
-        patch_features = self.image_encoder(images)     # [B, 36, 64]
+        raise NotImplementedError("Run image encoder, Q-Former, and label head.")
 
-        query_outputs, attention_weights = self.qformer(patch_features)     # [B, 8, 64], [b, 8, 36]
 
-        pooled = query_outputs.mean(dim=1)          # [B, 64]
 
-        logits = self.label_head(pooled)            # [B, num_labels]
 
         # In a real BLIP-2 style system, these learned query tokens are not the
         # user's text question.
@@ -528,9 +476,7 @@ class TinyBLIP2Bridge(nn.Module):
         #
         # In this toy exercise, there is no user question or language model.
         # The pooled query outputs go straight into a small label head.
-        return logits, attention_weights
 
-        #raise NotImplementedError("Run image encoder, Q-Former, and label head.")
 
 
 def train_one_epoch(model: TinyBLIP2Bridge, loader: DataLoader, optimizer: torch.optim.Optimizer) -> float:
@@ -556,30 +502,11 @@ def train_one_epoch(model: TinyBLIP2Bridge, loader: DataLoader, optimizer: torch
     # Check:
     # - Return mean loss as a Python float.
 
-    loss_fn = nn.CrossEntropyLoss()
+    raise NotImplementedError("Train one Q-Former epoch.")
 
-    model.train()
 
-    total_loss = 0
-    total_examples = 0
 
-    for data in loader:
-        images = data["image"].to(device)
-        label_ids = data["label_id"].to(device)
 
-        optimizer.zero_grad()
-
-        logits, _ = model(images)
-        loss = loss_fn(logits, label_ids)
-        loss.backward()
-        optimizer.step()
-
-        batch_size = images.shape[0]
-        total_loss += loss.item() * batch_size
-        total_examples += batch_size
-
-    return total_loss / total_examples
-    #raise NotImplementedError("Train one Q-Former epoch.")
 
 @torch.no_grad()
 def evaluate_labels(model: TinyBLIP2Bridge, loader: DataLoader) -> float:
@@ -604,28 +531,11 @@ def evaluate_labels(model: TinyBLIP2Bridge, loader: DataLoader) -> float:
     # Check:
     # - Accuracy is a float between `0.0` and `1.0`.
 
-    model.eval()
+    raise NotImplementedError("Evaluate label accuracy.")
 
-    total_correct = 0
-    total_examples = 0
 
-    for data in loader:
-        images = data["image"].to(device)
-        label_ids = data["label_id"].to(device)
 
-        logits, _ = model(images)
 
-        preds = logits.argmax(dim=-1)
-        correct = (preds == label_ids).sum().item()
-        
-
-        batch_size = images.shape[0]
-        total_correct += correct        
-        total_examples += batch_size
-
-    return total_correct / total_examples # examples
-
-    #raise NotImplementedError("Evaluate label accuracy.")
 
 
 def save_qformer_visuals(losses: list[float], model: TinyBLIP2Bridge, examples: list[CaptionExample], config: QFormerConfig) -> tuple[str, str]:
@@ -652,47 +562,17 @@ def save_qformer_visuals(losses: list[float], model: TinyBLIP2Bridge, examples: 
     # Check:
     # - The heatmap should have `patch_grid_size` by `patch_grid_size` cells.
 
-    import matplotlib
+    raise NotImplementedError("Save Q-Former visuals.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
 
-    loss_curve_path = config.output_dir / "qformer_loss_curve.png"
-    attention_path = config.output_dir / "qformer_attention_heatmap.png"
 
-    plt.figure()
-    plt.plot(losses)
-    plt.title("Q-Former training loss")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.savefig(loss_curve_path)
-    plt.close()
 
-    model.eval()
-    image = examples[0]["image"].unsqueeze(0).to(device)  # [3, 48, 48] -> [1, 3, 48, 48]
 
-    with torch.no_grad():
-        _, attention_weights = model(image)  # [1, 8, 36] for averaged heads
 
-    if attention_weights.dim() == 4:
-        patch_attention = attention_weights.mean(dim=(1, 2))[0]  # [1, heads, 8, 36] -> [36]
-    else:
-        patch_attention = attention_weights.mean(dim=1)[0]  # [1, 8, 36] -> [36]
 
-    heatmap = patch_attention.reshape(config.patch_grid_size, config.patch_grid_size)  # [36] -> [6, 6]
-    heatmap = heatmap.detach().cpu()
 
-    plt.figure()
-    plt.imshow(heatmap)
-    plt.title("Average query attention over image patches")
-    plt.colorbar()
-    plt.savefig(attention_path)
-    plt.close()
 
-    return str(loss_curve_path), str(attention_path)
-    #raise NotImplementedError("Save Q-Former visuals.")
 
 
 def run_exercise(config: QFormerConfig) -> QFormerMetrics:

@@ -211,28 +211,13 @@ def build_real_image_caption_dataset(config: CLIPTrainingConfig) -> list[ImageCa
     # - `examples[0]["image"].shape == (3, config.image_size, config.image_size)`
     # - `examples[0]["caption"]` is not empty.
 
-    from datasets import load_dataset
+    raise NotImplementedError("Load real image-caption examples from COCO-30.")
 
-    data = load_dataset(path=config.hf_dataset_name, split=f"train[:{config.sample_size}]")
 
-    transform = torchvision.transforms.Compose([torchvision.transforms.Resize((config.image_size, config.image_size)),
-                                                torchvision.transforms.ToTensor(), ])
 
-    examples = []
 
-    for row in data: #["train"]:
-        image = row["image"].convert("RGB")
-        image_tensor = transform(image)
 
-        caption = row["caption"]
-        if isinstance(caption, list):
-                caption = caption[0]
 
-        examples.append({"image": image_tensor, "caption": str(caption)})
-
-    return examples
-
-    #raise NotImplementedError("Load real image-caption examples from COCO-30.")
 
 def build_vocabulary(captions: list[str]) -> dict[str, int]:
     """Build a small text vocabulary from captions."""
@@ -267,19 +252,10 @@ def build_vocabulary(captions: list[str]) -> dict[str, int]:
     # - `token_to_id["<unk>"] == 1`
     # - If one caption is `"a photo of a cat"`, `"cat"` should be in the dictionary.   
     
-    all_words = []
-    for caption in captions:
-        words = caption.lower().split()
-        all_words.extend(words)
+    raise NotImplementedError("Build caption vocabulary.")
 
-    vocabulary = sorted(set(all_words))    
-    vocabulary.insert(0, "<pad>")
-    vocabulary.insert(1, "<unk>")
 
-    token_to_id = {w:i for i, w in enumerate(vocabulary)}
 
-    return token_to_id
-    #raise NotImplementedError("Build caption vocabulary.")
 
 
 def tokenize_captions(captions: list[str], token_to_id: dict[str, int], config: CLIPTrainingConfig) -> torch.Tensor:
@@ -317,29 +293,10 @@ def tokenize_captions(captions: list[str], token_to_id: dict[str, int], config: 
     # - `token_ids.dtype == torch.long`
     # - Padding positions should stay at `0`.
 
-    pad_id = 0
-    unk_id = 1
+    raise NotImplementedError("Tokenize captions into a padded tensor.")
 
-    token_ids_list = []
-    for caption in captions:
-        words = caption.lower().split()
 
-        token_ids = []
 
-        for word in words:
-            token_id = token_to_id.get(word, unk_id)
-            token_ids.append(token_id)
-
-        token_ids = token_ids[: config.max_text_length] # truncate if greater than max_text_length
-
-        if len(token_ids) < config.max_text_length:
-            token_ids += [pad_id] * (config.max_text_length - len(token_ids))
-
-        token_ids_list.append(torch.tensor(token_ids, dtype=torch.long))
-
-    return torch.stack(token_ids_list, dim=0)
-
-    #raise NotImplementedError("Tokenize captions into a padded tensor.")
 
 
 class ShapeCaptionDataset(Dataset):
@@ -365,11 +322,8 @@ class ShapeCaptionDataset(Dataset):
         # Check:
         # - After this method runs, `len(self.examples)` should equal `len(examples)`.
 
-        self.examples = examples
-        self.token_to_id = token_to_id
-        self.config = config
+        raise NotImplementedError("Store examples, vocabulary, and config.")
 
-        #raise NotImplementedError("Store examples, vocabulary, and config.")
 
     def __len__(self) -> int:
         # Goal:
@@ -381,8 +335,7 @@ class ShapeCaptionDataset(Dataset):
         # Method:
         # Return `len(self.examples)`.
 
-        return len(self.examples)
-        #raise NotImplementedError("Return dataset length.")
+        raise NotImplementedError("Return dataset length.")
 
     def __getitem__(self, index: int) -> dict[str, torch.Tensor | str]:
         # Goal:
@@ -408,15 +361,10 @@ class ShapeCaptionDataset(Dataset):
         # Check:
         # - `item["caption_token_ids"].dtype` should be `torch.long`.
 
-        example = self.examples[index]
-        image = example["image"]
-        caption = example["caption"]
+        raise NotImplementedError("Return one tokenized image-caption item.")
 
-        caption_tensor = tokenize_captions([caption], self.token_to_id, self.config).squeeze(dim=0)        
 
-        return {"image": image, "caption_token_ids": caption_tensor, "caption": caption}
 
-        #raise NotImplementedError("Return one tokenized image-caption item.")
 
 
 class TinyImageEncoder(nn.Module):
@@ -436,17 +384,12 @@ class TinyImageEncoder(nn.Module):
         # - AdaptiveAvgPool2d((1, 1))
         # - Linear(32, embedding_dim)
 
-        self.conv_2d_1 = nn.Conv2d(in_channels=3, out_channels=16, kernel_size=3, stride=1, padding="same")
+        raise NotImplementedError("Build the image encoder layers.")
         
-        self.maxpool2d = nn.MaxPool2d(kernel_size=2)
 
-        self.conv_2d_2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding="same")
 
-        self.adaptive_avg_pool2d = nn.AdaptiveAvgPool2d(output_size=(1,1))
 
-        self.linear = nn.Linear(in_features=32, out_features=embedding_dim)
 
-        #raise NotImplementedError("Build the image encoder layers.")
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         """Return normalized image embeddings."""
@@ -469,18 +412,10 @@ class TinyImageEncoder(nn.Module):
         # Check:
         # - `image_embeddings.norm(dim=-1)` should be close to `1`.
 
-        x = F.relu(self.conv_2d_1(images))  # [B, 3, 48, 48] -> [B, 16, 48, 48]
-        x = self.maxpool2d(x)  # [B, 16, 48, 48] -> [B, 16, 24, 24]
+        raise NotImplementedError("Encode images and normalize the output vectors.")
 
-        x = F.relu(self.conv_2d_2(x))  # [B, 16, 24, 24] -> [B, 32, 24, 24]
-        x = self.adaptive_avg_pool2d(x)  # [B, 32, 24, 24] -> [B, 32, 1, 1]
         
-        x = torch.flatten(x, start_dim=1)  # [B, 32, 1, 1] -> [B, 32]
-        embeddings = self.linear(x)  # [B, 32] -> [B, embedding_dim], usually [B, 64]
-        norm_embeddings = torch.nn.functional.normalize(embeddings, dim=-1)  # [B, 64] -> [B, 64]
 
-        return norm_embeddings
-        #raise NotImplementedError("Encode images and normalize the output vectors.")
 
 
 class TinyTextEncoder(nn.Module):
@@ -496,9 +431,8 @@ class TinyTextEncoder(nn.Module):
         # - average non-padding token embeddings
         # - normalize the final vector
 
-        self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=embedding_dim, padding_idx=pad_token_id)
+        raise NotImplementedError("Build the text encoder layers.")
 
-        #raise NotImplementedError("Build the text encoder layers.")
 
     def forward(self, caption_token_ids: torch.Tensor) -> torch.Tensor:
         """Return normalized text embeddings."""
@@ -523,24 +457,15 @@ class TinyTextEncoder(nn.Module):
         # Check:
         # - Clamp the token count with `.clamp(min=1)` so empty captions do not create NaNs.
 
-        embeddings = self.embedding(caption_token_ids)      # [batch_size, max_text_length, embedding_dim]
+        raise NotImplementedError("Encode captions and normalize the output vectors.")
 
-        mask = caption_token_ids != 0                       # [batch_size, max_text_length]
 
-        mask = mask.unsqueeze(dim=-1)                       # [batch_size, max_text_length, 1]  so we can broadcast on the next line
 
-        masked_embeddings = embeddings * mask               # [batch_size, max_text_length, embedding_dim]
 
-        summed = torch.sum(masked_embeddings, dim=1)        # [batch_size, embedding_dim]
 
-        count_non_pad = torch.sum(mask, dim=1).clamp(min=1) # [batch_size, 1]
 
-        text_embeddings = summed / count_non_pad            # [batch_size, embedding_dim]
 
-        text_embeddings = torch.nn.functional.normalize(text_embeddings, dim=-1) # [batch_size, embedding_dim]
 
-        return text_embeddings
-        #raise NotImplementedError("Encode captions and normalize the output vectors.")
 
 
 class TinyCLIP(nn.Module):
@@ -576,11 +501,9 @@ class TinyCLIP(nn.Module):
         # Check:
         # - If batch size is 8, the output shape should be `[8, 8]`.
 
-        image_embeddings = self.image_encoder(images)               # [batch_size, embedding_dim]
+        raise NotImplementedError("Compute normalized image-text similarity scores.")
 
-        text_embeddings = self.text_encoder(caption_token_ids)      # [batch_size, embedding_dim]
 
-        similarity_scores = image_embeddings @ text_embeddings.T    # [batch_size, batch_size]
 
         # This scale is the inverse temperature used before cross entropy.
         # It is learned, so the model can choose how sharp the matching scores should be.
@@ -589,10 +512,7 @@ class TinyCLIP(nn.Module):
         # Example: logit_scale=2.0 gives e^2.0 = about 7.4.
         # Larger scale means lower temperature, so the softmax becomes more confident.
         # Smaller scale means higher temperature, so the softmax becomes softer.
-        similarity_scores = similarity_scores * self.logit_scale.exp()
 
-        return similarity_scores
-        #raise NotImplementedError("Compute normalized image-text similarity scores.")
 
 
 def compute_clip_loss(similarity_scores: torch.Tensor) -> torch.Tensor:
@@ -612,16 +532,10 @@ def compute_clip_loss(similarity_scores: torch.Tensor) -> torch.Tensor:
     # - text-to-image loss uses `similarity_scores.T`
     # - average the two losses
 
-    batch_size = similarity_scores.shape[0]
-    labels = torch.arange(start=0, end = batch_size, step=1, dtype=torch.long, device = similarity_scores.device)
+    raise NotImplementedError("Compute CLIP image-to-text and text-to-image loss.")
 
-    loss1 = F.cross_entropy(similarity_scores, labels)
-    loss2 = F.cross_entropy(similarity_scores.T, labels)
-    loss = (loss1 + loss2) / 2.0
 
-    return loss
 
-    #raise NotImplementedError("Compute CLIP image-to-text and text-to-image loss.")
 
 
 def train_one_epoch(model: TinyCLIP, loader: DataLoader, optimizer: torch.optim.Optimizer) -> float:
@@ -651,35 +565,12 @@ def train_one_epoch(model: TinyCLIP, loader: DataLoader, optimizer: torch.optim.
     # Check:
     # - Return `total_loss / total_examples`, not just the final batch loss.
 
-    model.train()
+    raise NotImplementedError("Train one CLIP epoch on image-caption batches.")
 
-    total_loss = 0
-    total_examples = 0
 
-    for data in loader:
-        images = data["image"]                                  # [batch_size, 3, image_size, image_size]
-        caption_token_ids = data["caption_token_ids"]           # [batch_size, max_text_length]
 
-        images = images.to(device)
-        caption_token_ids = caption_token_ids.to(device)
 
-        optimizer.zero_grad()
 
-        similarity_scores = model(images, caption_token_ids)
-
-        loss = compute_clip_loss(similarity_scores)
-        loss.backward()
-        optimizer.step()
-
-        batch_size = similarity_scores.shape[0]
-        total_loss += loss.item() * batch_size
-        total_examples += batch_size
-
-    mean_loss = total_loss / total_examples
-
-    return mean_loss
-
-    #raise NotImplementedError("Train one CLIP epoch on image-caption batches.")
 
 @torch.no_grad()
 def evaluate_retrieval(model: TinyCLIP, examples: list[ImageCaptionExample], token_to_id: dict[str, int], config: CLIPTrainingConfig) -> float:
@@ -707,34 +598,15 @@ def evaluate_retrieval(model: TinyCLIP, examples: list[ImageCaptionExample], tok
     # - Random retrieval over 16 examples is about `1 / 16 = 0.0625`.
     # - A trained tiny model should do better than random on the small set.
 
-    model.eval()
+    raise NotImplementedError("Evaluate whether each image retrieves its matching caption.")
 
-    images = []
-    captions = []
-    num_examples = len(examples)
 
-    for example in examples:
-        image = example["image"]
-        caption = example["caption"]
 
-        caption_tensor = tokenize_captions([caption], token_to_id, config).squeeze(dim=0)  # [1, max_text_length] -> [max_text_length]
 
-        images.append(image)
-        captions.append(caption_tensor)
-
-    images = torch.stack(images, dim=0).to(device)      # list of [3, H, W] -> [num_examples, 3, H, W]
-    captions = torch.stack(captions, dim=0).to(device)  # list of [max_text_length] -> [num_examples, max_text_length]
-
-    similarity_matrix = model(images, captions)         # [num_examples, num_examples]
 
     
-    best_scored_captions = torch.argmax(similarity_matrix, dim=1)  # [num_examples]
-    correct = (best_scored_captions == torch.arange(num_examples, device=similarity_matrix.device)).float()  # [num_examples]
-    accuracy = correct.mean().item()  # scalar Python float
 
-    return accuracy
 
-    #raise NotImplementedError("Evaluate whether each image retrieves its matching caption.")
 
 
 def save_training_visuals(
@@ -766,46 +638,15 @@ def save_training_visuals(
     # Check:
     # - Both returned paths should point inside `outputs/multimodal_interview/`.
 
-    import matplotlib
+    raise NotImplementedError("Save CLIP loss curve and retrieval heatmap.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    loss_curve_path = config.output_dir / "clip_loss_curve.png"
-    heatmap_path = config.output_dir / "clip_retrieval_heatmap.png"
 
-    plt.figure(figsize=(6, 4))
-    plt.plot(range(1, len(losses) + 1), losses, marker="o")
-    plt.title("CLIP training loss")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.tight_layout()
-    plt.savefig(loss_curve_path)
-    plt.close()
 
-    model.eval()
-    heatmap_examples = examples[: min(16, len(examples))]
-    heatmap_images = torch.stack([example["image"] for example in heatmap_examples], dim=0).to(device)
-    heatmap_captions = [example["caption"] for example in heatmap_examples]
-    heatmap_caption_ids = tokenize_captions(heatmap_captions, token_to_id, config).to(device)
 
-    with torch.no_grad():
-        scores = model(heatmap_images, heatmap_caption_ids).detach().cpu()
 
-    plt.figure(figsize=(6, 5))
-    plt.imshow(scores, aspect="auto")
-    plt.colorbar(label="score")
-    plt.title("Image-to-caption retrieval scores")
-    plt.xlabel("Caption index")
-    plt.ylabel("Image index")
-    plt.tight_layout()
-    plt.savefig(heatmap_path)
-    plt.close()
 
-    return str(loss_curve_path), str(heatmap_path)
 
-    # raise NotImplementedError("Save CLIP loss curve and retrieval heatmap.")
 
 
 def run_exercise(config: CLIPTrainingConfig) -> CLIPMetrics:

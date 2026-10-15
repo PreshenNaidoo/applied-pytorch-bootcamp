@@ -382,47 +382,14 @@ def load_ucf101_vjepa_dataloaders(config: VJEPAConfig) -> dict[str, DataLoader]:
     # - one batch should preserve frame order.
     # - `video.shape` should be `[batch, clip_frames, 3, image_size, image_size]`.
     # - if the dataset is missing, raise a clear `FileNotFoundError`.
-    video_root = Path(config.video_root)
-    annotation_root = Path(config.annotation_root)
-    if not video_root.exists():
-        raise FileNotFoundError(f"UCF101 video folder not found: {video_root}")
-    if not annotation_root.exists():
-        raise FileNotFoundError(f"UCF101 annotation folder not found: {annotation_root}")
+    raise NotImplementedError("Load real UCF101 clips for V-JEPA.")
 
-    from torchvision.datasets import UCF101
 
-    base_dataset = UCF101(
-        root=str(video_root),
-        annotation_path=str(annotation_root),
-        frames_per_clip=config.clip_frames,
-    )
 
-    dataset = UCFJEPAVideoDataset(base_dataset, config.image_size)
 
-    total_size = len(dataset)
-    train_size = int(total_size * config.train_fraction)
-    val_size = int(total_size * config.val_fraction)
-    test_size = total_size - train_size - val_size
-    if min(train_size, val_size, test_size) <= 0:
-        raise ValueError(
-            "The UCF101 split is too small. "
-            f"Got train={train_size}, val={val_size}, test={test_size} from {total_size} clips."
-        )
 
-    gen = torch.Generator().manual_seed(config.random_state)
-    train_ds, val_ds, test_ds = torch.utils.data.random_split(
-        dataset,
-        lengths=[train_size, val_size, test_size],
-        generator=gen,
-    )
 
-    return {
-        "train": DataLoader(train_ds, batch_size=config.batch_size, shuffle=True),
-        "val": DataLoader(val_ds, batch_size=config.batch_size),
-        "test": DataLoader(test_ds, batch_size=config.batch_size),
-    }
 
-    # raise NotImplementedError("Load real UCF101 clips for V-JEPA.")
 
 
 def make_target_token_mask(
@@ -511,13 +478,8 @@ def make_target_token_mask(
     # so we are hiding 32 target tokens out of 144 total video tokens
     
     # But we're given patches per frame as a parameter, so we take the square root to find patches per side:
-    patches_per_side = int(patches_per_frame ** 0.5)  # i.e sqrt(36) = 6
-    target_tokens_per_tube = target_tube_frames * target_tube_side * target_tube_side # target_tube_side * target_tube_side = 2 x 2 tokens per frame  # 8
-    target_tokens_per_clip = num_target_tubes * target_tokens_per_tube #32
-    max_attempts = num_target_tubes * 20 
+    raise NotImplementedError("Create target space-time tube masks.")
 
-    if patches_per_side * patches_per_side != patches_per_frame:
-        raise ValueError("Cannot make a square patch grid")
 
     # Patch size versus tube size:
     # `patch_size` says how large one token is in pixels.
@@ -559,49 +521,11 @@ def make_target_token_mask(
     # hidden block because the exercise is very small.
     # Here, a hidden block can contain several patch tokens across space and time.
 
-    target_mask = torch.zeros(size=[batch_size, clip_frames, patches_per_frame], dtype=torch.bool, device=device)
     # True = Target token to hide from the context encoder and predict later in the predictor
     # False = Visible token that the context encoder will be allowed to see
 
-    for batch_index in range(batch_size):
-        count = 0
-        attempts = 0
-        while count < num_target_tubes:
-            # size=() means sample 1 scalar value
-            # use .item because the python range function below expects normal python ints and not tensor scalars
-            sample_start_frame = torch.randint(low=0, high=clip_frames - target_tube_frames + 1, size=(), device=device).item()       # 0 to (4-2) + 1  [0,3) so 0,1,2 with 3 excluded
-            sample_start_patch_row = torch.randint(low = 0, high = patches_per_side - target_tube_side + 1, size=(), device=device).item()     # 0 to (6-2) + 1
-            sample_start_patch_col = torch.randint(low = 0, high = patches_per_side - target_tube_side + 1, size=(), device=device).item()     # 0 to (6-2) + 1
-
-
-            tube_positions = []
-
-            for frame_index in range(sample_start_frame, sample_start_frame + target_tube_frames):
-                for patch_row in range(sample_start_patch_row, sample_start_patch_row + target_tube_side):
-                    for patch_col in range(sample_start_patch_col, sample_start_patch_col + target_tube_side):            
-                        
-                        patch_index = patch_row * patches_per_side + patch_col                # eg. 0 * 6 + 1
-                        tube_positions.append((frame_index, patch_index))
-                        # Each item tells you:
-                        # which frame
-                        # which patch inside that frame
-
-            attempts+=1        
-            if attempts == max_attempts:
-                raise RuntimeError("Message")
-
-            has_overlap = any(target_mask[batch_index, frame_index, patch_index] for frame_index, patch_index in tube_positions)
-            if has_overlap:
-                continue
-            
-            for frame_index, patch_index in tube_positions:
-                target_mask[batch_index, frame_index, patch_index] = True
-
-            count+=1
     
-    return target_mask
 
-    #raise NotImplementedError("Create target space-time tube masks.")
 
 
 def apply_video_token_mask(
@@ -664,28 +588,13 @@ def apply_video_token_mask(
     # - output shape should match input shape.
     # - non-target tokens should stay unchanged.
 
-    masked_videos = videos.clone()   # [batch, clip_frames, 3, image_size, image_size]
+    raise NotImplementedError("Create masked clips for V-JEPA visual checks.")
 
-    batch_size, clip_frames, channels, image_height, image_width = videos.shape
 
-    patches_per_side = image_height // patch_size
 
     #videos:      [batch, clip_frames, 3, image_size, image_size]
     #target_mask: [batch, clip_frames, patches_per_frame]
 
-    for frame_index in range(clip_frames):
-        for patch_row in range(patches_per_side):
-            for patch_col in range(patches_per_side):
-
-                patch_index = patch_row * patches_per_side + patch_col
-
-                row_start = patch_row * patch_size
-                row_end = row_start + patch_size
-                col_start = patch_col * patch_size
-                col_end = col_start + patch_size
-
-                batch_selector = target_mask[:, frame_index, patch_index]  # shape here is [batch] and it is a boolean mask.
-                masked_videos[batch_selector, frame_index, :, row_start:row_end, col_start:col_end] = mask_value
                 # this means for videos where this patch is a target, in this frame, across all 3 color channels, fill this patch area
                 # Example: if batch_selector is [False, True, False, True],
                 # only videos 1 and 3 get this patch filled with mask_value.
@@ -706,8 +615,6 @@ def apply_video_token_mask(
                 # This line turns those hidden token positions into hidden pixel patches for the visual check.
         
 
-    return masked_videos
-    #raise NotImplementedError("Create masked clips for V-JEPA visual checks.")
 
 
 class TinyVideoTransformerEncoder(nn.Module):
@@ -758,29 +665,14 @@ class TinyVideoTransformerEncoder(nn.Module):
         # - `TinyVideoTransformerEncoder(config)(torch.randn(2, 4, 3, 96, 96)).shape`
         #   should be `[2, 4, 36, config.latent_dim]`.
 
-        self.clip_frames = config.clip_frames                   # 4
-        self.patches_per_frame = config.patches_per_frame       # 36 (6x6)
-        self.total_tokens = config.total_tokens                 # 144 (36 x 4 frames)
-        self.latent_dim = config.latent_dim                     # 128
+        raise NotImplementedError("Build the tiny video-transformer encoder.")
 
-        self.patch_embed = nn.Conv2d(in_channels=3, out_channels=config.latent_dim, kernel_size = config.patch_size, stride=config.patch_size)
 
-        self.pos_embed = nn.Parameter(torch.zeros(1, config.total_tokens, config.latent_dim))  #[1, 144, 128] i.e. 144 tokens each with latent_dim 128
 
-        self.hidden_token = nn.Parameter(torch.zeros(1, 1, config.latent_dim))  # Learned hidden token vector
 
-        encoder_layer = nn.TransformerEncoderLayer(d_model = config.latent_dim, 
-                                                        nhead=config.encoder_num_heads, 
-                                                        dim_feedforward=config.encoder_mlp_dim,
-                                                        dropout=0.0,
-                                                        activation='gelu',
-                                                        batch_first=True)
 
-        self.transformer = nn.TransformerEncoder(encoder_layer = encoder_layer, num_layers = config.encoder_depth)
         
-        self.norm = nn.LayerNorm(config.latent_dim)
 
-        #raise NotImplementedError("Build the tiny video-transformer encoder.")
 
     def forward(self, videos: torch.Tensor, visible_mask: torch.Tensor | None = None) -> torch.Tensor:
         """Encode videos into space-time token latents."""
@@ -818,34 +710,15 @@ class TinyVideoTransformerEncoder(nn.Module):
         # It is not mainly learning from a pixel-masked clip.
 
 
-        batch_size, frames_per_clip, channels, height, width = videos.shape  # [batch_size, clip_frames, 3, image_size, image_size]
+        raise NotImplementedError("Run the tiny video-transformer encoder forward pass.")
 
-        flattened_videos = videos.reshape(shape=[batch_size * frames_per_clip, channels, height, width])  # [batch_size * clip_frames, 3, image_size, image_size]
 
-        patch_tokens = self.patch_embed(flattened_videos)       # [batch_size * clip_frames, latent_dim, patches_per_side, patches_per_side]
-        patch_tokens = patch_tokens.flatten(start_dim=2)        # [batch_size * clip_frames, latent_dim, patches_per_frame]
-        patch_tokens = patch_tokens.transpose(-2, -1)           # [batch_size * clip_frames, patches_per_frame, latent_dim]
-        patch_tokens = patch_tokens.reshape(shape=[batch_size, frames_per_clip * self.patches_per_frame, self.latent_dim]) # [batch_size, total_tokens, latent_dim]
         # now patch_tokens is shape [batch, total_tokens, latent_dim]
 
-        flat_visible_mask = None
-        if visible_mask is not None: #[batch, clip_frames, patches_per_frame]
-            flat_visible_mask = visible_mask.reshape(batch_size, frames_per_clip * self.patches_per_frame)  # [batch_size, total_tokens]
-            patch_tokens = torch.where(condition=flat_visible_mask.unsqueeze(dim=-1), input=patch_tokens, other=self.hidden_token)  # [batch_size, total_tokens, latent_dim]
             # `visible_mask` uses True for patches the online encoder may read.
 
-        patch_tokens = patch_tokens + self.pos_embed        # [batch_size, total_tokens, latent_dim] + [1, total_tokens, latent_dim] = [batch_size, total_tokens, latent_dim]
 
         # if its none, this will be for the target encoder path
-        if flat_visible_mask is None:
-            patch_tokens = self.transformer(patch_tokens)  # [batch_size, total_tokens, latent_dim] -> [batch_size, total_tokens, latent_dim]
-        else:
-            # `visible_mask` uses True for patches the online encoder may read.
-            # PyTorch's `src_key_padding_mask` uses True for tokens it should ignore.
-            # That is why we use `~visible_mask`: it flips visible patches to False
-            # and hidden target patches to True.
-            # This means hidden target patches do not act as source tokens for attention.
-            patch_tokens = self.transformer(patch_tokens, src_key_padding_mask=~flat_visible_mask)  # [batch_size, total_tokens, latent_dim] -> [batch_size, total_tokens, latent_dim]
             #
             # A small picture of what happens inside attention:
             #
@@ -874,17 +747,8 @@ class TinyVideoTransformerEncoder(nn.Module):
             # hidden target tokens can still have output vectors,
             # but they cannot be used as information sources by other tokens.
 
-        patch_tokens = self.norm(patch_tokens)  # [batch_size, total_tokens, latent_dim] -> [batch_size, total_tokens, latent_dim]
 
-        patch_tokens = patch_tokens.reshape(
-            batch_size,
-            frames_per_clip,
-            self.patches_per_frame,
-            self.latent_dim,
-        )  # [batch_size, clip_frames, patches_per_frame, latent_dim]
 
-        return patch_tokens
-        #raise NotImplementedError("Run the tiny video-transformer encoder forward pass.")
 
 
 class TinyVJEPAPredictor(nn.Module):
@@ -930,29 +794,14 @@ class TinyVJEPAPredictor(nn.Module):
         # Output:
         # - `predicted_token_latents`: `[batch, time, patches_per_frame, latent_dim]`
 
-        self.clip_frames = config.clip_frames                   # 4
-        self.patches_per_frame = config.patches_per_frame       # 36  (6x6)
-        self.total_tokens = config.total_tokens                 # 144 (36 x 4 frames)
-        self.latent_dim = config.latent_dim                     # 128
+        raise NotImplementedError("Build the tiny V-JEPA predictor.")
         
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, config.latent_dim))      # [1, 1, 128]
 
-        self.pos_embed = nn.Parameter(torch.zeros(1, config.total_tokens, config.latent_dim))  # [1, 144, 128]
 
-        encoder_layer = nn.TransformerEncoderLayer(d_model = config.latent_dim,
-                                                    nhead=config.predictor_num_heads,
-                                                    dim_feedforward=config.predictor_mlp_dim,
-                                                    dropout=0.0,
-                                                    activation='gelu',
-                                                    batch_first=True)
         
-        self.transformer = nn.TransformerEncoder(encoder_layer = encoder_layer, num_layers = config.predictor_depth)
 
-        self.norm = nn.LayerNorm(config.latent_dim)
 
-        self.proj = nn.Linear(in_features = config.latent_dim, out_features = config.latent_dim)
 
-        #raise NotImplementedError("Build the tiny V-JEPA predictor.")
 
     def forward(self, context_token_latents: torch.Tensor, target_mask: torch.Tensor) -> torch.Tensor:
         """Predict video token latents from context token latents."""
@@ -977,13 +826,10 @@ class TinyVJEPAPredictor(nn.Module):
 
 
         #context_token_latents: [batch, clip_frames, patches_per_frame, latent_dim]
-        batch_size, clip_frames, patches_per_frame, latent_dim = context_token_latents.shape  # [batch_size, clip_frames, patches_per_frame, latent_dim]
+        raise NotImplementedError("Run the tiny V-JEPA predictor forward pass.")
         #note: self.total_tokens should be the same as clip_frames*patches_per_frame
-        flat_context_token_latents = context_token_latents.reshape(shape=[batch_size, self.total_tokens, latent_dim])  # [batch_size, total_tokens, latent_dim]
 
-        flat_target_mask = target_mask.reshape(shape=[batch_size, self.total_tokens])   # [batch_size, frames_per_clip, patches_per_Frame] -> [batch_size, total_tokens]
         
-        mask_tokens = self.mask_token.expand(size=[batch_size, self.total_tokens, self.latent_dim]) # [1, 1, latent_dim] -> [batch_size, total_tokens, latent_dim]
 
         # `flat_target_mask` starts with shape `[batch_size, total_tokens]`.
         # With the default config, that is `[batch_size, 144]`.
@@ -993,18 +839,10 @@ class TinyVJEPAPredictor(nn.Module):
         # If `flat_target_mask` is True, this uses the learned `mask_token`.
         # If `flat_target_mask` is False, this keeps the real context token latent.
         # `mask_token` means this is a target position the predictor should fill in.
-        tokens = torch.where(flat_target_mask.unsqueeze(-1), mask_tokens, flat_context_token_latents)  # [batch_size, total_tokens, latent_dim]
 
-        tokens = tokens + self.pos_embed  # [batch_size, total_tokens, latent_dim] + [1, total_tokens, latent_dim] = [batch_size, total_tokens, latent_dim]
 
-        tokens = self.transformer(tokens)  # [batch_size, total_tokens, latent_dim] -> [batch_size, total_tokens, latent_dim]
-        tokens = self.norm(tokens)         # [batch_size, total_tokens, latent_dim] -> [batch_size, total_tokens, latent_dim]
-        tokens = self.proj(tokens)         # [batch_size, total_tokens, latent_dim] -> [batch_size, total_tokens, latent_dim]
-        tokens = tokens.reshape(batch_size, clip_frames, patches_per_frame, latent_dim)  # [batch_size, clip_frames, patches_per_frame, latent_dim]
 
-        return tokens
 
-        # raise NotImplementedError("Run the tiny V-JEPA predictor forward pass.")
 
 
 def build_vjepa_modules(config: VJEPAConfig) -> tuple[nn.Module, nn.Module, nn.Module]:
@@ -1025,23 +863,13 @@ def build_vjepa_modules(config: VJEPAConfig) -> tuple[nn.Module, nn.Module, nn.M
     # 6. Move all modules to `device`.
     # 7. Return them.
 
-    online_encoder = TinyVideoTransformerEncoder(config)
-    target_encoder = TinyVideoTransformerEncoder(config)
+    raise NotImplementedError("Build the V-JEPA modules.")
 
-    target_encoder.load_state_dict(online_encoder.state_dict())
 
-    for param in target_encoder.parameters():
-        param.requires_grad = False
 
-    predictor = TinyVJEPAPredictor(config)
 
-    online_encoder = online_encoder.to(device)
-    target_encoder = target_encoder.to(device)
-    predictor = predictor.to(device)
 
-    return online_encoder, target_encoder, predictor
 
-    #raise NotImplementedError("Build the V-JEPA modules.")
 
 
 @torch.no_grad()
@@ -1059,13 +887,8 @@ def update_ema_target_encoder(
     # 2. Update target parameters in place with the formula above.
     # 3. Do this inside `torch.no_grad()`.
 
-    for online_param, target_param in zip(online_encoder.parameters(), target_encoder.parameters()):
-        # Use `.data` here because this is not a normal gradient update.
-        # The target encoder is a slow copy of the online encoder, so we change
-        # its stored weights directly without asking autograd to track this line.
-        target_param.data = ema_decay * target_param.data + (1.0 - ema_decay) * online_param.data
+    raise NotImplementedError("Update the V-JEPA target encoder with EMA.")
 
-    #raise NotImplementedError("Update the V-JEPA target encoder with EMA.")
 
 
 def select_target_tokens(token_latents: torch.Tensor, target_mask: torch.Tensor) -> torch.Tensor:
@@ -1095,12 +918,8 @@ def select_target_tokens(token_latents: torch.Tensor, target_mask: torch.Tensor)
 
 
     # time also refers to frames_per_clip
-    batch_size, frames_per_clip, patches_per_frame, latent_dim = token_latents.shape  # [batch_size, frames_per_clip, patches_per_frame, latent_dim]
+    raise NotImplementedError("Select target video token latents.")
 
-    target_counts = target_mask.flatten(1).sum(dim=1)  # [batch, frames_per_clip, patches_per_frame] -> [batch_size]
-    if not torch.all(target_counts == target_counts[0]):
-        raise ValueError("Every clip must have the same number of target tokens.")
-    target_count = int(target_counts[0].item())  # one clip's True count, usually 32
 
     # `target_mask` has shape `[batch_size, frames_per_clip, patches_per_frame]`.
     # token_latents has shape [batch, frames_per_clip, patches_per_frame, latent_dim]
@@ -1109,15 +928,11 @@ def select_target_tokens(token_latents: torch.Tensor, target_mask: torch.Tensor)
     # Boolean indexing keeps only the video token vectors where the mask is True.
     # If `batch_size=2` and each clip has 32 target tokens, this gives
     # `[64, latent_dim]`: all selected video token vectors from the whole batch.    
-    selected = token_latents[target_mask]  # [batch_size * target_count, latent_dim]
 
     # Put the flat selected vectors back into one group per video clip.
     # This works because every clip has the same number of True values.
-    selected = selected.view(batch_size, target_count, latent_dim)  # [batch_size, target_count, latent_dim] i.e. [batch_size, 32, 128]
 
-    return selected
 
-    # raise NotImplementedError("Select target video token latents.")
 
 
 def train_one_epoch(
@@ -1152,69 +967,14 @@ def train_one_epoch(
     # 10. Update the target encoder with EMA.
     # 11. Track MSE, cosine similarity, and retrieval top-1.    
 
-    online_encoder.train()
-    target_encoder.eval()
-    predictor.train()
-
-    total_loss = 0
-    total_sim = 0
-    total_samples = 0
-
-    progress = tqdm(loader, desc="train", leave=False) if tqdm is not None else loader
-
-    for step, data in enumerate(progress, start=1):
-        videos = data["video"].to(device)
-        #labels = data["label"] # not needed here, it is self-supervised
-
-        batch_size, clip_frames, channels, height, width = videos.shape
-       
-        target_token_mask = make_target_token_mask(batch_size, clip_frames, config.patches_per_frame, 
-                                                    config.num_target_tubes, config.target_tube_frames, config.target_tube_side, videos.device)
-
-        visible_mask = torch.logical_not(target_token_mask) # this is same as ~target_token_mask
-
-        context_token_latents  = online_encoder(videos, visible_mask)       # [batch_size, clip_frames, patches_per_frame, latent_dim]
-
-        with (torch.no_grad()):
-            target_token_latents = target_encoder(videos)                   # [batch_size, clip_frames, patches_per_frame, latent_dim]
-
-        predicted_token_latents = predictor(context_token_latents, target_token_mask)   # [batch_size, clip_frames, patches_per_frame, latent_dim]
+    raise NotImplementedError("Train V-JEPA for one epoch.")
 
 
-        selected_target_latents = select_target_tokens(target_token_latents, target_token_mask) # [batch_size, 32, 128]
-        selected_pred_latents = select_target_tokens(predicted_token_latents, target_token_mask) # [batch_size, 32, 128]
 
-        optimizer.zero_grad()
-        loss = loss_fn(selected_pred_latents, selected_target_latents.detach())
-        loss.backward()
-        optimizer.step()
 
-        update_ema_target_encoder(online_encoder, target_encoder, config.ema_decay)
-
-        total_loss += loss.item() * batch_size
-        total_samples+=batch_size
-
-        # cosine_similarity(..., dim=-1) returns shape: [batch_size, target_count]
-        cosine_similarity = F.cosine_similarity(selected_pred_latents, selected_target_latents.detach(), dim=-1).mean()
-        total_sim += cosine_similarity.item() * batch_size
-
-        if tqdm is not None:
-            progress.set_postfix(
-                step=f"{step}/{len(loader)}",
-                loss=f"{loss.item():.4f}",
-                cos=f"{cosine_similarity.item():.4f}",
-            )
-
-    mean_mse = total_loss / total_samples
-    mean_sim = total_sim / total_samples
 
     #print(f"train epoch: latent_mse={mean_mse:.4f}, cosine_similarity={mean_sim:.4f}")
 
-    return {
-        "latent_mse": mean_mse,
-        "cosine_similarity": mean_sim,
-    }
-    #raise NotImplementedError("Train V-JEPA for one epoch.")
 
 
 @torch.no_grad()
@@ -1247,55 +1007,10 @@ def evaluate(
     # 5. The correct target for row `i` is column `i`.
     # 6. Top-1 is correct when `similarity.argmax(dim=1) == torch.arange(batch_size)`.
 
-    online_encoder.eval()
-    target_encoder.eval()
-    predictor.eval()
+    raise NotImplementedError("Evaluate V-JEPA metrics.")
 
-    total_loss = 0
-    total_sim = 0
-    total_retrieval_correct = 0
-    total_samples = 0
 
-    for data in loader:
-        videos = data["video"].to(device)
-        # labels are not needed here because this is self-supervised evaluation.
 
-        batch_size, clip_frames, channels, height, width = videos.shape
-
-        target_mask = make_target_token_mask(batch_size, clip_frames, config.patches_per_frame,
-                                                config.num_target_tubes, config.target_tube_frames, config.target_tube_side, videos.device)
-        visible_mask = torch.logical_not(target_mask)  # same as ~target_mask
-
-        context_token_latents = online_encoder(videos, visible_mask)        # [batch_size, clip_frames, patches_per_frame, latent_dim]
-
-        target_token_latents = target_encoder(videos)                       # [batch_size, clip_frames, patches_per_frame, latent_dim]
-
-        predicted_latents = predictor(context_token_latents, target_mask)   # [batch_size, clip_frames, patches_per_frame, latent_dim]
-
-        selected_target_latents = select_target_tokens(target_token_latents, target_mask)       # [batch_size, target_count, latent_dim]
-        selected_pred_latents = select_target_tokens(predicted_latents, target_mask)            # [batch_size, target_count, latent_dim]
-
-        loss = loss_fn(selected_pred_latents, selected_target_latents)
-
-        total_loss += loss.item() * batch_size
-        total_samples += batch_size
-
-        cosine_similarity = F.cosine_similarity(selected_pred_latents, selected_target_latents, dim=-1).mean()  # scalar
-        total_sim += cosine_similarity.item() * batch_size
-
-        predicted_clip_vectors = selected_pred_latents.mean(dim=1)  # [batch_size, latent_dim]
-        target_clip_vectors = selected_target_latents.mean(dim=1)   # [batch_size, latent_dim]
-        predicted_clip_vectors = F.normalize(predicted_clip_vectors, dim=-1)  # [batch_size, latent_dim]
-        target_clip_vectors = F.normalize(target_clip_vectors, dim=-1)        # [batch_size, latent_dim]
-
-        similarity = predicted_clip_vectors @ target_clip_vectors.T  # [batch_size, batch_size]
-        correct_indices = torch.arange(batch_size, device=similarity.device)  # [batch_size]
-        retrieval_correct = (similarity.argmax(dim=1) == correct_indices).sum().item()
-        total_retrieval_correct += retrieval_correct
-
-    mean_mse = total_loss / total_samples
-    mean_sim = total_sim / total_samples   
-    retrieval_top1 = total_retrieval_correct / total_samples
 
     # print(
     #     f"eval: latent_mse={mean_mse:.4f}, "
@@ -1303,13 +1018,7 @@ def evaluate(
     #     f"retrieval_top1={retrieval_top1:.4f}"
     # )
 
-    return {
-        "latent_mse": mean_mse,
-        "cosine_similarity": mean_sim,
-        "retrieval_top1": retrieval_top1,
-    }
 
-    # raise NotImplementedError("Evaluate V-JEPA metrics.")
 
 
 def train_action_linear_probe(
@@ -1340,81 +1049,15 @@ def train_action_linear_probe(
     # - classifier logits should be `[batch, num_classes]`.
 
 
-    frozen_encoder.eval()
-    for param in frozen_encoder.parameters():
-        param.requires_grad = False
+    raise NotImplementedError("Train an action linear probe on frozen V-JEPA features.")
 
-    num_classes = 101  # UCF101 has 101 action classes.
-    classifier = nn.Linear(in_features=config.latent_dim, out_features=num_classes).to(device)
-    probe_loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(classifier.parameters(), lr=config.probe_learning_rate)
 
-    final_train_loss = 0.0
-    final_train_accuracy = 0.0
 
-    for epoch in range(config.linear_probe_epochs):
-        classifier.train()
-        total_loss = 0.0
-        total_correct = 0
-        total_samples = 0
 
-        for data in train_loader:
-            videos = data["video"].to(device)  # [batch_size, clip_frames, 3, image_size, image_size]
-            labels = data["label"].to(device)  # [batch_size]
 
-            with torch.no_grad():
-                token_latents = frozen_encoder(videos)  # [batch_size, clip_frames, patches_per_frame, latent_dim]
-                features = token_latents.mean(dim=(1, 2))  # [batch_size, latent_dim]
 
-            logits = classifier(features)  # [batch_size, 101]
-            loss = probe_loss_fn(logits, labels)
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
 
-            batch_size = videos.shape[0]
-            total_loss += loss.item() * batch_size
-            total_correct += (logits.argmax(dim=-1) == labels).sum().item()
-            total_samples += batch_size
-
-        final_train_loss = total_loss / total_samples
-        final_train_accuracy = total_correct / total_samples
-        print(
-            f"linear probe epoch {epoch + 1}/{config.linear_probe_epochs}: "
-            f"loss={final_train_loss:.4f}, accuracy={final_train_accuracy:.4f}"
-        )
-
-    classifier.eval()
-    val_correct = 0
-    val_samples = 0
-
-    with torch.no_grad():
-        for data in val_loader:
-            videos = data["video"].to(device)  # [batch_size, clip_frames, 3, image_size, image_size]
-            labels = data["label"].to(device)  # [batch_size]
-
-            token_latents = frozen_encoder(videos)  # [batch_size, clip_frames, patches_per_frame, latent_dim]
-            features = token_latents.mean(dim=(1, 2))  # [batch_size, latent_dim]
-            logits = classifier(features)  # [batch_size, 101]
-
-            val_correct += (logits.argmax(dim=-1) == labels).sum().item()
-            val_samples += videos.shape[0]
-
-    val_accuracy = val_correct / val_samples
-    print(
-        f"linear probe: train_loss={final_train_loss:.4f}, "
-        f"train_accuracy={final_train_accuracy:.4f}, "
-        f"val_accuracy={val_accuracy:.4f}"
-    )
-
-    return {
-        "train_loss": final_train_loss,
-        "train_accuracy": final_train_accuracy,
-        "val_accuracy": val_accuracy,
-    }
-
-    # raise NotImplementedError("Train an action linear probe on frozen V-JEPA features.")
 
 
 def save_vjepa_visuals(
@@ -1434,127 +1077,26 @@ def save_vjepa_visuals(
     # Checks:
     # - output paths should point inside `outputs/vjepa_video/`.
     # - at least one visual should show that frame order was preserved.
-    output_dir = Path(config.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    raise NotImplementedError("Save V-JEPA visuals.")
 
-    visual_paths: dict[str, str] = {}
 
-    videos = sample_batch["video"].to(device)  # [batch_size, clip_frames, 3, image_size, image_size]
-    labels = sample_batch["label"].to(device)  # [batch_size]
 
-    target_mask = make_target_token_mask(
-        batch_size=videos.shape[0],
-        clip_frames=config.clip_frames,
-        patches_per_frame=config.patches_per_frame,
-        num_target_tubes=config.num_target_tubes,
-        target_tube_frames=config.target_tube_frames,
-        target_tube_side=config.target_tube_side,
-        device=videos.device,
-    )  # [batch_size, clip_frames, patches_per_frame]
-    masked_videos = apply_video_token_mask(videos, target_mask, config.patch_size)  # [batch_size, clip_frames, 3, image_size, image_size]
 
-    original_path = output_dir / "original_clip_strip.png"
-    fig, axes = plt.subplots(1, config.clip_frames, figsize=(2.4 * config.clip_frames, 2.4))
-    if config.clip_frames == 1:
-        axes = [axes]
 
-    for frame_index in range(config.clip_frames):
-        frame = videos[0, frame_index].detach().cpu().permute(1, 2, 0)  # [image_size, image_size, 3]
-        axes[frame_index].imshow(frame)
-        axes[frame_index].set_title(f"frame {frame_index}")
-        axes[frame_index].axis("off")
 
-    fig.suptitle(f"Original clip, label {int(labels[0].item())}")
-    fig.tight_layout()
-    fig.savefig(original_path, dpi=160)
-    plt.close(fig)
-    visual_paths["original_clip_strip"] = str(original_path)
 
-    masked_path = output_dir / "masked_clip_strip.png"
-    fig, axes = plt.subplots(1, config.clip_frames, figsize=(2.4 * config.clip_frames, 2.4))
-    if config.clip_frames == 1:
-        axes = [axes]
 
-    for frame_index in range(config.clip_frames):
-        frame = masked_videos[0, frame_index].detach().cpu().permute(1, 2, 0)  # [image_size, image_size, 3]
-        axes[frame_index].imshow(frame)
-        axes[frame_index].set_title(f"frame {frame_index}")
-        axes[frame_index].axis("off")
 
-    fig.suptitle("Masked target patches")
-    fig.tight_layout()
-    fig.savefig(masked_path, dpi=160)
-    plt.close(fig)
-    visual_paths["masked_clip_strip"] = str(masked_path)
 
-    mask_path = output_dir / "target_mask_strip.png"
-    patches_per_side = config.patches_per_side
-    fig, axes = plt.subplots(1, config.clip_frames, figsize=(2.4 * config.clip_frames, 2.4))
-    if config.clip_frames == 1:
-        axes = [axes]
 
-    for frame_index in range(config.clip_frames):
-        mask_grid = target_mask[0, frame_index].detach().cpu().view(patches_per_side, patches_per_side)  # [patches_per_side, patches_per_side]
-        axes[frame_index].imshow(mask_grid, cmap="gray_r", vmin=0, vmax=1)
-        axes[frame_index].set_title(f"frame {frame_index}")
-        axes[frame_index].set_xticks([])
-        axes[frame_index].set_yticks([])
 
-    fig.suptitle("Target mask: dark patches are hidden")
-    fig.tight_layout()
-    fig.savefig(mask_path, dpi=160)
-    plt.close(fig)
-    visual_paths["target_mask_strip"] = str(mask_path)
 
-    curve_path = output_dir / "latent_metric_curves.png"
-    fig, ax = plt.subplots(figsize=(7, 4))
-    epochs = list(range(1, len(history) + 1))
-    train_values = [
-        item.get("train_latent_mse", item.get("train_mse", item.get("latent_mse")))
-        for item in history
-    ]
-    val_values = [
-        item.get("val_latent_mse", item.get("val_mse"))
-        for item in history
-    ]
 
-    if any(value is not None for value in train_values):
-        ax.plot(epochs, train_values, marker="o", label="train latent MSE")
-    if any(value is not None for value in val_values):
-        ax.plot(epochs, val_values, marker="o", label="val latent MSE")
 
-    ax.set_title("V-JEPA latent prediction error")
-    ax.set_xlabel("epoch")
-    ax.set_ylabel("MSE")
-    ax.grid(True, alpha=0.3)
-    ax.legend()
-    fig.tight_layout()
-    fig.savefig(curve_path, dpi=160)
-    plt.close(fig)
-    visual_paths["metric_curves"] = str(curve_path)
 
-    heatmap_path = output_dir / "encoder_feature_similarity_heatmap.png"
-    online_encoder.eval()
-    with torch.no_grad():
-        token_latents = online_encoder(videos)  # [batch_size, clip_frames, patches_per_frame, latent_dim]
-        features = token_latents.mean(dim=(1, 2))  # [batch_size, latent_dim]
-        features = F.normalize(features, dim=-1)  # [batch_size, latent_dim]
-        similarity = features @ features.T  # [batch_size, batch_size]
 
-    fig, ax = plt.subplots(figsize=(5, 4))
-    heatmap = ax.imshow(similarity.detach().cpu(), vmin=-1, vmax=1, cmap="viridis")
-    ax.set_title("Frozen encoder feature similarity")
-    ax.set_xlabel("target clip index")
-    ax.set_ylabel("query clip index")
-    fig.colorbar(heatmap, ax=ax, label="cosine similarity")
-    fig.tight_layout()
-    fig.savefig(heatmap_path, dpi=160)
-    plt.close(fig)
-    visual_paths["feature_similarity_heatmap"] = str(heatmap_path)
 
-    return visual_paths
 
-    # raise NotImplementedError("Save V-JEPA visuals.")
 
 
 def run_vjepa_experiment(config: VJEPAConfig) -> dict[str, object]:
@@ -1578,122 +1120,17 @@ def run_vjepa_experiment(config: VJEPAConfig) -> dict[str, object]:
     # - `linear_probe_val_accuracy`
     # - `visual_paths`
 
-    loaders = load_ucf101_vjepa_dataloaders(config)
-    train_loader = loaders["train"]
-    val_loader = loaders["val"]
-    test_loader = loaders["test"]
+    raise NotImplementedError("Run the full V-JEPA experiment.")
 
-    online_encoder, target_encoder, predictor = build_vjepa_modules(config)
-    optimizer = torch.optim.AdamW(
-        list(online_encoder.parameters()) + list(predictor.parameters()),
-        lr=config.learning_rate,
-        weight_decay=config.weight_decay,
-    )
-    loss_fn = nn.MSELoss()
 
-    print(f"device: {device}")
-    print(f"train batches: {len(train_loader)}, val batches: {len(val_loader)}, test batches: {len(test_loader)}")
-    print(f"video size: {config.image_size}x{config.image_size}, clip frames: {config.clip_frames}")
-    print(f"patch size: {config.patch_size}, patches per frame: {config.patches_per_frame}")
-    print(f"total tokens per clip: {config.total_tokens}, target tokens per clip: {config.target_tokens_per_clip}")
 
-    history: list[dict[str, float]] = []
 
-    for epoch in range(config.epochs):
-        train_metrics = train_one_epoch(
-            online_encoder=online_encoder,
-            target_encoder=target_encoder,
-            predictor=predictor,
-            loader=train_loader,
-            optimizer=optimizer,
-            loss_fn=loss_fn,
-            config=config,
-        )
-        val_metrics = evaluate(
-            online_encoder=online_encoder,
-            target_encoder=target_encoder,
-            predictor=predictor,
-            loader=val_loader,
-            loss_fn=loss_fn,
-            config=config,
-        )
 
-        epoch_record = {
-            "epoch": float(epoch + 1),
-            "train_latent_mse": train_metrics["latent_mse"],
-            "train_cosine_similarity": train_metrics["cosine_similarity"],
-            "val_latent_mse": val_metrics["latent_mse"],
-            "val_cosine_similarity": val_metrics["cosine_similarity"],
-            "val_retrieval_top1": val_metrics["retrieval_top1"],
-        }
-        history.append(epoch_record)
-        
-        print(
-            f"epoch {epoch + 1}/{config.epochs}: "
-            f"train_mse={train_metrics['latent_mse']:.4f}, "
-            f"train_cos={train_metrics['cosine_similarity']:.4f}, "
-            f"val_mse={val_metrics['latent_mse']:.4f}, "
-            f"val_cos={val_metrics['cosine_similarity']:.4f}, "
-            f"val_retrieval_top1={val_metrics['retrieval_top1']:.4f}"
-        )
 
-    test_metrics = evaluate(
-        online_encoder=online_encoder,
-        target_encoder=target_encoder,
-        predictor=predictor,
-        loader=test_loader,
-        loss_fn=loss_fn,
-        config=config,
-    )
-    print(
-        f"test: latent_mse={test_metrics['latent_mse']:.4f}, "
-        f"cosine_similarity={test_metrics['cosine_similarity']:.4f}, "
-        f"retrieval_top1={test_metrics['retrieval_top1']:.4f}"
-    )
 
-    probe_metrics = train_action_linear_probe(
-        frozen_encoder=online_encoder,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        config=config,
-    )
 
-    sample_batch = next(iter(val_loader))
-    visual_paths = save_vjepa_visuals(
-        history=history,
-        sample_batch=sample_batch,
-        online_encoder=online_encoder,
-        config=config,
-    )
-    print("saved visuals:")
-    for name, path in visual_paths.items():
-        print(f"- {name}: {path}")
 
-    final_train_metrics = history[-1]
-    print("final metrics:")
-    print(f"train_latent_mse: {final_train_metrics['train_latent_mse']:.4f}")
-    print(f"val_latent_mse: {final_train_metrics['val_latent_mse']:.4f}")
-    print(f"test_latent_mse: {test_metrics['latent_mse']:.4f}")
-    print(f"val_cosine_similarity: {final_train_metrics['val_cosine_similarity']:.4f}")
-    print(f"test_cosine_similarity: {test_metrics['cosine_similarity']:.4f}")
-    print(f"val_retrieval_top1: {final_train_metrics['val_retrieval_top1']:.4f}")
-    print(f"test_retrieval_top1: {test_metrics['retrieval_top1']:.4f}")
-    print(f"linear_probe_val_accuracy: {probe_metrics['val_accuracy']:.4f}")
 
-    return {
-        "train_latent_mse": final_train_metrics["train_latent_mse"],
-        "val_latent_mse": final_train_metrics["val_latent_mse"],
-        "test_latent_mse": test_metrics["latent_mse"],
-        "val_cosine_similarity": final_train_metrics["val_cosine_similarity"],
-        "test_cosine_similarity": test_metrics["cosine_similarity"],
-        "val_retrieval_top1": final_train_metrics["val_retrieval_top1"],
-        "test_retrieval_top1": test_metrics["retrieval_top1"],
-        "linear_probe_val_accuracy": probe_metrics["val_accuracy"],
-        "history": history,
-        "visual_paths": visual_paths,
-    }
-
-    # raise NotImplementedError("Run the full V-JEPA experiment.")
 
 
 def report_task_progress(task_name: str, task_fn, *args):

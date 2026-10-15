@@ -171,7 +171,6 @@ from common.training_checks import check_threshold, print_pass_or_try_again
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-@dataclass
 
         #"Return raw logits. Do not apply sigmoid here if you use BCEWithLogitsLoss.")
 
@@ -200,6 +199,7 @@ def load_dataloaders(config: BinaryClassificationConfig) -> dict[str, DataLoader
 
     return dict1
 
+@dataclass
 class BinaryClassificationConfig:
     """Settings for the binary classification exercise."""
 
@@ -275,30 +275,11 @@ def train_one_epoch(model: nn.Module, loader: DataLoader, loss_fn: nn.Module, op
     # when you call loss.backward(), PyTorch adds gradients into each parameter’s .grad 
     # it does not replace them automatically so if you do not clear them, gradients from 
     # earlier batches get mixed into the new batch
-    losses, accuracies = [], []
-    for x_data, targets in loader:
-        x_data = x_data.to(device=device)
-        targets = targets.to(device=device)
+    raise NotImplementedError("Return one epoch of training metrics with loss and accuracy.")
 
-        optimizer.zero_grad()
-        output = model(x_data)  
-        output = output.squeeze()      
-        loss = loss_fn(output, targets)
-        loss.backward()
-        optimizer.step()
 
-        acc = binary_accuracy_from_logits(output, targets)
-
-        losses.append(loss.item())
-        accuracies.append(acc)
-
-    losses = torch.tensor(losses)
-    accuracies = torch.tensor(accuracies)
-
-    return {"loss": losses.mean(), "accuracy": accuracies.mean()}
 
     
-    #raise NotImplementedError("Return one epoch of training metrics with loss and accuracy.")
 
 
 # Run one full validation epoch.
@@ -348,30 +329,12 @@ def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[s
 # - "val_accuracy"
 # The checker only needs val_accuracy, but the other keys make the result easier to read.
 def run_training(config: BinaryClassificationConfig) -> dict[str, float]:
-    config = BinaryClassificationConfig()
+    raise NotImplementedError("Run the full binary training flow and return the final train and val metrics.")
 
-    loaders_dict = load_dataloaders(config)
-    train_loader = loaders_dict["train"]
-    val_loader = loaders_dict["val"]
-    test_loader = loaders_dict["test"]
 
-    model, loss_fn, optimizer = build_training_objects(config)
 
-    train_dict, val_dict = None, None
-    for i in range(config.epochs):
 
-        train_dict = train_one_epoch(model, train_loader, loss_fn, optimizer)
-        val_dict = evaluate(model, val_loader, loss_fn)
 
-        if i %10 == 0:
-            print(f"epoch:{i}, loss: {train_dict["loss"]:.4f}, acc: {train_dict["accuracy"]:.4f}, val_loss: {val_dict["loss"]:.4f}, val_acc: {val_dict["accuracy"]:.4f}")
-
-    return {"train_loss": train_dict["loss"],
-            "train_accuracy": train_dict["accuracy"],
-            "val_loss": val_dict["loss"],
-            "val_accuracy": val_dict["accuracy"]}
-
-    #raise NotImplementedError("Run the full binary training flow and return the final train and val metrics.")
 
 
 

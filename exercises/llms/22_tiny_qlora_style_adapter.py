@@ -230,46 +230,12 @@ def load_dataloaders(config: TinyQLoRAConfig) -> dict[str, DataLoader]:
     # - One train batch should have features shape `[batch_size, 64]`.
     # - Labels should have dtype `torch.long`.
 
-    digits = datasets.load_digits()
-    features = digits.data.astype("float32") / 16.0
-    labels = digits.target
+    raise NotImplementedError("Load digits data, scale it, split it, and return dataloaders.")
 
-    train_features, temp_features, train_labels, temp_labels = train_test_split(
-        features,
-        labels,
-        test_size=0.3,
-        random_state=config.random_state,
-        stratify=labels,
-    )
 
-    val_features, test_features, val_labels, test_labels = train_test_split(
-        temp_features,
-        temp_labels,
-        test_size=0.5,
-        random_state=config.random_state,
-        stratify=temp_labels,
-    )
 
-    train_dataset = TensorDataset(
-        torch.tensor(train_features, dtype=torch.float32),
-        torch.tensor(train_labels, dtype=torch.long),
-    )
-    val_dataset = TensorDataset(
-        torch.tensor(val_features, dtype=torch.float32),
-        torch.tensor(val_labels, dtype=torch.long),
-    )
-    test_dataset = TensorDataset(
-        torch.tensor(test_features, dtype=torch.float32),
-        torch.tensor(test_labels, dtype=torch.long),
-    )
 
-    return {
-        "train": DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True),
-        "val": DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False),
-        "test": DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False),
-    }
 
-    #raise NotImplementedError("Load digits data, scale it, split it, and return dataloaders.")
 
 
 class BaseClassifier(nn.Module):
@@ -309,10 +275,7 @@ class BaseClassifier(nn.Module):
         # - `nn.CrossEntropyLoss` expects raw logits, not softmax probabilities.
         super().__init__()
 
-        self.net = nn.Sequential(nn.Linear(in_features = config.input_dim, out_features=config.hidden_dim),
-                                nn.ReLU(inplace=True),
-                                nn.Linear(in_features=config.hidden_dim, out_features=config.num_classes))
-        #raise NotImplementedError("Build the base classifier layers.")
+        raise NotImplementedError("Build the base classifier layers.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return class logits."""
@@ -336,10 +299,8 @@ class BaseClassifier(nn.Module):
         # Checks:
         # - Do not apply softmax here.
 
-        logits = self.net(x)
+        raise NotImplementedError("Run the base classifier.")
         
-        return logits
-        #raise NotImplementedError("Run the base classifier.")
 
 
 class LoRAAdapter(nn.Module):
@@ -431,10 +392,7 @@ class LoRAAdapter(nn.Module):
 
         super().__init__()
 
-        self.lora_A = nn.Linear(in_features=input_dim, out_features=rank, bias=False)
-        self.lora_B = nn.Linear(in_features=rank, out_features=output_dim, bias=False)
-        self.scale = alpha / rank
-        #raise NotImplementedError("Build down and up projections for the adapter.")
+        raise NotImplementedError("Build down and up projections for the adapter.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return the adapter update."""
@@ -460,11 +418,8 @@ class LoRAAdapter(nn.Module):
         # Checks:
         # - If `x` is `[8, input_dim]`, output should be `[8, output_dim]`.
 
-        down = self.lora_A(x)
-        up = self.lora_B(down)
+        raise NotImplementedError("Run the low-rank adapter path.")
 
-        return up * self.scale
-        #raise NotImplementedError("Run the low-rank adapter path.")
 
 
 class QLoRAStyleClassifier(nn.Module):
@@ -512,14 +467,10 @@ class QLoRAStyleClassifier(nn.Module):
         # - Adapter parameters should have `requires_grad=True`.
         super().__init__()
 
-        self.base = base
+        raise NotImplementedError("Freeze base weights and add trainable adapter weights.")
 
-        for param in self.base.parameters():
-            param.requires_grad = False
 
-        self.lora_adapter = LoRAAdapter(input_dim=config.input_dim, output_dim=config.num_classes, rank=config.adapter_rank, alpha=config.adapter_alpha)
 
-        #raise NotImplementedError("Freeze base weights and add trainable adapter weights.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return base logits plus adapter logits."""
@@ -576,12 +527,8 @@ class QLoRAStyleClassifier(nn.Module):
         # Checks:
         # - Do not apply softmax here.
 
-        base_output = self.base(x)
-        lora_update = self.lora_adapter(x)
+        raise NotImplementedError("Run frozen base path and trainable adapter path.")
 
-        logits = base_output + lora_update
-        return logits
-        #raise NotImplementedError("Run frozen base path and trainable adapter path.")
 
 
 def estimate_weight_storage_bits(model: nn.Module, bits_per_parameter: int) -> int:
@@ -609,10 +556,7 @@ def estimate_weight_storage_bits(model: nn.Module, bits_per_parameter: int) -> i
     # Checks:
     # - A model with 100 parameters at 32 bits should return `3200`.
 
-    count = sum(param.numel() for param in model.parameters())
-    size_in_bits = count * bits_per_parameter
-    return size_in_bits
-    #raise NotImplementedError("Count parameters and multiply by bits_per_parameter.")
+    raise NotImplementedError("Count parameters and multiply by bits_per_parameter.")
 
 
 def simulate_quantized_weights(model: nn.Module, bits: int) -> nn.Module:
@@ -691,12 +635,8 @@ def count_parameters(model: nn.Module) -> ParameterCountSummary:
     # Checks:
     # - For this exercise, trainable percent should be far below `100`.
 
-    total_parameters = sum(param.numel() for param in model.parameters())
-    trainable_parameters = sum(param.numel() for param in model.parameters() if param.requires_grad)
-    trainable_percent = trainable_parameters/total_parameters * 100.0
+    raise NotImplementedError("Count all parameters and trainable parameters.")
 
-    return {"total_parameters": total_parameters, "trainable_parameters": trainable_parameters, "trainable_percent": trainable_percent}
-    #raise NotImplementedError("Count all parameters and trainable parameters.")
 
 
 def build_training_objects(config: TinyQLoRAConfig, quantize_base: bool = False) -> tuple[nn.Module, nn.Module, torch.optim.Optimizer, ParameterCountSummary]:
@@ -735,27 +675,14 @@ def build_training_objects(config: TinyQLoRAConfig, quantize_base: bool = False)
     # - The optimizer should not receive frozen base parameters.
     # - `parameter_counts["trainable_percent"]` should be much smaller than `100`.
 
-    base = BaseClassifier(config)
+    raise NotImplementedError("Build frozen base plus adapter and optimizer for trainable parameters only.")
 
-    if quantize_base:
-        base = quantize_base_model(base, config)
-    else:
-        base = base.to(device)
 
-    model = QLoRAStyleClassifier(base, config)
 
-    if not quantize_base:
-        model = model.to(device)
 
-    loss_fn = nn.CrossEntropyLoss()
 
-    trainable_parameters = (param for param in model.parameters() if param.requires_grad)
-    optimizer = torch.optim.AdamW(params=trainable_parameters, lr=config.learning_rate)
 
-    param_counts = count_parameters(model)
 
-    return model, loss_fn, optimizer, param_counts
-    #raise NotImplementedError("Build frozen base plus adapter and optimizer for trainable parameters only.")
 
 
 def train_one_epoch(model: nn.Module, loader: DataLoader, loss_fn: nn.Module, optimizer: torch.optim.Optimizer) -> EvaluationMetrics:
@@ -799,39 +726,12 @@ def train_one_epoch(model: nn.Module, loader: DataLoader, loss_fn: nn.Module, op
     # - The base weights should stay frozen.
     # - Do not apply softmax before `nn.CrossEntropyLoss`.
 
-    model.train()
-    model_device = next(model.parameters()).device
+    raise NotImplementedError("Train only the adapter path for one epoch.")
 
-    loss_sum = 0
-    num_samples = 0
-    correct = 0
 
-    for features, labels in loader:
-        features = features.to(model_device)
-        labels = labels.to(model_device)
 
-        optimizer.zero_grad()
-
-        logits = model(features)
-        loss = loss_fn(logits, labels)        
-        loss.backward()
-        optimizer.step()
-
-        batch_size = logits.shape[0]
-
-        loss_sum += loss.item() * batch_size
-
-        predictions = logits.argmax(dim=1)
-        correct += (predictions == labels).sum().item()
-
-        num_samples += batch_size
-
-    mean_loss = loss_sum / num_samples
-    accuracy = correct / num_samples
     
-    return {"loss": mean_loss, "accuracy": accuracy}
 
-    #raise NotImplementedError("Train only the adapter path for one epoch.")
 
 
 @torch.no_grad()
@@ -868,35 +768,12 @@ def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> Evalua
     # Checks:
     # - This function should not call `backward()` or `optimizer.step()`.
 
-    model.eval()
-    model_device = next(model.parameters()).device
+    raise NotImplementedError("Evaluate loss and accuracy.")
 
-    loss_sum = 0
-    num_samples = 0
-    correct = 0
 
-    for features, labels in loader:
-        features = features.to(model_device)
-        labels = labels.to(model_device)        
 
-        logits = model(features)
-        loss = loss_fn(logits, labels)        
-
-        batch_size = logits.shape[0]
-
-        loss_sum += loss.item() * batch_size
-
-        predictions = logits.argmax(dim=1)
-        correct += (predictions == labels).sum().item()
-        
-        num_samples += batch_size
-
-    mean_loss = loss_sum / num_samples
-    accuracy = correct / num_samples
     
-    return {"loss": mean_loss, "accuracy": accuracy}
 
-    #raise NotImplementedError("Evaluate loss and accuracy.")
 
 
 def explain_qlora_style(config: TinyQLoRAConfig) -> str:
@@ -927,13 +804,7 @@ def explain_qlora_style(config: TinyQLoRAConfig) -> str:
     # Checks:
     # - The note should include `frozen`, `adapter`, and `QLoRA` or `QLoRA-style`.
 
-    note = (
-        f"This is a QLoRA-style toy example: one run uses a normal frozen base, and "
-        f"one run uses a frozen {config.quantized_bits}-bit quantized base. Only the "
-        "small adapter path is trained, then the two results are compared."
-    )
-    return note
-    #raise NotImplementedError("Explain frozen lower-bit base plus small trainable adapters.")
+    raise NotImplementedError("Explain frozen lower-bit base plus small trainable adapters.")
 
 
 def run_experiment(config: TinyQLoRAConfig) -> TinyQLoRARunSummary:
@@ -980,79 +851,12 @@ def run_experiment(config: TinyQLoRAConfig) -> TinyQLoRARunSummary:
     # - `trainable_percent` should be much smaller than `100`.
     # - `check_metrics(metrics)` should return True.
 
-    loaders = load_dataloaders(config)
+    raise NotImplementedError("Train the adapter, evaluate it, and return size and parameter summaries.")
 
-    def train_setting(label: str, quantize_base: bool) -> dict[str, float]:
-        model, loss_fn, optimizer, counts = build_training_objects(config, quantize_base=quantize_base)
 
-        if quantize_base:
-            base_parameter_count = sum(param.numel() for param in BaseClassifier(config).parameters())
-            trainable_parameter_count = sum(param.numel() for param in model.lora_adapter.parameters() if param.requires_grad)
-            total_parameter_count = base_parameter_count + trainable_parameter_count
-            counts = {
-                "total_parameters": total_parameter_count,
-                "trainable_parameters": trainable_parameter_count,
-                "trainable_percent": 100 * trainable_parameter_count / total_parameter_count,
-            }
 
-        train_metrics = {"loss": 0.0, "accuracy": 0.0}
-        val_metrics = {"loss": 0.0, "accuracy": 0.0}
 
-        for epoch in range(config.epochs):
-            train_metrics = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-            val_metrics = evaluate(model, loaders["val"], loss_fn)
 
-            print(
-                f"{label} epoch {epoch + 1} -> "
-                f"loss: {train_metrics['loss']}, "
-                f"acc: {train_metrics['accuracy']}, "
-                f"val_loss: {val_metrics['loss']}, "
-                f"val_acc: {val_metrics['accuracy']}"
-            )
-
-        test_metrics = evaluate(model, loaders["test"], loss_fn)
-        print(f"{label} TEST RESULTS: test_loss: {test_metrics['loss']}, test_acc: {test_metrics['accuracy']}")
-
-        return {
-            "train_loss": train_metrics["loss"],
-            "train_accuracy": train_metrics["accuracy"],
-            "val_loss": val_metrics["loss"],
-            "val_accuracy": val_metrics["accuracy"],
-            "test_loss": test_metrics["loss"],
-            "test_accuracy": test_metrics["accuracy"],
-            "total_parameters": counts["total_parameters"],
-            "trainable_parameters": counts["trainable_parameters"],
-            "trainable_percent": counts["trainable_percent"],
-        }
-
-    normal_results = train_setting("normal base", quantize_base=False)
-    quantized_results = train_setting("quantized base", quantize_base=True)
-
-    base_for_size = BaseClassifier(config)
-    full_precision_size = estimate_weight_storage_bits(base_for_size, 32)
-    quantized_size = estimate_weight_storage_bits(base_for_size, config.quantized_bits)
-
-    print(f"Normal test accuracy: {normal_results['test_accuracy']}")
-    print(f"Quantized test accuracy: {quantized_results['test_accuracy']}")
-
-    return {
-        "train_loss": quantized_results["train_loss"],
-        "train_accuracy": quantized_results["train_accuracy"],
-        "val_loss": quantized_results["val_loss"],
-        "val_accuracy": quantized_results["val_accuracy"],
-        "test_loss": quantized_results["test_loss"],
-        "test_accuracy": quantized_results["test_accuracy"],
-        "normal_test_accuracy": normal_results["test_accuracy"],
-        "quantized_test_accuracy": quantized_results["test_accuracy"],
-        "accuracy_difference": quantized_results["test_accuracy"] - normal_results["test_accuracy"],
-        "full_precision_base_size_bits": full_precision_size,
-        "quantized_base_size_bits": quantized_size,
-        "total_parameters": quantized_results["total_parameters"],
-        "trainable_parameters": quantized_results["trainable_parameters"],
-        "trainable_percent": quantized_results["trainable_percent"],
-        "note": explain_qlora_style(config),
-    }
-    #raise NotImplementedError("Train the adapter, evaluate it, and return size and parameter summaries.")
 
 
 def check_metrics(metrics: dict[str, float | str]) -> bool:

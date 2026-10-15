@@ -243,62 +243,9 @@ def make_lineworld_env(config: CustomGymEnvConfig) -> Any:
     # - `env.step(action)` should return five values.
     # - The position should never leave `0` to `config.size - 1`.
 
-    import gymnasium as gym
-    from gymnasium import spaces
-    import numpy as np
+    raise NotImplementedError("Build and return a custom Gymnasium LineWorld environment.")
 
-    class LineWorldEnv(gym.Env):
-        def __init__(self) -> None:
-            super().__init__()
-            # The observation is one number: the current position.
-            self.observation_space = spaces.Box(
-                low=0,
-                high=config.size - 1,
-                shape=(1,),
-                dtype=np.float32,
-            )
-            self.action_space = spaces.Discrete(2)
 
-            # `position` is where the agent is now.
-            # `steps` is how many moves have happened in this episode.
-            self.position = 0
-            self.steps = 0
-        
-        def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
-            # Start a new episode.
-            # Put the agent back at position 0.
-            # Reset the step counter.
-            # Return the first observation and an info dictionary.
-
-            super().reset(seed=seed)
-
-            self.position = 0
-            self.steps = 0
-            observation = np.array([self.position], dtype=np.float32)
-            info = {}
-
-            return observation, info 
-
-        def step(self, action):
-            # Ask the environment to apply one left/right action.
-            if action == 0:
-                self.position = max(0, self.position - 1)
-            elif action == 1:
-                self.position = min(config.size - 1, self.position + 1)
-
-            self.steps += 1
-
-            # Report whether the episode ended naturally or by the step limit.
-            terminated = self.position == config.goal_position
-            reward = config.goal_reward if terminated else config.step_penalty
-            truncated = self.steps >= config.max_steps and not terminated
-            observation = np.array([self.position], dtype=np.float32)
-            info = {}
-
-            return observation, reward, terminated, truncated, info
-
-    return LineWorldEnv()
-    #raise NotImplementedError("Build and return a custom Gymnasium LineWorld environment.")
 
 
 def run_env_checker(env: Any) -> bool:
@@ -322,11 +269,8 @@ def run_env_checker(env: Any) -> bool:
     #
     # Checks:
     # - If this fails, fix `reset`, `step`, `observation_space`, or `action_space`.
-    from stable_baselines3.common.env_checker import check_env
+    raise NotImplementedError("Run check_env on the custom environment.")
 
-    check_env(env, warn=True)
-    return True
-    #raise NotImplementedError("Run check_env on the custom environment.")
 
 
 def run_random_custom_episode(env: Any, seed: int, max_steps: int) -> float:
@@ -372,23 +316,10 @@ def run_random_custom_episode(env: Any, seed: int, max_steps: int) -> float:
     # - The loop should not call learning code.
     # - The loop should stop even if the environment has a bug.
 
-    observation, info = env.reset(seed=seed)
+    raise NotImplementedError("Run one random episode in the custom environment.")
 
-    total_reward = 0.0
-    done = False
-    step_count = 0
 
-    while not done and step_count < max_steps:
-        action = env.action_space.sample()
-        observation, reward, terminated, truncated, info = env.step(action)
 
-        total_reward+=reward
-        step_count += 1
-
-        done = terminated or truncated
-
-    return total_reward
-    #raise NotImplementedError("Run one random episode in the custom environment.")
 
 
 def train_tiny_sb3_agent(env: Any, config: CustomGymEnvConfig) -> dict[str, str | int]:
@@ -410,16 +341,8 @@ def train_tiny_sb3_agent(env: Any, config: CustomGymEnvConfig) -> dict[str, str 
     # Note:
     # Keep this tiny. The main goal is API compatibility, not high reward.
 
-    from stable_baselines3 import DQN
-    model = DQN("MlpPolicy", env, verbose=0, seed=config.random_state)
-    model.learn(total_timesteps=config.sb3_train_steps)
+    raise NotImplementedError("Train a tiny SB3 agent on the custom environment.")
 
-    return {
-        "status": "trained",
-        "algorithm": "DQN",
-        "train_steps": config.sb3_train_steps,
-    }
-    #raise NotImplementedError("Train a tiny SB3 agent on the custom environment.")
 
 
 def run_custom_env_workflow(config: CustomGymEnvConfig) -> CustomGymEnvSummary:
@@ -451,36 +374,8 @@ def run_custom_env_workflow(config: CustomGymEnvConfig) -> CustomGymEnvSummary:
     # - `checker_passed` should be `True` if `check_env` did not raise an error.
     # - `random_episode_return` should be a float.
 
-    env = make_lineworld_env(config)
-    try:
-        observation_space = str(env.observation_space)
-        action_space = str(env.action_space)
-        checker_passed = run_env_checker(env)
-        random_episode_return = run_random_custom_episode(
-            env,
-            seed=config.random_state,
-            max_steps=config.max_steps,
-        )
+    raise NotImplementedError("Run the custom Gymnasium environment workflow.")
 
-        #training_status = train_tiny_sb3_agent(env, config)
-
-        print("Custom environment workflow summary:")
-        print(f"  observation space: {observation_space}")
-        print(f"  action space: {action_space}")
-        print(f"  checker passed: {checker_passed}")
-        print(f"  random episode return: {random_episode_return}")
-        #print(f"  training status: {training_status}")
-    finally:
-        env.close()
-
-    return {
-        "observation_space": observation_space,
-        "action_space": action_space,
-        "checker_passed": checker_passed,
-        "random_episode_return": random_episode_return,
-        "note": "LineWorld is a custom environment wrapped in the standard Gymnasium reset and step API.",
-    }
-    #raise NotImplementedError("Run the custom Gymnasium environment workflow.")
 
 
 def check_metrics(metrics: CustomGymEnvSummary) -> bool:

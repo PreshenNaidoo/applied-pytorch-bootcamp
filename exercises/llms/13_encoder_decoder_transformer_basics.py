@@ -294,41 +294,17 @@ def basic_word_tokenize(text: str) -> list[str]:
 def build_word_vocab(source_texts: list[str], target_texts: list[str], config: EncoderDecoderConfig) -> dict[str, object]:
     """Build a shared word vocabulary from source and target text."""
 
-    all_words_eng = []
-    all_words_fr = []
+    raise NotImplementedError("Build token_to_int and int_to_token for word tokens.")
 
-    for text in source_texts:
-        all_words_eng.extend(basic_word_tokenize(text))
 
-    for text in target_texts:
-        all_words_fr.extend(basic_word_tokenize(text))
 
-    all_words = all_words_eng + all_words_fr
-    counts = Counter(all_words)
 
-    num_special_tokens = 4
-    num_words_to_keep = config.vocab_size - num_special_tokens
-    most_common_words = counts.most_common(num_words_to_keep)
 
-    vocabulary = [word for word, count in most_common_words]
-    vocabulary.insert(config.pad_token_id, "[PAD]")
-    vocabulary.insert(config.start_token_id, "[START]")
-    vocabulary.insert(config.end_token_id, "[END]")
-    vocabulary.insert(config.unknown_token_id, "[UNK]")
 
-    vocab_size = len(vocabulary)
-    assert vocab_size<=config.vocab_size
 
-    config.vocab_size = vocab_size
 
-    token_to_int = {t:i for i,t in enumerate(vocabulary)}
-    int_to_token = {i:t for t,i in token_to_int.items()}
 
-    config.token_to_int = token_to_int
-    config.int_to_token = int_to_token
 
-    return {"token_to_int": token_to_int, "int_to_token": int_to_token}
-    #raise NotImplementedError("Build token_to_int and int_to_token for word tokens.")
 
 
 # Turn one word list into a fixed-length tensor of token ids.
@@ -356,21 +332,13 @@ def encode_word_sequence(
 ) -> torch.Tensor:
     """Turn words into a fixed-length token id tensor."""
 
-    token_ids = []    
+    raise NotImplementedError("Map words to ids, add end if needed, then pad or cut.")
 
-    for word in words:
-        token_ids.append(token_to_int.get(word, config.unknown_token_id))
 
-    if add_end_token:
-        token_ids.append(config.end_token_id)
 
-    token_ids = token_ids[:max_length]
 
     # Add padding after the real tokens.
-    token_ids+= [config.pad_token_id] * (max_length - len(token_ids))
 
-    return torch.tensor(token_ids, dtype=torch.long)
-    #raise NotImplementedError("Map words to ids, add end if needed, then pad or cut.")
 
 
 # Beginner hints for this file:
@@ -429,31 +397,23 @@ class WordSeq2SeqDataset(Dataset):
         config: EncoderDecoderConfig,
     ) -> None:
         super().__init__()
-        self.config = config
-        self.source_texts = source_texts
-        self.target_texts = target_texts
-        self.token_to_int = token_to_int        
+        raise NotImplementedError("Create source-target examples from English and French text.")
 
-        #raise NotImplementedError("Create source-target examples from English and French text.")
 
     # Return dataset length.
     # Return:
     # - integer number of source-target examples
     def __len__(self) -> int:
         """Return the number of examples."""
-        return len(self.source_texts)
-        #raise NotImplementedError("Return the dataset length.")
+        raise NotImplementedError("Return the dataset length.")
 
     # Return one source-target example.
     # Return:
     # - dictionary with `source_ids`, `decoder_input_ids`, and `target_labels`
     def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
         """Return one source-target training example."""
-        source_text = self.source_texts[index]
-        target_text = self.target_texts[index]
+        raise NotImplementedError("Return source_ids, decoder_input_ids, and target_labels.")
 
-        source_tokens = basic_word_tokenize(source_text)
-        target_tokens = basic_word_tokenize(target_text)
 
         # - source_ids should contain the English word ids:
         #   [i, like, cats, pad, pad]
@@ -462,17 +422,8 @@ class WordSeq2SeqDataset(Dataset):
         # - target_labels should contain what the decoder should predict:
         #   [j'aime, les, chats, end, pad]
 
-        source_ids = encode_word_sequence(words=source_tokens, token_to_int=self.token_to_int, 
-                                            max_length=self.config.source_length, config=self.config,
-                                            add_end_token=False)
         
-        target_labels = encode_word_sequence(words=target_tokens, token_to_int=self.token_to_int, 
-                                            max_length=self.config.target_length, config=self.config,
-                                            add_end_token=True)
-        decoder_input_ids = torch.cat([torch.tensor([self.config.start_token_id], dtype=torch.long), target_labels[:-1]])
 
-        return {"source_ids": source_ids, "decoder_input_ids": decoder_input_ids, "target_labels": target_labels}
-        #raise NotImplementedError("Return source_ids, decoder_input_ids, and target_labels.")
 
 
 # Build the train, validation, and test dataloaders for the word seq2seq task.
@@ -507,50 +458,22 @@ def build_dataloaders(config: EncoderDecoderConfig) -> dict[str, DataLoader]:
 
     
     #download_config = hf_datasets.DownloadConfig(local_files_only=True)
-    data = hf_datasets.load_dataset(
-        "Helsinki-NLP/opus_books",
-        "en-fr",
-        split="train",
-        #download_config=download_config,
-    )       
+    raise NotImplementedError("Return dataloaders for the word seq2seq task.")
 
     # row = data[0]
     # print(row["translation"]["en"])
     # print(row["translation"]["fr"])
 
-    source_texts = [row["translation"]["en"] for row in data]
-    target_texts = [row["translation"]["fr"] for row in data]
 
     # Filter to short sentence pairs
     # The model will see easier examples and generation will look less random.
-    short_pairs = []
 
-    for source_text, target_text in zip(source_texts, target_texts):
-        source_tokens = basic_word_tokenize(source_text)
-        target_tokens = basic_word_tokenize(target_text)
 
-        if len(source_tokens) <= 10 and len(target_tokens) <= 12:
-            short_pairs.append((source_text, target_text))
 
-    source_texts = [source_text for source_text, target_text in short_pairs]
-    target_texts = [target_text for source_text, target_text in short_pairs]
 
-    conv_dict = build_word_vocab(source_texts, target_texts, config)
 
-    num_train, num_val = int(len(source_texts) * 0.6), int(len(target_texts) * 0.2)
 
-    train_sources, train_targets = source_texts[:num_train], target_texts[:num_train]
-    val_sources, val_targets = source_texts[num_train : num_train + num_val], target_texts[num_train : num_train + num_val]
-    test_sources, test_targets = source_texts[num_train + num_val:], target_texts[num_train + num_val:]
 
-    train_ds = WordSeq2SeqDataset(train_sources, train_targets, config.token_to_int, config)
-    val_ds = WordSeq2SeqDataset(val_sources, val_targets, config.token_to_int, config)
-    test_ds = WordSeq2SeqDataset(test_sources, test_targets, config.token_to_int, config)
-
-    return {"train": torch.utils.data.DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True),
-            "val": torch.utils.data.DataLoader(dataset=val_ds, batch_size=config.batch_size),
-            "test": torch.utils.data.DataLoader(dataset=test_ds, batch_size=config.batch_size)}
-    #raise NotImplementedError("Return dataloaders for the word seq2seq task.")
 
 
 # Build the decoder causal mask.
@@ -570,11 +493,8 @@ def build_decoder_causal_mask(target_length: int) -> torch.Tensor:
     # - in self-attention, it must not look at future target tokens
     # - in cross-attention, it is allowed to read the full encoder output
 
-    ones = torch.ones(size=(target_length, target_length), dtype=torch.bool)
-    mask = torch.tril(ones)
+    raise NotImplementedError("Return a mask that blocks future target tokens.")
 
-    return mask
-    #raise NotImplementedError("Return a mask that blocks future target tokens.")
 
 
 
@@ -626,25 +546,15 @@ class TinyEncoderDecoderTransformer(nn.Module):
     #    The output is raw logits, not probabilities.
     def __init__(self, config: EncoderDecoderConfig) -> None:
         super().__init__()
-        self.config = config
+        raise NotImplementedError("Build encoder, decoder, embeddings, positions, and output head.")
 
-        self.source_token_embeddings = nn.Embedding(num_embeddings = config.vocab_size, embedding_dim=config.embed_dim, padding_idx=config.pad_token_id)
 
-        self.target_token_embeddings = nn.Embedding(num_embeddings = config.vocab_size, embedding_dim=config.embed_dim, padding_idx=config.pad_token_id)
 
-        self.source_pos_embeddings = nn.Embedding(num_embeddings=config.source_length, embedding_dim=config.embed_dim)
 
-        self.target_pos_embeddings = nn.Embedding(num_embeddings=config.target_length, embedding_dim=config.embed_dim)
 
-        encoder_layer = nn.TransformerEncoderLayer(d_model=config.embed_dim, dim_feedforward=config.mlp_dim, nhead=config.num_heads, batch_first=True)
-        self.encoder_stack = nn.TransformerEncoder(encoder_layer=encoder_layer, num_layers=config.num_layers)
 
-        decoder_layer = nn.TransformerDecoderLayer(d_model=config.embed_dim, dim_feedforward=config.mlp_dim, nhead=config.num_heads, batch_first=True)
-        self.decoder_stack = nn.TransformerDecoder(decoder_layer=decoder_layer, num_layers=config.num_layers)
 
-        self.head = nn.Linear(in_features=config.embed_dim, out_features=config.vocab_size)
 
-        #raise NotImplementedError("Build encoder, decoder, embeddings, positions, and output head.")
 
     # Run the encoder-decoder model.
     # Input:
@@ -693,27 +603,11 @@ class TinyEncoderDecoderTransformer(nn.Module):
     def forward(self, source_ids: torch.Tensor, decoder_input_ids: torch.Tensor) -> torch.Tensor:
         """Return target token logits with shape `[batch, target_length, vocab_size]`."""
 
-        batch_size, source_length = source_ids.shape            # [32, 16]
-        target_length = decoder_input_ids.shape[1]              # [32, 18]
+        raise NotImplementedError("Run encoder-decoder transformer and return raw logits.")
 
-        source_token_embed = self.source_token_embeddings(source_ids)        
-        positions = torch.arange(start=0, end=source_length, step=1, device=source_ids.device)  #shape=[16]
-        positions = positions.unsqueeze(dim=0)
-        positions = positions.expand(size=(batch_size, source_length))
-        source_pos_embed = self.source_pos_embeddings(positions)
-        source_embed = source_token_embed + source_pos_embed
 
-        target_token_embed = self.target_token_embeddings(decoder_input_ids)
-        positions = torch.arange(start=0, end=target_length, step=1, device=decoder_input_ids.device)  #shape=[16]
-        positions = positions.unsqueeze(dim=0)
-        positions = positions.expand(size=(batch_size, target_length))
-        target_pos_embed = self.target_pos_embeddings(positions)
-        target_embed = target_token_embed + target_pos_embed
 
-        encoder_features = self.encoder_stack(source_embed)
 
-        causal_mask = build_decoder_causal_mask(target_length)
-        causal_mask = causal_mask.to(decoder_input_ids.device)
 
         # In decoder cross-attention:
         # - decoder hidden states become the queries
@@ -721,12 +615,8 @@ class TinyEncoderDecoderTransformer(nn.Module):
         # - encoder features also become the values
         # Plain meaning: the decoder asks which source tokens matter
         # for each target token it is trying to predict.
-        decoder_features = self.decoder_stack(target_embed, encoder_features, ~causal_mask)
 
-        logits = self.head(decoder_features)
 
-        return logits
-        #raise NotImplementedError("Run encoder-decoder transformer and return raw logits.")
 # Build the main training objects.
 # Return:
 # - encoder-decoder model
@@ -738,13 +628,8 @@ class TinyEncoderDecoderTransformer(nn.Module):
 # generate `[UNK]` too often.
 def build_training_objects(config: EncoderDecoderConfig) -> tuple[nn.Module, nn.Module, torch.optim.Optimizer]:
     """Return model, loss function, and optimizer."""
-    model = TinyEncoderDecoderTransformer(config)
-    model = model.to(device)
-    loss_fn = nn.CrossEntropyLoss(reduction="none")
-    optimizer = torch.optim.AdamW(lr=config.learning_rate, params=model.parameters())
+    raise NotImplementedError("Return encoder-decoder model, CrossEntropyLoss, and optimizer.")
 
-    return model, loss_fn, optimizer
-    #raise NotImplementedError("Return encoder-decoder model, CrossEntropyLoss, and optimizer.")
 
 
 # Run one full teacher-forcing training epoch.
@@ -760,45 +645,11 @@ def train_one_epoch(
 ) -> dict[str, float]:
     """Run one full teacher-forcing training epoch."""
 
-    model.train()
+    raise NotImplementedError("Return mean train loss and token accuracy.")
 
-    losses, accuracies = [], []
 
-    for data_dict in loader:
-        source_ids = data_dict["source_ids"]
-        decoder_input_ids = data_dict["decoder_input_ids"]
-        target_labels = data_dict["target_labels"]
 
-        source_ids = source_ids.to(device)
-        decoder_input_ids = decoder_input_ids.to(device)
-        target_labels = target_labels.to(device)
-
-        optimizer.zero_grad()
-
-        logits = model(source_ids, decoder_input_ids)
-        batch_size, target_length, vocab_size = logits.shape
-
-        flat_targets = target_labels.reshape(batch_size * target_length)
-        flat_logits = logits.reshape(batch_size * target_length, vocab_size)
-
-        token_losses = loss_fn(flat_logits, flat_targets)
-        valid_target = (flat_targets != model.config.pad_token_id) & (flat_targets != model.config.unknown_token_id)
-        loss = token_losses[valid_target].mean()
-        loss.backward()
-        optimizer.step()
-
-        losses.append(loss.item())
-
-        pred = flat_logits.argmax(dim=-1)
-
-        correct = (pred[valid_target] == flat_targets[valid_target]).float()              
-        accuracies.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accuracies).mean().item()
     
-    return {"loss": mean_loss, "accuracy": mean_acc}
-    #raise NotImplementedError("Return mean train loss and token accuracy.")
 
 
 # Run one full evaluation pass.
@@ -810,41 +661,11 @@ def train_one_epoch(
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[str, float]:
     """Run one full evaluation pass."""
 
-    model.eval()
+    raise NotImplementedError("Return mean validation loss and token accuracy.")
 
-    losses, accuracies = [], []
 
-    for data_dict in loader:
-        source_ids = data_dict["source_ids"]
-        decoder_input_ids = data_dict["decoder_input_ids"]
-        target_labels = data_dict["target_labels"]
 
-        source_ids = source_ids.to(device)
-        decoder_input_ids = decoder_input_ids.to(device)
-        target_labels = target_labels.to(device)        
-
-        logits = model(source_ids, decoder_input_ids)
-        batch_size, target_length, vocab_size = logits.shape
-
-        flat_targets = target_labels.reshape(batch_size * target_length)
-        flat_logits = logits.reshape(batch_size * target_length, vocab_size)
-
-        token_losses = loss_fn(flat_logits, flat_targets)
-        valid_target = (flat_targets != model.config.pad_token_id) & (flat_targets != model.config.unknown_token_id)
-        loss = token_losses[valid_target].mean()
-
-        losses.append(loss.item())
-
-        pred = flat_logits.argmax(dim=-1)
-
-        correct = (pred[valid_target] == flat_targets[valid_target]).float()              
-        accuracies.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accuracies).mean().item()
     
-    return {"loss": mean_loss, "accuracy": mean_acc}
-    #raise NotImplementedError("Return mean validation loss and token accuracy.")
 
 
 # Generate one target sequence from one source sequence.
@@ -866,23 +687,10 @@ def generate_sequence(model: nn.Module, source_ids: torch.Tensor, config: Encode
     # - append it
     # - repeat until end token or max length    
 
-    model_device = next(model.parameters()).device
-    source_ids = source_ids.to(model_device).unsqueeze(0)
+    raise NotImplementedError("Generate target token ids one step at a time.")
 
-    generated = torch.tensor([[config.start_token_id]], dtype=torch.long, device=model_device)
 
-    for _ in range(config.target_length - 1):
-        logits = model(source_ids, generated)
-        next_token_logits = logits[:, -1, :]
-        next_token_id = next_token_logits.argmax(dim=-1, keepdim=True)
-
-        generated = torch.cat([generated, next_token_id], dim=1)
-
-        if next_token_id.item() == config.end_token_id:
-            break
     
-    return generated.squeeze(0)
-    #raise NotImplementedError("Generate target token ids one step at a time.")
 
 
 # Run the full training workflow.
@@ -893,65 +701,14 @@ def generate_sequence(model: nn.Module, source_ids: torch.Tensor, config: Encode
 def run_training(config: EncoderDecoderConfig) -> dict[str, float | str]:
     """Run the full encoder-decoder training workflow."""
 
-    loaders = build_dataloaders(config)
-    model, loss_fn, optimizer = build_training_objects(config)
+    raise NotImplementedError("Train and evaluate the tiny encoder-decoder transformer.")
 
-    final_train_metrics: dict[str, float] = {"loss": 0.0, "accuracy": 0.0}
-    final_val_metrics: dict[str, float] = {"loss": 0.0, "accuracy": 0.0}
 
-    for epoch in range(config.epochs):
-        train_dict = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-        val_dict = evaluate(model, loaders["val"], loss_fn)
 
-        final_train_metrics = train_dict
-        final_val_metrics = val_dict
 
-        print(
-            f"Epoch {epoch + 1} -> "
-            f"train_loss: {train_dict['loss']:.4f}, "
-            f"train_token_accuracy: {train_dict['accuracy']:.4f}, "
-            f"val_loss: {val_dict['loss']:.4f}, "
-            f"val_token_accuracy: {val_dict['accuracy']:.4f}"
-        )
 
-    test_dict = evaluate(model, loaders["test"], loss_fn)
 
-    test_dataset = loaders["test"].dataset
-    original_source = test_dataset.source_texts[0]
-    original_target = test_dataset.target_texts[0]
-    first_source_ids = test_dataset[0]["source_ids"]
-    generated_ids = generate_sequence(model, first_source_ids, config)
-    generated_tokens = []
-    if config.int_to_token is not None:
-        generated_tokens = [
-            config.int_to_token[int(token_id)]
-            for token_id in generated_ids.detach().cpu().tolist()
-            if int(token_id) != config.pad_token_id
-        ]
-    generated_text = " ".join(generated_tokens)
 
-    print(
-        f"Test results -> "
-        f"loss: {test_dict['loss']:.4f}, "
-        f"token_accuracy: {test_dict['accuracy']:.4f}"
-    )
-    print(f"Original source: {original_source}")
-    print(f"Target sentence: {original_target}")
-    print(f"Generated ids: {generated_ids.detach().cpu().tolist()}")
-    if generated_text:
-        print(f"Generated sentence: {generated_text}")
-
-    return {
-        "train_loss": final_train_metrics["loss"],
-        "train_token_accuracy": final_train_metrics["accuracy"],
-        "val_loss": final_val_metrics["loss"],
-        "val_token_accuracy": final_val_metrics["accuracy"],
-        "test_loss": test_dict["loss"],
-        "test_token_accuracy": test_dict["accuracy"],
-        "generated_example": generated_text or str(generated_ids.detach().cpu().tolist()),
-    }
-
-    #raise NotImplementedError("Train and evaluate the tiny encoder-decoder transformer.")
 
 
 # Check whether the validation token accuracy reached the rough target.

@@ -432,9 +432,8 @@ def symlog(values: torch.Tensor) -> torch.Tensor:
     #
     # So large values are squeezed closer to zero, but their direction is kept.
     
-    return torch.sign(values) * torch.log1p(torch.abs(values))
+    raise NotImplementedError("Apply the DreamerV3 symlog transform.")
 
-    #raise NotImplementedError("Apply the DreamerV3 symlog transform.")
 
 
 def symexp(values: torch.Tensor) -> torch.Tensor:
@@ -481,9 +480,8 @@ def symexp(values: torch.Tensor) -> torch.Tensor:
     # - `symexp(-2.30)` takes the sign `-1`, computes `exp(2.30) - 1`,
     #   and gets back about `-9`
     
-    return torch.sign(values) * torch.expm1(torch.abs(values))
+    raise NotImplementedError("Undo the DreamerV3 symlog transform.")
 
-    #raise NotImplementedError("Undo the DreamerV3 symlog transform.")
 
 
 def two_hot_targets(
@@ -651,42 +649,27 @@ def two_hot_targets(
     #   the value bins.
     # - A value at the first or last center should put all mass on that center.
     
-    num_bins = len(bin_centers)  # scalar Python int, for example `255`
-    batch_size = values.shape[0]  # scalar Python int; `values` is shaped `[batch]`
+    raise NotImplementedError("Build DreamerV3 two-hot value targets.")
 
     # keep every target value inside the range covered by bin_centers
-    clipped_values = values.clamp(min=bin_centers[0], max=bin_centers[-1])                                  # shape `[batch]`
 
     # Find the upper bin index for each clipped value
     # what is the first bin center at or above this value?
     # right=False means we want the first bin center at or above the value
-    upper_bin_indices = torch.searchsorted(sorted_sequence=bin_centers, input=clipped_values, right=False)  # shape `[batch]`
     # clamp the upper bin indices between `1` and `num_bins - 1`
-    upper_bin_indices = upper_bin_indices.clamp(min=torch.tensor(1), max=torch.tensor(num_bins-1))          # shape `[batch]`
 
-    lower_bin_indices = upper_bin_indices - 1       # shape `[batch]`
 
-    lower_centers = bin_centers[lower_bin_indices]  # shape `[batch]`
-    upper_centers = bin_centers[upper_bin_indices]  # shape `[batch]`
 
-    upper_weights = (clipped_values - lower_centers) / (upper_centers - lower_centers)  # shape `[batch]`
-    lower_weights = 1.0 - upper_weights             # shape `[batch]`
 
-    targets = torch.zeros(size=(batch_size, num_bins), device=values.device, dtype=values.dtype)            # shape `[batch, num_bins]`
 
     # Shape note:
     # `targets` is 2D, so each write must choose a row and a column.
     # `lower_bin_indices` and `upper_bin_indices` only choose columns.
     # Before using `scatter_`, reshape index and weight tensors from `[batch]`
     # to `[batch, 1]` with `.unsqueeze(1)`.
-    row_indices = torch.arange(batch_size, device=values.device)
 
-    targets[row_indices, lower_bin_indices] = lower_weights
-    targets[row_indices, upper_bin_indices] = upper_weights
 
-    return targets  # shape `[batch, num_bins]`
 
-    #raise NotImplementedError("Build DreamerV3 two-hot value targets.")
 
 
 def make_visual_grid_config(config: TinyDreamerConfig) -> VisualGridWorldConfig:
@@ -715,13 +698,10 @@ def collect_logged_episodes(config: TinyDreamerConfig) -> list[list[LoggedGridSt
     # - Do not create random latent vectors.
     # - Use `step["full_state"]` and `step["next_full_state"]` as real states.
     
-    grid_config = make_visual_grid_config(config)
+    raise NotImplementedError("Collect complete real grid-world episodes.")
 
-    episodes = collect_visual_gridworld_episodes(grid_config) # returns list[list[LoggedGridStep]]
 
-    return episodes
 
-    #raise NotImplementedError("Collect complete real grid-world episodes.")
 
 
 def one_hot_action(action: int, config: TinyDreamerConfig) -> torch.Tensor:
@@ -735,14 +715,9 @@ def one_hot_action(action: int, config: TinyDreamerConfig) -> torch.Tensor:
     # 3. Set `encoded[action] = 1.0`.
     # 4. Return `encoded`.
 
-    if not 0 <= action < config.num_actions:
-        raise ValueError("Inavlid action id.")
+    raise NotImplementedError("One-hot encode a grid-world action.")
 
-    encoded = torch.zeros(config.num_actions, dtype=torch.float32, device=device)
-    encoded[action] = 1.0
-    return encoded
     
-    #raise NotImplementedError("One-hot encode a grid-world action.")
 
 
 def build_dreamer_dataset(config: TinyDreamerConfig) -> DreamerDatasetSplits:
@@ -838,48 +813,15 @@ def build_dreamer_dataset(config: TinyDreamerConfig) -> DreamerDatasetSplits:
     #   `train_next_agent_cells.shape[0]`, `train_rewards.shape[0]`,
     #   `train_costs.shape[0]`, and `train_dones.shape[0]`.
 
-    episodes = collect_logged_episodes(config)  # # returns list[list[LoggedGridStep]]
-    num_episodes = len(episodes)
+    raise NotImplementedError("Build Dreamer-style train and validation tensors.")
 
-    shuffled_indices = torch.randperm(num_episodes, generator = torch.Generator().manual_seed(config.random_state))
 
-    num_val = int(num_episodes * config.val_fraction)
 
-    val_eps = [episodes[shuffled_indices[index]] for index in range(0, num_val)]
-    train_eps = [episodes[shuffled_indices[index]] for index in range(num_val, len(episodes))]
 
-    val_flat_eps = flatten_logged_episodes(val_eps) #[step for episode in val_eps for step in episode]
-    train_flat_eps = flatten_logged_episodes(train_eps) #[step for episode in train_eps for step in episode]
 
-    def build_tensor(steps: list[LoggedGridStep]) -> list[torch.tensor]:
-        
-        states = []
-        actions = []
-        next_agent_cells = []
-        rewards = []
-        costs = []
-        dones = []
 
-        for step in steps:
-            states.append(step["full_state"].flatten().to(device))
-            actions.append(one_hot_action(step["action"], config))
-            next_agent_cells.append(step["next_full_state"][0].flatten().argmax().to(device))
-            rewards.append(torch.tensor(step["reward"], device=device, dtype=torch.float32).unsqueeze(dim=0))
-            costs.append(torch.tensor(float(step["cost"] > 0.0), device=device, dtype=torch.float32).unsqueeze(dim=0))
-            dones.append(torch.tensor(step["done"], device=device, dtype=torch.float32).unsqueeze(dim=0))
-            
-        return [torch.stack(states, dim=0), torch.stack(actions, dim=0), torch.stack(next_agent_cells, dim=0),
-                torch.stack(rewards, dim=0), torch.stack(costs, dim=0), torch.stack(dones, dim=0)]
 
-    train_tensors = build_tensor(train_flat_eps)
-    val_tensors = build_tensor(val_flat_eps)
 
-    return DreamerDatasetSplits(train_latents=train_tensors[0], train_actions=train_tensors[1], train_next_agent_cells=train_tensors[2], 
-                                train_rewards=train_tensors[3], train_costs=train_tensors[4], train_dones=train_tensors[5],
-                                val_latents=val_tensors[0], val_actions=val_tensors[1], val_next_agent_cells=val_tensors[2], 
-                                val_rewards=val_tensors[3], val_costs=val_tensors[4], val_dones=val_tensors[5])
-
-    #raise NotImplementedError("Build Dreamer-style train and validation tensors.")
 
 
 class TinyDreamerWorldModel(nn.Module):
@@ -906,20 +848,10 @@ class TinyDreamerWorldModel(nn.Module):
         # - Do not apply sigmoid in the cost head.
         super().__init__()
 
-        self.state_dim = config.state_channels * config.grid_size * config.grid_size
-        self.input_dim = self.state_dim + config.num_actions
+        raise NotImplementedError("Build the tiny Dreamer world model.")
 
-        self.trunk = nn.Sequential(nn.Linear(in_features=self.input_dim, out_features=config.hidden_dim),
-                                    nn.ReLU(inplace=True),
-                                    nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim),
-                                    nn.ReLU())
         
-        self.next_agent_head = nn.Linear(in_features=config.hidden_dim, out_features=config.grid_size * config.grid_size)
-        self.reward_head = nn.Linear(in_features=config.hidden_dim, out_features=1)
-        self.cost_head = nn.Linear(in_features=config.hidden_dim, out_features=1)
-        self.done_head = nn.Linear(in_features=config.hidden_dim, out_features=1)
 
-        #raise NotImplementedError("Build the tiny Dreamer world model.")
 
     def forward(self, latents: torch.Tensor, actions: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Return next-agent logits, reward, cost logit, and done logit."""
@@ -937,18 +869,11 @@ class TinyDreamerWorldModel(nn.Module):
         # Concatenate latents and actions with `torch.cat(..., dim=-1)`,
         # run the trunk, then run each head.
 
-        inputs = torch.cat([latents, actions], dim=-1)
+        raise NotImplementedError("Run the tiny Dreamer world model.")
 
-        features = self.trunk(inputs)
 
-        next_agent_logits = self.next_agent_head(features)
-        reward = self.reward_head(features)
-        cost_logit = self.cost_head(features)
-        done = self.done_head(features)
 
-        return next_agent_logits, reward, cost_logit, done
 
-        #raise NotImplementedError("Run the tiny Dreamer world model.")
 
 
 class LatentPolicy(nn.Module):
@@ -970,13 +895,9 @@ class LatentPolicy(nn.Module):
         # - Return logits, not softmax probabilities.
         super().__init__()
 
-        self.state_dim = config.state_channels * config.grid_size * config.grid_size        
+        raise NotImplementedError("Build the latent policy.")
 
-        self.net = nn.Sequential(nn.Linear(in_features=self.state_dim, out_features=config.hidden_dim),
-                                nn.ReLU(inplace=True),
-                                nn.Linear(in_features=config.hidden_dim, out_features=config.num_actions))
 
-        #raise NotImplementedError("Build the latent policy.")
 
     def forward(self, latents: torch.Tensor) -> torch.Tensor:
         """Return action logits."""
@@ -988,9 +909,7 @@ class LatentPolicy(nn.Module):
 
         #full_state=latents, this is the same
 
-        logits = self.net(latents)
-        return logits
-        #raise NotImplementedError("Run the latent policy.")
+        raise NotImplementedError("Run the latent policy.")
 
 
 def compute_world_model_loss(
@@ -1006,22 +925,10 @@ def compute_world_model_loss(
     # 5. Add all four losses.
     # 6. Return `(total_loss, loss_parts)`.
 
-    next_agent_loss = nn.functional.cross_entropy(predictions[0], targets[0].long())
-    reward_mse = nn.functional.mse_loss(predictions[1], targets[1])
-    cost_loss = nn.functional.binary_cross_entropy_with_logits(predictions[2], targets[2])
-    done_loss = nn.functional.binary_cross_entropy_with_logits(predictions[3], targets[3])
+    raise NotImplementedError("Compute tiny Dreamer world-model loss.")
 
-    total_loss = next_agent_loss + reward_mse + cost_loss + done_loss
-    loss_parts = {
-        "next_agent_loss": float(next_agent_loss.detach().cpu().item()),
-        "reward_mse": float(reward_mse.detach().cpu().item()),
-        "cost_loss": float(cost_loss.detach().cpu().item()),
-        "done_loss": float(done_loss.detach().cpu().item()),
-    }
 
-    return total_loss, loss_parts
 
-    #raise NotImplementedError("Compute tiny Dreamer world-model loss.")
 
 
 def train_world_model_one_epoch(model: TinyDreamerWorldModel, loader: DataLoader, optimizer: torch.optim.Optimizer) -> float:
@@ -1035,37 +942,11 @@ def train_world_model_one_epoch(model: TinyDreamerWorldModel, loader: DataLoader
     # 6. Clear gradients, backpropagate, and step the optimizer.
     # 7. Return mean loss weighted by batch size.
 
-    model.train()
+    raise NotImplementedError("Train one tiny Dreamer world-model epoch.")
 
-    total_loss = 0
-    num_samples = 0
 
-    for states, actions, next_agent_cells, rewards, costs, dones in loader:
-        states=states.to(device)
-        actions = actions.to(device)
-        next_agent_cells = next_agent_cells.to(device)
-        rewards = rewards.to(device)
-        costs = costs.to(device)
-        dones = dones.to(device)
 
-        pred_next_agent_logits, pred_rewards, pred_cost_logits, pred_dones = model(states, actions)
-        loss, loss_parts = compute_world_model_loss(
-            predictions=[pred_next_agent_logits, pred_rewards, pred_cost_logits, pred_dones],
-            targets=[next_agent_cells, rewards, costs, dones],
-        )
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        batch_size = states.shape[0]
-        total_loss += loss.item() * batch_size
-        num_samples += batch_size
-
-    mean_loss = total_loss/num_samples
-
-    return mean_loss
-    #raise NotImplementedError("Train one tiny Dreamer world-model epoch.")
 
 
 def evaluate_world_model(model: TinyDreamerWorldModel, splits: DreamerDatasetSplits) -> dict[str, float]:
@@ -1082,39 +963,10 @@ def evaluate_world_model(model: TinyDreamerWorldModel, splits: DreamerDatasetSpl
     #    - `val_cost_accuracy`
     #    - `val_done_accuracy`
 
-    model.eval()
+    raise NotImplementedError("Evaluate tiny Dreamer world-model metrics.")
 
-    with torch.no_grad():
-        val_states = splits["val_latents"].to(device)
-        val_actions = splits["val_actions"].to(device)
-        val_next_agent_cells = splits["val_next_agent_cells"].to(device)
-        val_rewards = splits["val_rewards"].to(device)
-        val_costs = splits["val_costs"].to(device)
-        val_dones = splits["val_dones"].to(device)
 
-        pred_next_agent_logits, pred_rewards, pred_cost_logits, pred_done_logits = model(val_states, val_actions)
-        _loss, loss_parts = compute_world_model_loss(
-            predictions=(pred_next_agent_logits, pred_rewards, pred_cost_logits, pred_done_logits),
-            targets=(val_next_agent_cells, val_rewards, val_costs, val_dones),
-        )
 
-        pred_next_agent_cells = pred_next_agent_logits.argmax(dim=-1)
-        next_agent_accuracy = (pred_next_agent_cells == val_next_agent_cells).float().mean().item()
-        pred_costs = (torch.sigmoid(pred_cost_logits) >= 0.5).float()
-        cost_accuracy = (pred_costs == val_costs).float().mean().item()
-        pred_dones = (torch.sigmoid(pred_done_logits) >= 0.5).float()
-        done_accuracy = (pred_dones == val_dones).float().mean().item()
-
-    return {
-        "val_next_agent_loss": loss_parts["next_agent_loss"],
-        "val_next_agent_accuracy": float(next_agent_accuracy),
-        "val_reward_mse": loss_parts["reward_mse"],
-        "val_cost_loss": loss_parts["cost_loss"],
-        "val_cost_accuracy": float(cost_accuracy),
-        "val_done_accuracy": float(done_accuracy),
-    }
-
-    #raise NotImplementedError("Evaluate tiny Dreamer world-model metrics.")
 
 
 def train_world_model(
@@ -1131,48 +983,14 @@ def train_world_model(
     # 7. Track train loss and validation next-agent loss.
     # 8. Return model, splits, histories, and final validation metrics.
     
-    set_seed(config.random_state)
+    raise NotImplementedError("Train the tiny Dreamer world model.")
 
-    splits = build_dreamer_dataset(config)
 
-    train_ds = TensorDataset(
-        splits["train_latents"],
-        splits["train_actions"],
-        splits["train_next_agent_cells"],
-        splits["train_rewards"],
-        splits["train_costs"],
-        splits["train_dones"],
-    )
-    train_loader = DataLoader(train_ds, batch_size=config.batch_size, shuffle=True)
 
-    model = TinyDreamerWorldModel(config).to(device)
-    optimizer = torch.optim.AdamW(params=model.parameters(), lr=config.learning_rate)
 
-    train_losses: list[float] = []
-    val_next_agent_losses: list[float] = []
-    final_metrics: dict[str, float] = {}
 
-    for epoch in range(1, config.world_model_epochs + 1):
-        train_loss = train_world_model_one_epoch(model, train_loader, optimizer)
-        final_metrics = evaluate_world_model(model, splits)
 
-        train_losses.append(float(train_loss))
-        val_next_agent_losses.append(float(final_metrics["val_next_agent_loss"]))
 
-        print(
-            f"epoch {epoch:03d}/{config.world_model_epochs:03d} "
-            f"train_loss={train_loss:.4f} "
-            f"val_next_agent_loss={final_metrics['val_next_agent_loss']:.4f} "
-            f"val_next_agent_accuracy={final_metrics['val_next_agent_accuracy']:.4f} "
-            f"val_reward_mse={final_metrics['val_reward_mse']:.4f} "
-            f"val_cost_loss={final_metrics['val_cost_loss']:.4f} "
-            f"val_cost_accuracy={final_metrics['val_cost_accuracy']:.4f} "
-            f"val_done_accuracy={final_metrics['val_done_accuracy']:.4f}"
-        )
-
-    return model, splits, train_losses, val_next_agent_losses, final_metrics
-
-    #raise NotImplementedError("Train the tiny Dreamer world model.")
 
 
 def imagine_rollout(
@@ -1233,62 +1051,11 @@ def imagine_rollout(
     # Check:
     # - Do not use `argmax` here, because policy training needs gradients.
 
-    imagined_states = []
-    imagined_rewards = []
-    imagined_costs = []
+    raise NotImplementedError("Imagine a differentiable rollout.")
 
-    current_state = start_latents
 
-    for i in range(config.imagination_horizon):
-        action_logits = policy_model(current_state)
-        #action_probabilities = torch.softmax(action_logits, dim=-1)
 
-        action_probabilities = torch.nn.functional.gumbel_softmax(
-            action_logits,
-            tau=1.0,
-            hard=True,
-            dim=-1,
-        )
 
-        pred_next_agent_logits, pred_rewards, pred_cost_logits, pred_dones_logit = world_model(current_state, action_probabilities)
-
-        batch_size = current_state.shape[0]
-
-        current_full_state = current_state.view(batch_size, config.state_channels, config.grid_size, config.grid_size)
-        # `pred_next_agent_logits` is shaped `[batch_size, grid_size * grid_size]`.
-        # With the default grid, that is `[batch_size, 49]`.
-        #
-        # `torch.softmax(..., dim=-1)` turns the 49 raw cell scores into 49
-        # probabilities. Each row sums to `1`, so one row means:
-        # "how likely is each grid cell to be the next agent position?"
-        #
-        # `.view(batch_size, 1, grid_size, grid_size)` reshapes those 49 cell
-        # probabilities back into one image-like channel.
-        #
-        # With the default grid:
-        # `[batch_size, 49] -> [batch_size, 1, 7, 7]`
-        #
-        # The `1` means there is only one channel here: the predicted agent
-        # position channel. Goal, hazard, and wall channels are copied below.
-        next_agent_channel = torch.softmax(pred_next_agent_logits, dim=-1).view(
-            batch_size,
-            1,
-            config.grid_size,
-            config.grid_size,
-        )
-        next_full_state = torch.cat([next_agent_channel, current_full_state[:, 1:]], dim=1)
-        pred_next_states = next_full_state.flatten(start_dim=1)
-        pred_cost_probabilities = torch.sigmoid(pred_cost_logits)
-
-        imagined_states.append(pred_next_states)
-        imagined_rewards.append(pred_rewards)
-        imagined_costs.append(pred_cost_probabilities)
-
-        current_state = pred_next_states
-
-    return imagined_states, imagined_rewards, imagined_costs
-
-    #raise NotImplementedError("Imagine a differentiable rollout.")
 
 
 def policy_loss_from_imagination(rewards: list[torch.Tensor], costs: list[torch.Tensor], config: TinyDreamerConfig) -> torch.Tensor:
@@ -1348,21 +1115,10 @@ def policy_loss_from_imagination(rewards: list[torch.Tensor], costs: list[torch.
     # 4. Take the mean over the batch.
     # 5. Negate it because PyTorch minimizes losses.
 
-    if not rewards:
-        raise ValueError("rewards must contain at least one imagined step.")
-    if len(rewards) != len(costs):
-        raise ValueError("rewards and costs must have the same number of imagined steps.")
+    raise NotImplementedError("Compute policy loss from imagined rewards and costs.")
 
-    step_scores = []
-    for reward, cost in zip(rewards, costs):
-        safe_cost = torch.clamp(cost, min=0.0)
-        step_scores.append(reward - config.cost_weight * safe_cost)
 
-    rollout_scores = torch.stack(step_scores, dim=0).sum(dim=0)
-    policy_loss = -rollout_scores.mean()
 
-    return policy_loss
-    #raise NotImplementedError("Compute policy loss from imagined rewards and costs.")
 
 
 def train_policy_with_imagination(
@@ -1407,50 +1163,13 @@ def train_policy_with_imagination(
     # - The real environment is not stepped during policy training.
     # - The world model should not be updated during policy training.
 
-    world_model.eval()
-    for param in world_model.parameters():
-        param.requires_grad = False
+    raise NotImplementedError("Train policy through imagined rollouts.")
 
-    policy_model = LatentPolicy(config).to(device)
-    optimizer = torch.optim.AdamW(params=policy_model.parameters(), lr=config.learning_rate)
 
-    policy_model.train()
 
-    start_states_data = splits["train_latents"].to(device)
-    start_ds = TensorDataset(start_states_data)
-    start_states_loader = DataLoader(start_ds, batch_size=config.batch_size, shuffle=True)
-    imagined_returns: list[float] = []
 
-    for epoch in range(1, config.policy_epochs + 1):
-        total_imagined_return = 0.0
-        num_samples = 0
 
-        for (start_states,) in start_states_loader:
-            start_states = start_states.to(device)
 
-            imagined_states, imagined_rewards, imagined_costs = imagine_rollout(world_model, policy_model, start_states, config)
-
-            loss = policy_loss_from_imagination(imagined_rewards, imagined_costs, config)
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            batch_size = start_states.shape[0]
-            total_imagined_return += -float(loss.detach().cpu().item()) * batch_size
-            num_samples += batch_size
-
-        mean_imagined_return = total_imagined_return / num_samples
-        imagined_returns.append(mean_imagined_return)
-
-        print(
-            f"policy epoch {epoch:03d}/{config.policy_epochs:03d} "
-            f"imagined_return={mean_imagined_return:.4f}"
-        )
-
-    return policy_model, imagined_returns
-
-    #raise NotImplementedError("Train policy through imagined rollouts.")
 
 
 def choose_policy_action(policy_model: LatentPolicy, latent: torch.Tensor) -> int:
@@ -1463,14 +1182,9 @@ def choose_policy_action(policy_model: LatentPolicy, latent: torch.Tensor) -> in
     #
     # This is okay for real evaluation because we are not training here.
 
-    with torch.no_grad():
-        latent = latent.to(device)
-        action_logits = policy_model(latent.unsqueeze(dim=0))   #add a fake batch dim
-        highest_action = torch.argmax(action_logits, dim=-1)
+    raise NotImplementedError("Choose one policy action for real evaluation.")
 
-    return highest_action.item()
 
-    #raise NotImplementedError("Choose one policy action for real evaluation.")
 
 
 def rollout_policy_in_real_scene(policy_model: LatentPolicy, scene: Scene, config: TinyDreamerConfig) -> RealPolicyRollout:
@@ -1488,44 +1202,11 @@ def rollout_policy_in_real_scene(policy_model: LatentPolicy, scene: Scene, confi
     # Check:
     # - Real evaluation rewards and costs must come from `step_grid_world(...)`.
     
-    agent, goal, hazards, walls = scene
-    grid_config = make_visual_grid_config(config)
+    raise NotImplementedError("Roll out learned policy in the real grid-world.")
 
-    states = [agent]
-    actions = []
-    total_return = 0.0
-    total_cost = 0.0
-    reached_goal = False
 
-    for _ in range(config.max_steps):
-        current_state = encode_full_grid_state(current_position=agent, goal_position=goal,
-                                                hazard_positions=hazards, wall_positions=walls,
-                                                config=grid_config,
-                                                ).flatten()
 
-        action = choose_policy_action(policy_model, current_state)
-        next_agent, reward, cost, done = step_grid_world(agent, action, goal, hazards, walls, grid_config)
 
-        actions.append(action)
-        total_return += float(reward)
-        total_cost += float(cost)
-        states.append(next_agent)
-
-        agent = next_agent
-        reached_goal = agent == goal
-        if done:
-            break
-
-    return {
-        "states": states,
-        "actions": actions,
-        "total_return": total_return,
-        "total_cost": total_cost,
-        "reached_goal": reached_goal,
-        "steps": len(actions),
-    }
-
-    #raise NotImplementedError("Roll out learned policy in the real grid-world.")
 
 
 def build_eval_scenes(config: TinyDreamerConfig) -> list[Scene]:
@@ -1536,18 +1217,11 @@ def build_eval_scenes(config: TinyDreamerConfig) -> list[Scene]:
     # 3. Call `make_grid_scene(grid_config, rng)` until you have `config.num_eval_scenes`.
     # 4. Return the scenes.
     
-    scenes = []
+    raise NotImplementedError("Build held-out Dreamer evaluation scenes.")
 
-    grid_config = make_visual_grid_config(config)
-    rng = random.Random(config.random_state + 20_000)
 
-    for i in range(config.num_eval_scenes):        
-        scene = make_grid_scene(grid_config, rng)
-        scenes.append(scene)
 
-    return scenes
 
-    #raise NotImplementedError("Build held-out Dreamer evaluation scenes.")
 
 
 def evaluate_policy_in_real_world(policy_model: LatentPolicy, config: TinyDreamerConfig) -> tuple[dict[str, float], list[RealPolicyRollout], list[Scene]]:
@@ -1561,22 +1235,11 @@ def evaluate_policy_in_real_world(policy_model: LatentPolicy, config: TinyDreame
     #    - `real_mean_cost`
     # 4. Return metrics, rollouts, and scenes.
 
-    scenes = build_eval_scenes(config)
-    rollouts = [rollout_policy_in_real_scene(policy_model, scene, config) for scene in scenes]
+    raise NotImplementedError("Evaluate tiny Dreamer policy in the real world.")
 
-    real_success_rate = sum(float(rollout["reached_goal"]) for rollout in rollouts) / len(rollouts)
-    real_mean_return = sum(rollout["total_return"] for rollout in rollouts) / len(rollouts)
-    real_mean_cost = sum(rollout["total_cost"] for rollout in rollouts) / len(rollouts)
 
-    metrics = {
-        "real_success_rate": real_success_rate,
-        "real_mean_return": real_mean_return,
-        "real_mean_cost": real_mean_cost,
-    }
 
-    return metrics, rollouts, scenes
 
-    #raise NotImplementedError("Evaluate tiny Dreamer policy in the real world.")
 
 
 def save_training_curves(world_losses: list[float], val_next_agent_losses: list[float], config: TinyDreamerConfig) -> str:
@@ -1587,29 +1250,12 @@ def save_training_curves(world_losses: list[float], val_next_agent_losses: list[
     # Method:
     # Use Matplotlib with `matplotlib.use("Agg")`.
     # Plot world-model train loss and validation next-agent loss.
-    import matplotlib
+    raise NotImplementedError("Save tiny Dreamer training curves.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    path = config.output_dir / "training_curves.png"
 
-    epochs = list(range(1, len(world_losses) + 1))
-    fig, ax = plt.subplots(figsize=(7, 4))
-    ax.plot(epochs, world_losses, label="train loss")
-    ax.plot(epochs, val_next_agent_losses, label="val next-agent loss")
-    ax.set_title("World Model Training")
-    ax.set_xlabel("epoch")
-    ax.set_ylabel("loss")
-    ax.legend()
-    fig.tight_layout()
-    fig.savefig(path)
-    plt.close(fig)
 
-    return str(path)
 
-    #raise NotImplementedError("Save tiny Dreamer training curves.")
 
 
 def save_imagined_return_curve(imagined_returns: list[float], config: TinyDreamerConfig) -> str:
@@ -1619,28 +1265,12 @@ def save_imagined_return_curve(imagined_returns: list[float], config: TinyDreame
     #
     # Method:
     # Plot policy epoch on the x-axis and imagined return on the y-axis.
-    import matplotlib
+    raise NotImplementedError("Save imagined return curve.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    path = config.output_dir / "imagined_return_curve.png"
 
-    epochs = list(range(1, len(imagined_returns) + 1))
-    fig, ax = plt.subplots(figsize=(7, 4))
-    ax.plot(epochs, imagined_returns, label="imagined return")
-    ax.set_title("Policy Training In Imagination")
-    ax.set_xlabel("epoch")
-    ax.set_ylabel("mean imagined return")
-    ax.legend()
-    fig.tight_layout()
-    fig.savefig(path)
-    plt.close(fig)
 
-    return str(path)
 
-    #raise NotImplementedError("Save imagined return curve.")
 
 
 def save_real_rollout_plot(scene: Scene, rollout: RealPolicyRollout, config: TinyDreamerConfig) -> str:
@@ -1653,39 +1283,15 @@ def save_real_rollout_plot(scene: Scene, rollout: RealPolicyRollout, config: Tin
     # 2. Plot the image.
     # 3. Overlay the policy path.
     # 4. Save and close the plot.
-    import matplotlib
+    raise NotImplementedError("Save real policy rollout plot.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    path = config.output_dir / "real_policy_rollout.png"
 
-    agent, goal, hazards, walls = scene
-    grid_config = make_visual_grid_config(config)
-    image = render_grid_image(agent, goal, hazards, walls, grid_config)
 
-    fig, ax = plt.subplots(figsize=(5, 5))
-    ax.imshow(image.permute(1, 2, 0).cpu().numpy())
 
-    cell_size = config.image_size / config.grid_size
-    rows = [position[0] for position in rollout["states"]]
-    cols = [position[1] for position in rollout["states"]]
-    xs = [(col + 0.5) * cell_size for col in cols]
-    ys = [(row + 0.5) * cell_size for row in rows]
 
-    ax.plot(xs, ys, color="purple", linewidth=2.5, marker="o", markersize=4, label="policy path")
-    ax.set_title("Real Policy Rollout")
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.legend(loc="lower right")
-    fig.tight_layout()
-    fig.savefig(path)
-    plt.close(fig)
 
-    return str(path)
 
-    #raise NotImplementedError("Save real policy rollout plot.")
 
 
 def run_tiny_dreamer_demo(config: TinyDreamerConfig) -> TinyDreamerMetrics:
@@ -1700,38 +1306,12 @@ def run_tiny_dreamer_demo(config: TinyDreamerConfig) -> TinyDreamerMetrics:
     # Checks:
     # - Return real evaluation metrics, not only imagined return.
     # - Do not train the policy before the world model exists.
-    world_model, splits, world_losses, val_next_agent_losses, world_metrics = train_world_model(config)
-    policy, imagined_returns = train_policy_with_imagination(world_model, splits, config)
-    policy_metrics, rollouts, scenes = evaluate_policy_in_real_world(policy, config)
+    raise NotImplementedError("Run the tiny Dreamer-style training demo.")
 
-    training_curve_path = save_training_curves(world_losses, val_next_agent_losses, config)
-    imagined_return_curve_path = save_imagined_return_curve(imagined_returns, config)
-    real_rollout_plot_path = save_real_rollout_plot(scenes[1], rollouts[0], config)
 
-    metrics: TinyDreamerMetrics = {
-        "final_world_model_loss": float(world_losses[-1]),
-        "val_next_agent_loss": float(world_metrics["val_next_agent_loss"]),
-        "val_next_agent_accuracy": float(world_metrics["val_next_agent_accuracy"]),
-        "val_reward_mse": float(world_metrics["val_reward_mse"]),
-        "val_cost_loss": float(world_metrics["val_cost_loss"]),
-        "val_cost_accuracy": float(world_metrics["val_cost_accuracy"]),
-        "val_done_accuracy": float(world_metrics["val_done_accuracy"]),
-        "final_imagined_return": float(imagined_returns[-1]),
-        "real_success_rate": float(policy_metrics["real_success_rate"]),
-        "real_mean_return": float(policy_metrics["real_mean_return"]),
-        "real_mean_cost": float(policy_metrics["real_mean_cost"]),
-        "training_curve_path": training_curve_path,
-        "imagined_return_curve_path": imagined_return_curve_path,
-        "real_rollout_plot_path": real_rollout_plot_path,
-    }
 
-    print("Final tiny Dreamer metrics:")
-    for key, value in metrics.items():
-        print(f"{key}: {value}")
 
-    return metrics
 
-    #raise NotImplementedError("Run the tiny Dreamer-style training demo.")
 
 
 def explain_tiny_dreamer() -> str:

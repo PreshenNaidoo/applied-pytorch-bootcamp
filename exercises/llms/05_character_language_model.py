@@ -202,6 +202,7 @@ from common.training_checks import print_pass_or_try_again
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
+@dataclass
 class CharacterLanguageModelConfig:
     """Settings for the character language-model exercise."""
 
@@ -241,7 +242,6 @@ def describe_language_model_shapes(config: CharacterLanguageModelConfig) -> dict
         "metric_note": "val_perplexity means exp(val_loss) over the whole validation loader.",
     }
 
-        #raise NotImplementedError("Run the character language model and return raw logits.")
 
 
 # Load the raw text corpus.
@@ -251,15 +251,11 @@ def describe_language_model_shapes(config: CharacterLanguageModelConfig) -> dict
 # If the file is missing, you may download it first, then return the loaded text.
 def load_raw_text(config: CharacterLanguageModelConfig) -> str:
 
-    with open(file=f"{PROJECT_ROOT}/data/input.txt", mode="r", encoding="utf-8") as f:
-        text = f.read()
+    raise NotImplementedError("Return the full Tiny Shakespeare text as one Python string.")
 
-    print("length of dataset in characters: ", len(text))
     #print(text[:100])
 
-    return text
 
-    #raise NotImplementedError("Return the full Tiny Shakespeare text as one Python string.")
 
 
 # Split the raw text into train, validation, and test text sections.
@@ -277,16 +273,11 @@ def load_raw_text(config: CharacterLanguageModelConfig) -> str:
 # - it also avoids mixing together pieces of text in a confusing way
 def split_text_corpus(raw_text: str) -> dict[str, str]:    
     
-    num_train, num_val = int(len(raw_text) * 0.6), int(len(raw_text) * 0.2)
-
-    train_text = raw_text[:num_train]
-    val_text = raw_text[num_train:num_train+num_val]
-    test_text = raw_text[num_train+num_val:]
-
-    return {"train_text": train_text, "val_text": val_text, "test_text": test_text}
+    raise NotImplementedError("Return the raw text split into contiguous train, val, and test sections.")
 
 
-    #raise NotImplementedError("Return the raw text split into contiguous train, val, and test sections.")
+
+
 
 
 class CharTokenDataset(torch.utils.data.Dataset):
@@ -313,7 +304,6 @@ class CharTokenDataset(torch.utils.data.Dataset):
 
 
 
-@dataclass
 
 # Build the train, validation, and test dataloaders.
 # Return a dict with exactly these keys:
@@ -350,36 +340,19 @@ class CharTokenDataset(torch.utils.data.Dataset):
 # - target is "ell"
 def load_dataloaders(config: CharacterLanguageModelConfig) -> dict[str, DataLoader]:
 
-    raw_text = load_raw_text(config)
-    text_dict = split_text_corpus(raw_text)
+    raise NotImplementedError("Return train, val, and test dataloaders for next-character prediction.")
 
-    train_text = text_dict["train_text"]
 
-    vocabulary = sorted(list(set(train_text + text_dict["val_text"])))
-    vocab_size = len(vocabulary)
 
-    print(f"VOCAB SIZE: {vocab_size}")
-    print(f"Vocabulary: {''.join(vocabulary)}")
 
-    str_to_int = {c:i for i, c in enumerate(vocabulary)}
-    int_to_str = {i:c for i ,c in enumerate(vocabulary)}
     # encode = lambda s: [str_to_int[c] for c in s]
     # decode = lambda l: "".join(int_to_str[i] for i in l)
 
     # print(f"Encoded string: {encode('Hello World!')}")
     # print(f"Decoded string: {decode(encode('Hello World!'))}")
 
-    train_ds = CharTokenDataset(text=train_text, context_length=config.context_length, vocab_dict=str_to_int)
-    val_ds = CharTokenDataset(text=text_dict["val_text"], context_length=config.context_length, vocab_dict=str_to_int)
-    test_ds = CharTokenDataset(text=text_dict["test_text"], context_length=config.context_length, vocab_dict=str_to_int)
 
-    config.vocab_size = vocab_size
-    config.str_to_int = str_to_int
-    config.int_to_str = int_to_str
 
-    return {"train": torch.utils.data.DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True),
-            "val": torch.utils.data.DataLoader(dataset=val_ds, batch_size=config.batch_size),
-            "test": torch.utils.data.DataLoader(dataset=test_ds, batch_size=config.batch_size)}
 
 
 
@@ -394,8 +367,7 @@ class CharacterLanguageModel(nn.Module):
 
     def __init__(self, vocab_size: int, config: CharacterLanguageModelConfig) -> None:
         super().__init__()
-        self.vocab_size = vocab_size
-        self.config = config
+        raise NotImplementedError("Build the embedding layer, one GRU, and the vocabulary prediction head.")
         # Beginner-friendly build order:
         # 1. character embedding layer
         # 2. one GRU
@@ -427,13 +399,9 @@ class CharacterLanguageModel(nn.Module):
         # - output position 1 has seen `h e` and should predict `l`
         # - output position 2 has seen `h e l` and should predict the next `l`
 
-        self.embed = nn.Embedding(num_embeddings=vocab_size, embedding_dim=config.embedding_dim)
 
-        self.lstm = nn.LSTM(input_size = config.embedding_dim, hidden_size=config.hidden_dim, batch_first=True)
 
-        self.classifier_head = nn.Linear(in_features=config.hidden_dim, out_features=vocab_size)
 
-        #raise NotImplementedError("Build the embedding layer, one GRU, and the vocabulary prediction head.")
 
     def forward(self, input_ids: torch.Tensor) -> torch.Tensor:
         """Return raw next-character logits.
@@ -461,8 +429,7 @@ class CharacterLanguageModel(nn.Module):
 
         # input_ids shape: # [batch_size, context_length]   (32, 64)
 
-        embeddings = self.embed(input_ids)  # [batch_size, context_length, embedding_dim]  (32, 64, 96)
-        lstm_output, (hidden_state, cell_state) = self.lstm(embeddings)  # lstm_output.shape [batch_size, context_length, hidden_dim]
+        raise NotImplementedError("Run the character language model and return raw logits.")
         # lstm_output.shape (32, 64, 128)
         # hidden_state.shape (1, 64, 128)
         # cell_state.shape (1, 64, 128)
@@ -481,7 +448,6 @@ class CharacterLanguageModel(nn.Module):
         # For this exercise, you mostly need lstm_output, because it gives you one output for every time step. 
         # That lets your classifier head make one next-character prediction at every position.
 
-        logits = self.classifier_head(lstm_output)  # (32, 64, 65)
 
         # 32 = batch size
         # 64 = number of character positions in each input window
@@ -500,10 +466,8 @@ class CharacterLanguageModel(nn.Module):
         # can choose from. So each position gets 65 scores, one score per possible next character. A bigger 
         # score means �the model thinks this character is more likely.�
 
-        return logits
 
 
-    #raise NotImplementedError("Return train, val, and test dataloaders for next-character prediction.")
 
 
 # Build the model, loss, and optimizer.
@@ -514,14 +478,9 @@ class CharacterLanguageModel(nn.Module):
 # Use `nn.CrossEntropyLoss`.
 def build_training_objects(config: CharacterLanguageModelConfig) -> tuple[nn.Module, nn.Module, torch.optim.Optimizer]:
 
-    model = CharacterLanguageModel(vocab_size = config.vocab_size, config=config)
-    model = model.to(device)
+    raise NotImplementedError("Return the character language model, CrossEntropyLoss, and optimizer.")
 
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(lr=config.learning_rate, params=model.parameters())
 
-    return model, loss_fn, optimizer
-    #raise NotImplementedError("Return the character language model, CrossEntropyLoss, and optimizer.")
 
 
 # Run one full training epoch.
@@ -588,43 +547,12 @@ def train_one_epoch(
 ) -> dict[str, float]:
 
 
-    model.train()
+    raise NotImplementedError("Return the mean train loss and train perplexity for one full epoch.")
 
-    losses = []
-    perplexities = []
 
-    for data_dict in loader:
-        input_ids = data_dict["input_ids"]
-        target_ids = data_dict["target_ids"]
 
-        input_ids = input_ids.to(device)
-        target_ids = target_ids.to(device)
 
-        optimizer.zero_grad()
 
-        # input_ids shape is (32, 64)
-        # target_ids shape is (32, 64)    
-
-        logits = model(input_ids) # output shape is (32, 64, 65)
-
-        flatten_logits = torch.flatten(logits, start_dim=0, end_dim=1) # output shape is (2048, 65)
-        flatten_targets = torch.flatten(target_ids) # output shape is (2048)
-
-        loss = loss_fn(flatten_logits, flatten_targets)
-        loss.backward()
-        optimizer.step()
-
-        losses.append(loss.item())
-
-        perplexity = torch.exp(loss)
-        perplexities.append(perplexity.item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_perp = torch.tensor(perplexities).mean().item()
-
-    return {"loss": mean_loss, "perplexity": mean_perp}
-
-    #raise NotImplementedError("Return the mean train loss and train perplexity for one full epoch.")
 
 
 # Run one full evaluation pass.
@@ -643,36 +571,12 @@ def train_one_epoch(
 @torch.no_grad()
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[str, float]:
 
-    model.eval()
+    raise NotImplementedError("Return the mean loss and perplexity for the loader you evaluate.")
 
-    losses = []
-    perplexities = []
 
-    for data_dict in loader:
-        input_ids = data_dict["input_ids"]
-        target_ids = data_dict["target_ids"]
 
-        input_ids = input_ids.to(device)
-        target_ids = target_ids.to(device)
 
-        logits = model(input_ids)
 
-        flatten_logits = torch.flatten(logits, start_dim=0, end_dim=1)
-        flatten_targets = torch.flatten(target_ids)
-
-        loss = loss_fn(flatten_logits, flatten_targets)
-
-        losses.append(loss.item())
-
-        perplexity = torch.exp(loss)
-        perplexities.append(perplexity.item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_perp = torch.tensor(perplexities).mean().item()
-
-    return {"loss": mean_loss, "perplexity": mean_perp}
-
-    #raise NotImplementedError("Return the mean loss and perplexity for the loader you evaluate.")
 
 
 # Generate a short text sample from a finished model.
@@ -696,13 +600,9 @@ def generate_text(model: nn.Module, start_text: str, config: CharacterLanguageMo
     # - the model guesses one next character
     # - then that new character becomes part of the context for the next guess
 
-    if not start_text:
-        start_text = 'hello'
+    raise NotImplementedError("Generate and return one short character sample.")
 
-    encode = lambda s: [config.str_to_int[c] for c in s]
-    decode = lambda l: "".join(config.int_to_str[i] for i in l)
 
-    context_text = start_text[-config.context_length:]
     # `start_text[-config.context_length:]` takes only the last `context_length` characters 
     # from `start_text`. This is useful during generation because the model was trained to use 
     # a limited text window, not the full text history forever. If `start_text` is longer 
@@ -723,31 +623,11 @@ def generate_text(model: nn.Module, start_text: str, config: CharacterLanguageMo
 
     # model.parameters() gives an iterator next(...) gets the first parameter, 
     # and .device tells you where the model is, like CPU or GPU.
-    model_device = next(model.parameters()).device 
 
-    character_ids = torch.tensor(encode(context_text), dtype=torch.long)        # shape = (5)
-    character_ids = character_ids.unsqueeze(dim=0)                              # shape = (1, 5)  i.e. 1 sample with 5 characters
-    character_ids = character_ids.to(model_device)
 
-    generated = []
-    for i in range(config.sample_length):
-        logits = model(character_ids)   # output shape is (1, 5, 65)        
-        last_vec = logits[0, -1, :]           # output shape is (65)
-        next_char = torch.argmax(last_vec).long()
 
-        next_char = next_char.to(model_device)
 
-        generated.append(next_char.item())
 
-        next_char = next_char.reshape(1, 1) # shape = (1, 1)
-        character_ids = torch.concat([character_ids, next_char], dim=1)
-        character_ids = character_ids[:,-config.context_length:]
-
-    decoded_text = start_text + decode(generated)
-
-    return decoded_text
-
-    #raise NotImplementedError("Generate and return one short character sample.")
 
 
 # Run the full training flow.
@@ -760,27 +640,13 @@ def generate_text(model: nn.Module, start_text: str, config: CharacterLanguageMo
 # This is the final epoch summary, not a history list.
 def run_training(config: CharacterLanguageModelConfig) -> dict[str, float]:
 
-    torch.manual_seed(config.random_state)
+    raise NotImplementedError("Run the full character language-model training flow and return the final metrics.")
 
-    loaders = load_dataloaders(config)
-    model, loss_fn, optimizer = build_training_objects(config)
 
-    for i in range(config.epochs):
 
-        train_dict = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-        val_dict = evaluate(model, loaders["val"], loss_fn)
 
-        print(f"Epoch {i+1} -> loss: {train_dict['loss']}, perp: {train_dict['perplexity']}, val_loss: {val_dict['loss']}, val_perp: {val_dict['perplexity']}")
 
-    test_dict = evaluate(model, loaders["test"], loss_fn)
-    print(f"Test results -> loss: {test_dict['loss']}, perp: {test_dict['perplexity']}")
 
-    print(f"\n GENERATED: \n {generate_text(model=model, start_text = 'To be', config=config)}")
-
-    return {"train_loss": train_dict["loss"], 
-            "val_loss": val_dict["loss"], "val_perplexity": val_dict["perplexity"]}
-
-    #raise NotImplementedError("Run the full character language-model training flow and return the final metrics.")
 
 
 

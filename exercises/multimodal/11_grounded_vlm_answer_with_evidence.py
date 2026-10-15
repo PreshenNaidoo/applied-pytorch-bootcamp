@@ -227,62 +227,12 @@ def build_grounded_dataset(config: GroundedVLMConfig) -> list[GroundedExample]:
     # - Box values should be between 0 and 1.
     # - `x_min < x_max` and `y_min < y_max`.
 
-    from datasets import load_dataset
-    import torchvision
+    raise NotImplementedError("Build grounded image-answer-box data.")
 
-    data = load_dataset(path=config.hf_dataset_name, split=f"train[:{config.sample_size}]")
 
-    transform = torchvision.transforms.Compose([
-        torchvision.transforms.Resize((config.image_size, config.image_size)),
-        torchvision.transforms.ToTensor(),
-    ])
 
-    category_names = ["coverall", "face shield", "gloves", "goggles", "mask"]
-    question = "what object is visible?"
-    examples: list[GroundedExample] = []
 
-    for row in data:
-        objects = row.get("objects", {})
-        boxes = objects.get("bbox", [])
-        categories = objects.get("category", objects.get("categories", []))
 
-        if not boxes or not categories:
-            continue
-
-        image = row["image"].convert("RGB")
-        original_width, original_height = image.size
-        image_tensor = transform(image)
-
-        x_min, y_min, width, height = boxes[0]
-        x_max = x_min + width
-        y_max = y_min + height
-
-        box = torch.tensor([
-            x_min / original_width,
-            y_min / original_height,
-            x_max / original_width,
-            y_max / original_height,
-        ], dtype=torch.float32)
-        box = box.clamp(0.0, 1.0)
-
-        if not (box[0] < box[2] and box[1] < box[3]):
-            continue
-
-        category_id = int(categories[0])
-        if 0 <= category_id < len(category_names):
-            answer = category_names[category_id]
-        else:
-            answer = f"category_{category_id}"
-
-        examples.append({
-            "image": image_tensor,
-            "question": question,
-            "answer": answer,
-            "box": box,
-        })
-
-    return examples
-    #raise NotImplementedError("Build grounded image-answer-box data.")
 
 
 def box_iou(boxes_a: torch.Tensor, boxes_b: torch.Tensor) -> torch.Tensor:
@@ -377,32 +327,16 @@ def box_iou(boxes_a: torch.Tensor, boxes_b: torch.Tensor) -> torch.Tensor:
     # the overlap must stop as soon as either box ends.
 
     #a_left, a_top, a_right, a_bot = boxes_a[0], boxes_a[1], boxes_a[2], boxes_a[3]
-    a_left, a_top, a_right, a_bot = boxes_a[:, 0], boxes_a[:, 1], boxes_a[:, 2], boxes_a[:, 3] # because boxes_a is [N, 4]
+    raise NotImplementedError("Compute box IoU.")
 
     #b_left, b_top, b_right, b_bot = boxes_b[0], boxes_b[1], boxes_b[2], boxes_b[3]
-    b_left, b_top, b_right, b_bot = boxes_b[:, 0], boxes_b[:, 1], boxes_b[:, 2], boxes_b[:, 3] # because boxes_b is [N, 4]
 
-    overlap_left = torch.maximum(a_left, b_left)
-    overlap_top = torch.maximum(a_top, b_top)
-    overlap_right = torch.minimum(a_right, b_right)
-    overlap_bot = torch.minimum(a_bot, b_bot)
 
-    overlap_width = (overlap_right - overlap_left).clamp(min=0)
-    overlap_height = (overlap_bot - overlap_top).clamp(min=0)
-    overlap_area = overlap_width * overlap_height
 
-    box_a_width = a_right - a_left
-    box_a_height = a_bot - a_top
-    box_a_area = box_a_width * box_a_height
 
-    box_b_width = b_right - b_left
-    box_b_height = b_bot - b_top
-    box_b_area = box_b_width * box_b_height
 
-    union_area = box_a_area + box_b_area - overlap_area
 
     #iou = overlap_area / union_area   # This can divide by zero if a bad box has zero area.
-    iou = overlap_area / union_area.clamp(min=1e-6)  # This avoids division by zero.
 
     # IoU and Dice both measure overlap, but they divide by different things.
     #
@@ -430,9 +364,7 @@ def box_iou(boxes_a: torch.Tensor, boxes_b: torch.Tensor) -> torch.Tensor:
     # - IoU is stricter because it asks how much of the full covered area overlaps.
     # - Dice often feels more like an overlap similarity score. i.e. Dice is often easier to read as "how much the two shapes match."
 
-    return iou
 
-    #raise NotImplementedError("Compute box IoU.")
 
 
 class TinyGroundedVLM(nn.Module):
@@ -470,32 +402,7 @@ class TinyGroundedVLM(nn.Module):
         # - Answer logits should have width `num_answers`.
         # - Box predictions should have exactly 4 values per image.
 
-        self.config = config
-        self.image_encoder = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2),
-            nn.Conv2d(64, config.hidden_size, kernel_size=3, padding=1),
-            nn.ReLU(),
-        )
-        self.answer_pool = nn.Sequential(
-            nn.AdaptiveAvgPool2d((1, 1)),
-            nn.Flatten(),
-        )
-        self.answer_head = nn.Linear(config.hidden_size, num_answers)
-        self.box_pool = nn.Sequential(
-            nn.AdaptiveAvgPool2d((4, 4)),
-            nn.Flatten(),
-        )
-        self.box_head = nn.Sequential(
-            nn.Linear(config.hidden_size * 4 * 4, config.hidden_size),
-            nn.ReLU(),
-            nn.Linear(config.hidden_size, 4),
-        )
-        #raise NotImplementedError("Build grounded VLM model.")
+        raise NotImplementedError("Build grounded VLM model.")
 
     def forward(self, images: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Return answer logits and predicted boxes."""
@@ -526,14 +433,8 @@ class TinyGroundedVLM(nn.Module):
         # Check:
         # - Do not apply softmax to answer logits.
 
-        spatial_features = self.image_encoder(images)  # [batch_size, 3, 64, 64] -> [batch_size, 96, 16, 16]
-        answer_features = self.answer_pool(spatial_features)  # [batch_size, 96, 16, 16] -> [batch_size, 96]
-        box_features = self.box_pool(spatial_features)  # [batch_size, 96, 16, 16] -> [batch_size, 96 * 4 * 4]
-        answer_logits = self.answer_head(answer_features)  # [batch_size, 96] -> [batch_size, num_answers]
-        predicted_boxes = torch.sigmoid(self.box_head(box_features))  # [batch_size, 96 * 4 * 4] -> [batch_size, 4]
+        raise NotImplementedError("Predict answer logits and boxes.")
 
-        return answer_logits, predicted_boxes
-        #raise NotImplementedError("Predict answer logits and boxes.")
 
 
 def compute_grounded_loss(
@@ -565,17 +466,13 @@ def compute_grounded_loss(
     # - `answer_ids` should have dtype `torch.long`.
     # - `predicted_boxes.shape == target_boxes.shape`.
 
-    answer_loss = nn.CrossEntropyLoss()(answer_logits, answer_ids)
+    raise NotImplementedError("Compute answer plus box loss.")
     # L1 loss is mean absolute error.
     # Behind the scenes it is roughly:
     # absolute_errors = torch.abs(predicted_boxes - target_boxes)
     # box_loss = absolute_errors.mean()
     # For boxes, this compares left, top, right, and bottom coordinates one by one.
-    box_loss = nn.L1Loss()(predicted_boxes, target_boxes)
-    total_loss = answer_loss + 4.0 * box_loss
 
-    return total_loss
-    #raise NotImplementedError("Compute answer plus box loss.")
 
 
 def is_answer_supported(prediction: GroundedPrediction, target_answer: str, target_box: torch.Tensor, config: GroundedVLMConfig) -> bool:
@@ -598,13 +495,8 @@ def is_answer_supported(prediction: GroundedPrediction, target_answer: str, targ
     # Check:
     # - A correct answer with a bad box should be unsupported.
 
-    answer_matches = prediction["answer"] == target_answer
-    pred_box = prediction["box"].unsqueeze(0)
-    target_box_batch = target_box.unsqueeze(0)
-    iou_value = box_iou(pred_box, target_box_batch).item()
+    raise NotImplementedError("Check whether answer is supported by the evidence box.")
 
-    return answer_matches and iou_value >= config.iou_threshold
-    #raise NotImplementedError("Check whether answer is supported by the evidence box.")
 
 
 def train_one_epoch(model: TinyGroundedVLM, loader: DataLoader, optimizer: torch.optim.Optimizer) -> float:
@@ -630,28 +522,9 @@ def train_one_epoch(model: TinyGroundedVLM, loader: DataLoader, optimizer: torch
     # Check:
     # - Return mean loss over examples.
 
-    model.train()
-    total_loss = 0.0
-    total_examples = 0
+    raise NotImplementedError("Train one grounded VLM epoch.")
 
-    for batch in loader:
-        images = batch["image"].to(device)
-        answer_ids = batch["answer_id"].to(device)
-        target_boxes = batch["box"].to(device)
 
-        answer_logits, predicted_boxes = model(images)
-        loss = compute_grounded_loss(answer_logits, predicted_boxes, answer_ids, target_boxes)
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        batch_size = images.shape[0]
-        total_loss += loss.item() * batch_size
-        total_examples += batch_size
-
-    return total_loss / total_examples
-    #raise NotImplementedError("Train one grounded VLM epoch.")
 
 
 def evaluate_grounding(model: TinyGroundedVLM, examples: list[GroundedExample], config: GroundedVLMConfig) -> GroundingMetrics:
@@ -679,63 +552,12 @@ def evaluate_grounding(model: TinyGroundedVLM, examples: list[GroundedExample], 
     #
     # Check:
     # - Supported answer rate should be no higher than answer accuracy.
-    answer_to_id = {answer: index for index, answer in enumerate(sorted({example["answer"] for example in examples}))}
-    id_to_answer = {index: answer for answer, index in answer_to_id.items()}
+    raise NotImplementedError("Evaluate grounded answers.")
 
-    model.eval()
-    correct_answers = 0
-    supported_answers = 0
-    total_iou = 0.0
 
-    with torch.no_grad():
-        for example in examples:
-            image = example["image"].unsqueeze(0).to(device)  # [3, H, W] -> [1, 3, H, W]
-            target_box = example["box"]  # [4]
-            target_answer = example["answer"]
 
-            answer_logits, predicted_boxes = model(image)
-            answer_probs = torch.softmax(answer_logits, dim=-1)  # [1, num_answers]
-            predicted_answer_id = answer_logits.argmax(dim=-1).item()  # scalar int
-            predicted_answer = id_to_answer[predicted_answer_id]
-            predicted_box = predicted_boxes[0].detach().cpu()  # [1, 4] -> [4]
-            confidence = answer_probs.max(dim=-1).values.item()
 
-            if predicted_answer == target_answer:
-                correct_answers += 1
 
-            iou_value = box_iou(predicted_box.unsqueeze(0), target_box.unsqueeze(0)).item()
-            total_iou += iou_value
-
-            prediction: GroundedPrediction = {
-                "answer": predicted_answer,
-                "box": predicted_box,
-                "confidence": confidence,
-            }
-
-            if is_answer_supported(prediction, target_answer, target_box, config):
-                supported_answers += 1
-
-    total_examples = len(examples)
-    if total_examples == 0:
-        return {
-            "answer_accuracy": 0.0,
-            "mean_iou": 0.0,
-            "supported_answer_rate": 0.0,
-            "rejected_unsupported_count": 0,
-            "box_visual_path": "",
-            "loss_curve_path": "",
-        }
-
-    return {
-        "answer_accuracy": correct_answers / total_examples,
-        "mean_iou": total_iou / total_examples,
-        "supported_answer_rate": supported_answers / total_examples,
-        "rejected_unsupported_count": total_examples - supported_answers,
-        "box_visual_path": "",
-        "loss_curve_path": "",
-    }
-
-    #raise NotImplementedError("Evaluate grounded answers.")
 
 
 def save_box_visualization(model: TinyGroundedVLM, examples: list[GroundedExample], config: GroundedVLMConfig) -> str:
@@ -761,86 +583,16 @@ def save_box_visualization(model: TinyGroundedVLM, examples: list[GroundedExampl
     #
     # Check:
     # - The saved image should make unsupported answers easy to spot.
-    import matplotlib
+    raise NotImplementedError("Save box visualization.")
 
-    matplotlib.use("Agg")
-    import matplotlib.patches as patches
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = config.output_dir / "grounded_vlm_boxes.png"
 
-    answer_to_id = {answer: index for index, answer in enumerate(sorted({example["answer"] for example in examples}))}
-    id_to_answer = {index: answer for answer, index in answer_to_id.items()}
 
-    selected_examples = examples[: min(4, len(examples))]
-    if len(selected_examples) == 0:
-        return str(output_path)
 
-    fig, axes = plt.subplots(1, len(selected_examples), figsize=(4 * len(selected_examples), 4.6))
-    if len(selected_examples) == 1:
-        axes = [axes]
 
-    model.eval()
-    with torch.no_grad():
-        for ax, example in zip(axes, selected_examples):
-            image = example["image"].unsqueeze(0).to(device)  # [3, H, W] -> [1, 3, H, W]
-            answer_logits, predicted_boxes = model(image)
 
-            predicted_answer_id = answer_logits.argmax(dim=-1).item()  # [1, num_answers] -> scalar int
-            predicted_answer = id_to_answer[predicted_answer_id]
-            predicted_box = predicted_boxes[0].detach().cpu()  # [1, 4] -> [4]
-            target_box = example["box"]  # [4]
 
-            image_for_plot = example["image"].permute(1, 2, 0).cpu().numpy()  # [3, H, W] -> [H, W, 3]
-            height, width = image_for_plot.shape[:2]
 
-            def box_to_pixels(box: torch.Tensor) -> tuple[float, float, float, float]:
-                left, top, right, bottom = box.tolist()  # [left, top, right, bottom]
-                x = left * width
-                y = top * height
-                box_width = (right - left) * width
-                box_height = (bottom - top) * height
-                return x, y, box_width, box_height
-
-            target_x, target_y, target_width, target_height = box_to_pixels(target_box)
-            pred_x, pred_y, pred_width, pred_height = box_to_pixels(predicted_box)
-
-            ax.imshow(image_for_plot)
-            ax.add_patch(
-                patches.Rectangle(
-                    (target_x, target_y),
-                    target_width,
-                    target_height,
-                    fill=False,
-                    edgecolor="lime",
-                    linewidth=2,
-                    label="target",
-                )
-            )
-            ax.add_patch(
-                patches.Rectangle(
-                    (pred_x, pred_y),
-                    pred_width,
-                    pred_height,
-                    fill=False,
-                    edgecolor="red",
-                    linewidth=2,
-                    label="predicted",
-                )
-            )
-            ax.set_title(f"target: {example['answer']}\npred: {predicted_answer}", fontsize=9, pad=12)
-            ax.axis("off")
-
-    handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="lower center", ncol=2)
-    fig.subplots_adjust(top=0.82, bottom=0.18, wspace=0.08)
-    fig.savefig(output_path)
-    plt.close(fig)
-
-    return str(output_path)
-
-    #raise NotImplementedError("Save box visualization.")
 
 
 def save_loss_curve(losses: list[float], config: GroundedVLMConfig) -> str:

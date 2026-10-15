@@ -514,19 +514,11 @@ def encode_full_state_action(
     # Checks:
     # - The last four values should contain exactly one `1.0`.
 
-    expected_shape = (config.state_channels, config.grid_size, config.grid_size)
-    if full_state.shape != expected_shape:
-        raise ValueError(f"Expected full_state shape {expected_shape}, got {tuple(full_state.shape)}.")
+    raise NotImplementedError("Encode one state-action pair.")
 
-    if not 0 <= action < config.num_actions:
-        raise ValueError("Invalid action input.")
 
-    action_one_hot = torch.zeros(config.num_actions, dtype=torch.float32, device=full_state.device)
-    action_one_hot[action] = 1.0
 
-    return torch.cat([full_state.float().flatten(), action_one_hot], dim=0)
 
-    #raise NotImplementedError("Encode one state-action pair.")
 
 
 def collect_logged_episodes(config: GridworldPlanningConfig) -> list[list[LoggedGridStep]]:
@@ -559,11 +551,8 @@ def collect_logged_episodes(config: GridworldPlanningConfig) -> list[list[Logged
     # learns from these saved episodes.
 
 
-    grid_config = make_visual_grid_config(config)
-    episodes = collect_visual_gridworld_episodes(grid_config)
-    return episodes
+    raise NotImplementedError("Collect complete logged planning episodes.")
 
-    #raise NotImplementedError("Collect complete logged planning episodes.")
 
 
 def build_planning_dataset(config: GridworldPlanningConfig) -> PlanningDatasetSplits:
@@ -593,64 +582,16 @@ def build_planning_dataset(config: GridworldPlanningConfig) -> PlanningDatasetSp
     # - Inputs and targets must stay aligned.
     # - No episode may appear in both splits.
 
-    episodes = collect_logged_episodes(config)
+    raise NotImplementedError("Build train and validation tensors.")
 
-    shuffled_indices = torch.randperm(n=len(episodes), device=device)
 
-    num_val = int(len(episodes) * config.val_fraction)
 
-    val_indices = shuffled_indices[:num_val]
-    train_indices = shuffled_indices[num_val:]
 
-    val_episodes = [episodes[index.item()] for index in val_indices]
-    train_episodes = [episodes[index.item()] for index in train_indices]
 
-    train_flat_episodes = flatten_logged_episodes(train_episodes)
-    val_flat_episodes = flatten_logged_episodes(val_episodes)
 
-    def build_tensors(steps: list[LoggedGridStep]) -> tuple[torch.Tensor, ...]:
-        inputs: list[torch.Tensor] = []
-        next_position_indices: list[torch.Tensor] = []
-        rewards: list[torch.Tensor] = []
-        costs: list[torch.Tensor] = []
-        dones: list[torch.Tensor] = []
 
-        for step in steps:
-            full_state = step["full_state"].to(device=device, dtype=torch.float32)
-            inputs.append(encode_full_state_action(full_state, int(step["action"]), config))
 
-            next_position_channel = step["next_full_state"][0]
-            next_position_index = int(next_position_channel.flatten().argmax().item())
-            next_position_indices.append(torch.tensor(next_position_index, dtype=torch.long, device=device))
-            rewards.append(torch.tensor([step["reward"]], dtype=torch.float32, device=device))
-            costs.append(torch.tensor([step["cost"]], dtype=torch.float32, device=device))
-            dones.append(torch.tensor([float(step["done"])], dtype=torch.float32, device=device))
 
-        return (
-            torch.stack(inputs),
-            torch.stack(next_position_indices),
-            torch.stack(rewards),
-            torch.stack(costs),
-            torch.stack(dones),
-        )
-
-    train_tensors = build_tensors(train_flat_episodes)
-    val_tensors = build_tensors(val_flat_episodes)
-
-    return {
-        "train_inputs": train_tensors[0],
-        "train_next_position_indices": train_tensors[1],
-        "train_rewards": train_tensors[2],
-        "train_costs": train_tensors[3],
-        "train_dones": train_tensors[4],
-        "val_inputs": val_tensors[0],
-        "val_next_position_indices": val_tensors[1],
-        "val_rewards": val_tensors[2],
-        "val_costs": val_tensors[3],
-        "val_dones": val_tensors[4],
-    }
-
-    #raise NotImplementedError("Build train and validation tensors.")
 
 
 class GridworldPlanningDynamicsModel(nn.Module):
@@ -678,22 +619,10 @@ class GridworldPlanningDynamicsModel(nn.Module):
         # - Do not apply sigmoid inside the done head.
         super().__init__()
 
-        self.input_dim = config.state_channels * config.grid_size * config.grid_size + config.num_actions
+        raise NotImplementedError("Build the planning dynamics model.")
 
-        self.trunk = nn.Sequential(nn.Linear(in_features=self.input_dim, out_features = config.hidden_dim),
-                                    nn.ReLU(inplace=True),
-                                    nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim),
-                                    nn.ReLU(inplace=True))
 
-        self.next_position_head = nn.Linear(
-            in_features=config.hidden_dim,
-            out_features=config.grid_size * config.grid_size,
-        )
-        self.reward_head = nn.Linear(in_features=config.hidden_dim, out_features=1)
-        self.cost_head = nn.Linear(in_features=config.hidden_dim, out_features=1)
-        self.done_head = nn.Linear(in_features=config.hidden_dim, out_features=1)
 
-        #raise NotImplementedError("Build the planning dynamics model.")
 
     def forward(self, inputs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Return next-position, reward, cost, and episode-end predictions."""
@@ -709,14 +638,8 @@ class GridworldPlanningDynamicsModel(nn.Module):
         # - cost: `[batch_size, 1]`
         # - done_logit: `[batch_size, 1]`
 
-        features = self.trunk(inputs)
-        next_position_logits = self.next_position_head(features)
-        reward = self.reward_head(features)
-        cost = self.cost_head(features)
-        done_logit = self.done_head(features)
+        raise NotImplementedError("Run the planning dynamics model.")
 
-        return next_position_logits, reward, cost, done_logit
-        #raise NotImplementedError("Run the planning dynamics model.")
 
 
 def compute_dynamics_loss(
@@ -739,23 +662,11 @@ def compute_dynamics_loss(
     # - `done` should contain floats shaped `[batch_size, 1]`.
     # - `done_logit` should be raw logits, not probabilities.
 
-    next_position_loss = nn.functional.cross_entropy(predictions[0], targets[0].long())
-    reward_loss = nn.functional.mse_loss(predictions[1], targets[1])
-    cost_loss = nn.functional.mse_loss(predictions[2], targets[2])
-    done_loss = nn.functional.binary_cross_entropy_with_logits(predictions[3], targets[3])
+    raise NotImplementedError("Compute dynamics-model loss.")
 
-    loss = next_position_loss + reward_loss + cost_loss + done_loss
 
-    loss_parts = {
-        "next_position_loss": next_position_loss.item(),
-        "reward_loss": reward_loss.item(),
-        "cost_loss": cost_loss.item(),
-        "done_loss": done_loss.item(),
-    }
 
-    return loss, loss_parts
 
-    #raise NotImplementedError("Compute dynamics-model loss.")
 
 
 def train_one_epoch(
@@ -778,39 +689,11 @@ def train_one_epoch(
     # 8. Call `optimizer.step()`.
     # 9. Return mean loss weighted by batch size.
 
-    model.train()
+    raise NotImplementedError("Train one planning dynamics epoch.")
 
-    total_loss = 0
-    total_samples = 0
 
-    for inputs, next_position_indices, rewards, costs, dones in loader:
-        inputs = inputs.to(device)
 
-        next_position_indices = next_position_indices.to(device)
-        rewards = rewards.to(device)                        # shape is [batch_size, 1]
-        costs = costs.to(device)                            # shape is [batch_size, 1]
-        dones = dones.to(device)                            # shape is [batch_size, 1]
 
-        pred_next_position_logits, pred_reward, pred_cost, pred_done_logit = model(inputs)
-
-        optimizer.zero_grad()
-
-        loss, loss_parts = compute_dynamics_loss(
-            predictions=(pred_next_position_logits, pred_reward, pred_cost, pred_done_logit),
-            targets=(next_position_indices, rewards, costs, dones),
-        )
-
-        loss.backward()
-        optimizer.step()
-
-        batch_size = dones.shape[0]
-
-        total_loss += loss.item() * batch_size
-        total_samples += batch_size
-
-    return total_loss / total_samples
-
-    #raise NotImplementedError("Train one planning dynamics epoch.")
 
 @torch.no_grad()
 def evaluate_one_step_model(
@@ -839,35 +722,13 @@ def evaluate_one_step_model(
     # - `val_cost_mse`
     # - `val_done_accuracy`
 
-    model.eval()
+    raise NotImplementedError("Evaluate one-step dynamics metrics.")
 
-    val_inputs = splits["val_inputs"].to(device)
-    val_next_position_indices = splits["val_next_position_indices"].to(device)
-    val_rewards = splits["val_rewards"].to(device)
-    val_costs = splits["val_costs"].to(device)
-    val_dones = splits["val_dones"].to(device)
 
-    pred_next_position_logits, pred_reward, pred_cost, pred_done_logit = model(val_inputs)
 
-    pred_next_position_indices = pred_next_position_logits.argmax(dim=-1)
-    val_next_position_accuracy = (
-        pred_next_position_indices == val_next_position_indices
-    ).float().mean().item()
-    val_reward_mse = nn.functional.mse_loss(pred_reward, val_rewards).item()
-    val_cost_mse = nn.functional.mse_loss(pred_cost, val_costs).item()
 
-    pred_done = torch.sigmoid(pred_done_logit) >= 0.5
-    true_done = val_dones >= 0.5
-    val_done_accuracy = (pred_done == true_done).float().mean().item()
 
-    return {
-        "val_next_position_accuracy": val_next_position_accuracy,
-        "val_reward_mse": val_reward_mse,
-        "val_cost_mse": val_cost_mse,
-        "val_done_accuracy": val_done_accuracy,
-    }
 
-    #raise NotImplementedError("Evaluate one-step dynamics metrics.")
 
 
 def train_planning_dynamics_model(
@@ -890,55 +751,17 @@ def train_planning_dynamics_model(
     #    - append train loss and validation next-position accuracy to lists
     # 8. Return the model, splits, histories, and final metrics.
 
-    set_seed(config.random_seed)
+    raise NotImplementedError("Train the planning dynamics model.")
 
-    splits = build_planning_dataset(config)
 
-    train_dataset = TensorDataset(
-        splits["train_inputs"],
-        splits["train_next_position_indices"],
-        splits["train_rewards"],
-        splits["train_costs"],
-        splits["train_dones"],
-    )
 
-    train_loader = DataLoader(dataset=train_dataset, batch_size=config.batch_size, shuffle=True)
 
-    model = GridworldPlanningDynamicsModel(config).to(device)
-    optimizer = torch.optim.AdamW(params=model.parameters(), lr=config.learning_rate)
 
-    train_losses: list[float] = []
-    val_next_position_accuracies: list[float] = []
-    final_metrics: OneStepMetrics | None = None
 
-    print(
-        "Training planning dynamics model "
-        f"on {len(train_dataset)} train rows and {splits['val_inputs'].shape[0]} validation rows."
-    )
 
-    for epoch in range(config.epochs):
-        train_loss = train_one_epoch(model, train_loader, optimizer)
-        metrics = evaluate_one_step_model(model, splits)
 
-        train_losses.append(train_loss)
-        val_next_position_accuracies.append(metrics["val_next_position_accuracy"])
-        final_metrics = metrics
 
-        print(
-            f"epoch {epoch + 1:02d}/{config.epochs} | "
-            f"train_loss={train_loss:.4f} | "
-            f"val_next_position_accuracy={metrics['val_next_position_accuracy']:.3f} | "
-            f"val_reward_mse={metrics['val_reward_mse']:.4f} | "
-            f"val_cost_mse={metrics['val_cost_mse']:.4f} | "
-            f"val_done_accuracy={metrics['val_done_accuracy']:.3f}"
-        )
 
-    if final_metrics is None:
-        raise ValueError("Training did not run because config.epochs is 0.")
-
-    return model, splits, train_losses, val_next_position_accuracies, final_metrics
-
-    #raise NotImplementedError("Train the planning dynamics model.")
 
 
 def candidate_action_sequences(config: GridworldPlanningConfig) -> list[tuple[int, ...]]:
@@ -971,12 +794,9 @@ def candidate_action_sequences(config: GridworldPlanningConfig) -> list[tuple[in
     #
     # `itertools.product(range(num_actions), repeat=planning_horizon)` does the
     # same thing, but it still works if the horizon changes to 2, 5, or 10.
-    import itertools
+    raise NotImplementedError("Build candidate action sequences.")
 
-    if config.planning_horizon <= 0:
-        raise ValueError("planning_horizon is zero.")
 
-    sequences = list(itertools.product(range(config.num_actions), repeat=config.planning_horizon))
 
     # Each item in `sequences` is one possible future plan.
     # Example: `(1, 1, 3, 3)` means:
@@ -997,9 +817,7 @@ def candidate_action_sequences(config: GridworldPlanningConfig) -> list[tuple[in
     # Listing all possible plans is a search inside the frozen learned model.
     # It is not exploration for learning because it does not take real actions,
     # collect new training data, or update model weights.
-    return sequences
 
-    #raise NotImplementedError("Build candidate action sequences.")
 
 
 def move_position_in_full_state(
@@ -1056,25 +874,14 @@ def predict_one_step(
     # - Do not call the real environment here.
     # - This function imagines one step using the learned model.
 
-    model.eval()
+    raise NotImplementedError("Predict one imagined step.")
 
-    model_input = encode_full_state_action(full_state, action, config)
 
-    model_input = model_input.unsqueeze(dim=0)
-    model_input = model_input.to(device)
 
-    pred_next_position_logits, pred_reward, pred_cost, pred_done_logit = model(model_input)
 
-    pred_next_position_index = int(pred_next_position_logits.argmax(dim=-1).item())
-    pred_next_full_state = move_position_in_full_state(full_state, pred_next_position_index, config)
-    pred_reward = pred_reward.item()
-    pred_cost = pred_cost.item()
 
-    pred_done = torch.sigmoid(pred_done_logit).item() >= 0.5
 
-    return pred_next_full_state, pred_reward, pred_cost, pred_done
 
-    #raise NotImplementedError("Predict one imagined step.")
 
 @torch.no_grad()
 def predict_action_sequence_score(
@@ -1106,10 +913,8 @@ def predict_action_sequence_score(
     # - Do not use true future rewards from the environment here.
     # - This function should only use model predictions.
 
-    model.eval()
+    raise NotImplementedError("Score one imagined action sequence.")
 
-    current_full_state = start_full_state.clone()
-    predicted_sequence_score = 0.0
 
     # `actions` is one fixed future plan, such as `(1, 1, 3, 3)`.
     # In this grid-world:
@@ -1122,21 +927,7 @@ def predict_action_sequence_score(
     # This function does not choose between plans. It only gives this one plan
     # a predicted sequence score using the learned model's imagined next steps.
 
-    for action in actions:
-        pred_next_full_state, pred_reward, pred_cost, pred_done = predict_one_step(
-            model, current_full_state, action, config
-        )
 
-        safe_cost = max(pred_cost, 0.0)
-        predicted_sequence_score += pred_reward - config.cost_weight * safe_cost
-
-        if pred_done:
-            break
-
-        current_full_state = pred_next_full_state
-
-    return predicted_sequence_score
-    #raise NotImplementedError("Score one imagined action sequence.")
 
 
 def calculate_real_action_sequence_score(
@@ -1188,30 +979,12 @@ def calculate_real_action_sequence_score(
     # - This real sequence score uses raw real cost. Do not clamp real cost here.
 
 
-    current_position = scene.start_position
+    raise NotImplementedError("Score a fixed action sequence in the real scene.")
 
-    grid_config = make_visual_grid_config(config)
 
-    real_sequence_score = 0.0
 
-    for action in actions:
-        next_position, reward, cost, done = step_grid_world(
-            current_position,
-            action,
-            scene.goal_position,
-            scene.hazard_positions,
-            scene.wall_positions,
-            grid_config,
-        )
-        real_sequence_score += reward - config.cost_weight * cost
-        current_position = next_position
 
-        if done:
-            break
 
-    return float(real_sequence_score)
-
-    #raise NotImplementedError("Score a fixed action sequence in the real scene.")
 
 @torch.no_grad()
 def audit_selected_sequence_model_error(
@@ -1309,58 +1082,12 @@ def audit_selected_sequence_model_error(
     #   the model thought the selected sequence was better than it really was.
     #_ = random
 
-    sequences = candidate_action_sequences(config)
-    rng = random.Random(config.random_seed + 20_000)
+    raise NotImplementedError("Audit selected-sequence model error.")
 
-    selected_gaps = []
-    random_gaps = []
-    selected_overestimates = 0
 
-    for scene in scenes:
-        grid_config = make_visual_grid_config(config)
 
-        start_full_state = encode_full_grid_state(
-            scene.start_position,
-            scene.goal_position,
-            scene.hazard_positions,
-            scene.wall_positions,
-            grid_config,
-        )
 
-        scored_sequences = []
-        for actions in sequences:
-            imagined_score = predict_action_sequence_score(model, start_full_state, actions, config)
-            scored_sequences.append((imagined_score, actions))
 
-        # Get the highest-scoring pair.
-        selected_imagined_score, selected_actions = max(scored_sequences, key=lambda item: item[0])
-
-        random_actions = rng.choice(sequences)
-        #this is not a random score, it is the actual score for a randomly chosen set of actions from sequences.
-        random_imagined_score = predict_action_sequence_score(
-            model, start_full_state, random_actions, config
-        )
-
-        selected_real_score = calculate_real_action_sequence_score(scene, selected_actions, config)
-        random_real_score = calculate_real_action_sequence_score(scene, random_actions, config)
-
-        selected_gaps.append(abs(selected_imagined_score - selected_real_score))
-        random_gaps.append(abs(random_imagined_score - random_real_score))
-
-        if selected_imagined_score > selected_real_score:
-            selected_overestimates += 1
-
-    selected_sequence_score_gap_avg = sum(selected_gaps) / len(selected_gaps)
-    random_sequence_score_gap_avg = sum(random_gaps) / len(random_gaps)
-
-    return {
-        "selected_sequence_score_gap": selected_sequence_score_gap_avg,
-        "random_sequence_score_gap": random_sequence_score_gap_avg,
-        "selected_vs_random_model_error_gap": selected_sequence_score_gap_avg - random_sequence_score_gap_avg,
-        "selected_sequence_overestimate_rate": selected_overestimates / len(scenes),
-    }
-
-    #raise NotImplementedError("Audit selected-sequence model error.")
 
 
 def choose_planned_action(
@@ -1387,24 +1114,12 @@ def choose_planned_action(
     # Checks:
     # - The returned action should be an `int`.
     # - The action should be in `0 <= action < config.num_actions`.
-    sequences = candidate_action_sequences(config)
+    raise NotImplementedError("Choose an action with model-based planning.")
 
-    best_predicted_sequence_score = float("-inf")
-    best_sequence: tuple[int, ...] | None = None
 
-    for actions in sequences:
-        predicted_sequence_score = predict_action_sequence_score(
-            model, current_full_state, actions, config
-        )
-        if predicted_sequence_score > best_predicted_sequence_score:
-            best_predicted_sequence_score = predicted_sequence_score
-            best_sequence = actions
 
-    action = int(best_sequence[0])
 
-    return action
 
-    #raise NotImplementedError("Choose an action with model-based planning.")
 
 
 def choose_shortest_path_baseline_action(
@@ -1435,23 +1150,11 @@ def choose_shortest_path_baseline_action(
     # learned model does well and where it is weaker.
 
 
-    grid_config = make_visual_grid_config(config)
+    raise NotImplementedError("Choose one shortest-path baseline action.")
 
-    action = shortest_path_action(
-        current_position,
-        goal_position,
-        wall_positions | hazard_positions,
-        grid_config,
-    )
 
-    if action is None:
-        action = shortest_path_action(current_position, goal_position, wall_positions, grid_config)
 
-    if action is None:
-        action = 0
 
-    return action
-    #raise NotImplementedError("Choose one shortest-path baseline action.")
 
 
 def run_policy_in_real_gridworld(
@@ -1561,87 +1264,12 @@ def run_policy_in_real_gridworld(
     # - `len(visited_positions)` should usually equal `len(actions) + 1`.
 
 
-    current_position = scene.start_position
+    raise NotImplementedError("Roll out one policy in the real grid-world.")
 
-    grid_config = make_visual_grid_config(config)
 
-    visited_positions = [current_position]
-    actions = []
-    real_return = 0.0
-    real_cost = 0.0
-    predicted_return = 0.0
-    predicted_cost = 0.0
 
-    for _ in range(config.max_steps):
-        current_full_state = encode_full_grid_state(
-            current_position,
-            scene.goal_position,
-            scene.hazard_positions,
-            scene.wall_positions,
-            grid_config,
-        )
 
-        # If this uses the planner, `choose_planned_action(...)` will call
-        # `predict_one_step(...)` many times while it imagines possible future
-        # action sequences. Those calls are for choosing the action.
-        #
-        # After the action is chosen, this function calls `predict_one_step(...)`
-        # once more below. That later call is not for choosing. It only logs what
-        # the model predicted for the exact action that will be tested in the
-        # real grid-world.
-        #
-        # This keeps the learning idea simple:
-        # 1. choose an action
-        # 2. log the model's prediction for that chosen action
-        # 3. step the real environment and compare what really happened
-        if use_planner:
-            action = choose_planned_action(model, current_full_state, config)
-        else:
-            action = choose_shortest_path_baseline_action(
-                current_position,
-                scene.goal_position,
-                scene.hazard_positions,
-                scene.wall_positions,
-                config,
-            )
 
-        _pred_next_full_state, pred_reward, pred_cost, _pred_done = predict_one_step(
-            model, current_full_state, action, config
-        )
-        predicted_return += pred_reward
-        predicted_cost += pred_cost
-
-        next_position, reward, cost, done = step_grid_world(
-            current_position,
-            action,
-            scene.goal_position,
-            scene.hazard_positions,
-            scene.wall_positions,
-            grid_config,
-        )
-
-        real_return += reward
-        real_cost += cost
-        actions.append(action)
-
-        current_position = next_position
-        visited_positions.append(current_position)
-
-        if done:
-            break
-
-    return {
-        "visited_positions": visited_positions,
-        "actions": actions,
-        "real_return": real_return,
-        "real_cost": real_cost,
-        "predicted_return": predicted_return,
-        "predicted_cost": predicted_cost,
-        "reached_goal": current_position == scene.goal_position,
-        "steps": len(actions),
-    }
-
-    #raise NotImplementedError("Roll out one policy in the real grid-world.")
 
 
 def build_eval_scenes(config: GridworldPlanningConfig) -> list[GridScene]:
@@ -1658,26 +1286,12 @@ def build_eval_scenes(config: GridworldPlanningConfig) -> list[GridScene]:
     # Checks:
     # - Use a different seed offset from training data collection.
     # - Do not evaluate only on one scene.
-    grid_config = make_visual_grid_config(config)
+    raise NotImplementedError("Build held-out evaluation scenes.")
     # Use a fixed seed so evaluation scenes repeat across runs.
     # Add `10_000` so these scenes differ from the training-data scenes.
-    rng = random.Random(config.random_seed + 10_000)
 
-    scenes: list[GridScene] = []
-    for _ in range(config.num_eval_scenes):
-        start_position, goal_position, hazard_positions, wall_positions = make_grid_scene(grid_config, rng)
-        scenes.append(
-            GridScene(
-                start_position=start_position,
-                goal_position=goal_position,
-                hazard_positions=hazard_positions,
-                wall_positions=wall_positions,
-            )
-        )
 
-    return scenes
 
-    #raise NotImplementedError("Build held-out evaluation scenes.")
 
 
 def evaluate_planner(
@@ -1754,64 +1368,12 @@ def evaluate_planner(
     # - Do not train the model here.
     # - `len(planner_rollouts) == len(shortest_path_baseline_rollouts) == len(scenes)`.
     # - Every metric value should be a plain Python float.
-    scenes = build_eval_scenes(config)
-    if not scenes:
-        raise ValueError("No evaluation scenes were created.")
+    raise NotImplementedError("Evaluate planner and shortest-path baseline in real scenes.")
 
-    planner_rollouts = []
-    shortest_path_baseline_rollouts = []
 
-    for scene in scenes:
-        # Run the learned planner in this real scene.
-        # `use_planner=True` means actions are chosen by searching inside the
-        # learned model, then each chosen action is tested in the real grid-world.
-        planner_rollouts.append(run_policy_in_real_gridworld(model, scene, config, use_planner=True))
 
-        # Run the hand-written shortest-path baseline in the same real scene.
-        # `use_planner=False` means actions come from the shortest-path helper,
-        # not from the learned model planner.
-        shortest_path_baseline_rollouts.append(
-            run_policy_in_real_gridworld(model, scene, config, use_planner=False)
-        )
 
-    def mean(values: list[float]) -> float:
-        return float(sum(values) / len(values))
 
-    planner_reward_gaps = [
-        abs(rollout["predicted_return"] - rollout["real_return"])
-        for rollout in planner_rollouts
-    ]
-    planner_cost_gaps = [
-        abs(rollout["predicted_cost"] - rollout["real_cost"])
-        for rollout in planner_rollouts
-    ]
-    planner_overoptimistic = [
-        rollout["predicted_return"] > rollout["real_return"]
-        or rollout["predicted_cost"] < rollout["real_cost"]
-        for rollout in planner_rollouts
-    ]
-
-    metrics = {
-        "planner_success_rate": mean([float(rollout["reached_goal"]) for rollout in planner_rollouts]),
-        "planner_mean_return": mean([rollout["real_return"] for rollout in planner_rollouts]),
-        "planner_mean_cost": mean([rollout["real_cost"] for rollout in planner_rollouts]),
-        "planner_mean_episode_steps": mean([float(rollout["steps"]) for rollout in planner_rollouts]),
-        "shortest_path_baseline_success_rate": mean(
-            [float(rollout["reached_goal"]) for rollout in shortest_path_baseline_rollouts]
-        ),
-        "shortest_path_baseline_mean_return": mean(
-            [rollout["real_return"] for rollout in shortest_path_baseline_rollouts]
-        ),
-        "shortest_path_baseline_mean_cost": mean(
-            [rollout["real_cost"] for rollout in shortest_path_baseline_rollouts]
-        ),
-        "shortest_path_baseline_mean_episode_steps": mean(
-            [float(rollout["steps"]) for rollout in shortest_path_baseline_rollouts]
-        ),
-        "planner_reward_prediction_gap": mean(planner_reward_gaps),
-        "planner_cost_prediction_gap": mean(planner_cost_gaps),
-        "planner_overoptimistic_episode_rate": mean([float(value) for value in planner_overoptimistic]),
-    }
 
     # Add the selected-sequence model-error audit metrics into the same dictionary.
     # `audit_selected_sequence_model_error(...)` returns:
@@ -1822,7 +1384,6 @@ def evaluate_planner(
     # - `selected_vs_random_model_error_gap`: selected gap minus random gap
     # - `selected_sequence_overestimate_rate`: fraction of scenes where the
     #   model gave the selected sequence a higher score than it got in reality
-    metrics.update(audit_selected_sequence_model_error(model, scenes, config))
 
     # These returned objects answer two different questions.
     #
@@ -1840,9 +1401,7 @@ def evaluate_planner(
     #
     # Returning both rollouts and audit metrics lets the final report show both
     # the real behavior and whether the learned model was being trusted too much.
-    return metrics, planner_rollouts, shortest_path_baseline_rollouts, scenes
 
-    #raise NotImplementedError("Evaluate planner and shortest-path baseline in real scenes.")
 
 
 def save_training_curves(
@@ -1866,29 +1425,12 @@ def save_training_curves(
     #
     # Checks:
     # - The plot should show whether the learned model improved.
-    import matplotlib
+    raise NotImplementedError("Save training curve plot.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    path = config.output_dir / "training_curves.png"
 
-    epochs = list(range(1, len(train_losses) + 1))
-    plt.figure(figsize=(7, 4))
-    plt.plot(epochs, train_losses, label="train loss")
-    plt.plot(epochs, val_next_position_accuracies, label="val next-position accuracy")
-    plt.xlabel("epoch")
-    plt.ylabel("value")
-    plt.title("Planning dynamics model training")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(path)
-    plt.close()
 
-    return str(path)
 
-    #raise NotImplementedError("Save training curve plot.")
 
 
 def save_rollout_plot(
@@ -1952,56 +1494,16 @@ def save_rollout_plot(
     # - The plot should make it clear where the planner moved.
     # - The path lines should sit on top of cell centers, not between cells.
     # - Save the file even if both action selectors take the same path.
-    import matplotlib
+    raise NotImplementedError("Save planner rollout plot.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    path = config.output_dir / "planning_rollout.png"
 
-    grid_config = make_visual_grid_config(config)
-    image = render_grid_image(
-        scene.start_position,
-        scene.goal_position,
-        scene.hazard_positions,
-        scene.wall_positions,
-        grid_config,
-    )
-    image_for_plot = image.permute(1, 2, 0).cpu().numpy()
 
-    cell = config.image_size // config.grid_size
 
-    def path_to_xy(positions: list[Position]) -> tuple[list[float], list[float]]:
-        xs = [col * cell + cell / 2 for row, col in positions]
-        ys = [row * cell + cell / 2 for row, col in positions]
-        return xs, ys
 
-    planner_xs, planner_ys = path_to_xy(planner_rollout["visited_positions"])
-    shortest_path_xs, shortest_path_ys = path_to_xy(
-        shortest_path_baseline_rollout["visited_positions"]
-    )
 
-    plt.figure(figsize=(5, 5))
-    plt.imshow(image_for_plot)
-    plt.plot(planner_xs, planner_ys, marker="o", linewidth=2, label="planner")
-    plt.plot(
-        shortest_path_xs,
-        shortest_path_ys,
-        marker="x",
-        linewidth=2,
-        label="shortest-path baseline",
-    )
-    plt.title("Planner and shortest-path baseline rollout")
-    plt.axis("off")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(path)
-    plt.close()
 
-    return str(path)
 
-    #raise NotImplementedError("Save planner rollout plot.")
 
 
 def save_shortest_path_baseline_vs_planner_plot(
@@ -2021,48 +1523,14 @@ def save_shortest_path_baseline_vs_planner_plot(
     # Checks:
     # - Higher success and return are better.
     # - Lower cost is better.
-    import matplotlib
+    raise NotImplementedError("Save planner and shortest-path baseline comparison plot.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    path = config.output_dir / "shortest_path_baseline_vs_planner.png"
 
-    names = ["success rate", "mean return", "mean cost"]
-    planner_values = [
-        metrics["planner_success_rate"],
-        metrics["planner_mean_return"],
-        metrics["planner_mean_cost"],
-    ]
-    shortest_path_baseline_values = [
-        metrics["shortest_path_baseline_success_rate"],
-        metrics["shortest_path_baseline_mean_return"],
-        metrics["shortest_path_baseline_mean_cost"],
-    ]
 
-    xs = list(range(len(names)))
-    width = 0.35
 
-    plt.figure(figsize=(7, 4))
-    plt.bar([x - width / 2 for x in xs], planner_values, width=width, label="planner")
-    plt.bar(
-        [x + width / 2 for x in xs],
-        shortest_path_baseline_values,
-        width=width,
-        label="shortest-path baseline",
-    )
-    plt.xticks(xs, names)
-    plt.ylabel("value")
-    plt.title("Planner versus shortest-path baseline")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(path)
-    plt.close()
 
-    return str(path)
 
-    #raise NotImplementedError("Save planner and shortest-path baseline comparison plot.")
 
 
 def run_model_based_planning_study(config: GridworldPlanningConfig) -> PlanningMetrics:
@@ -2082,73 +1550,13 @@ def run_model_based_planning_study(config: GridworldPlanningConfig) -> PlanningM
     # Checks:
     # - This function should return both model metrics and planning metrics.
     # - Do not report only loss.
-    model, _splits, train_losses, val_next_position_accuracies, one_step_metrics = (
-        train_planning_dynamics_model(config)
-    )
-    training_curve_path = save_training_curves(train_losses, val_next_position_accuracies, config)
+    raise NotImplementedError("Run the full model-based planning study.")
 
-    planning_metrics, planner_rollouts, shortest_path_baseline_rollouts, scenes = evaluate_planner(
-        model, config
-    )
 
-    required_audit_keys = [
-        "selected_sequence_score_gap",
-        "random_sequence_score_gap",
-        "selected_vs_random_model_error_gap",
-        "selected_sequence_overestimate_rate",
-    ]
-    for key in required_audit_keys:
-        if key not in planning_metrics:
-            raise KeyError(f"Missing planner audit metric: {key}")
 
-    if not scenes or not planner_rollouts or not shortest_path_baseline_rollouts:
-        raise ValueError("Planner evaluation did not return any rollout data.")
 
-    rollout_plot_path = save_rollout_plot(
-        scenes[0],
-        planner_rollouts[0],
-        shortest_path_baseline_rollouts[0],
-        config,
-    )
-    comparison_plot_path = save_shortest_path_baseline_vs_planner_plot(planning_metrics, config)
 
-    return {
-        "final_train_loss": train_losses[-1],
-        "val_next_position_accuracy": one_step_metrics["val_next_position_accuracy"],
-        "val_reward_mse": one_step_metrics["val_reward_mse"],
-        "val_cost_mse": one_step_metrics["val_cost_mse"],
-        "val_done_accuracy": one_step_metrics["val_done_accuracy"],
-        "planner_success_rate": planning_metrics["planner_success_rate"],
-        "planner_mean_return": planning_metrics["planner_mean_return"],
-        "planner_mean_cost": planning_metrics["planner_mean_cost"],
-        "planner_mean_episode_steps": planning_metrics["planner_mean_episode_steps"],
-        "shortest_path_baseline_success_rate": planning_metrics[
-            "shortest_path_baseline_success_rate"
-        ],
-        "shortest_path_baseline_mean_return": planning_metrics[
-            "shortest_path_baseline_mean_return"
-        ],
-        "shortest_path_baseline_mean_cost": planning_metrics[
-            "shortest_path_baseline_mean_cost"
-        ],
-        "shortest_path_baseline_mean_episode_steps": planning_metrics[
-            "shortest_path_baseline_mean_episode_steps"
-        ],
-        "planner_reward_prediction_gap": planning_metrics["planner_reward_prediction_gap"],
-        "planner_cost_prediction_gap": planning_metrics["planner_cost_prediction_gap"],
-        "planner_overoptimistic_episode_rate": planning_metrics["planner_overoptimistic_episode_rate"],
-        "selected_sequence_score_gap": planning_metrics["selected_sequence_score_gap"],
-        "random_sequence_score_gap": planning_metrics["random_sequence_score_gap"],
-        "selected_vs_random_model_error_gap": planning_metrics[
-            "selected_vs_random_model_error_gap"
-        ],
-        "selected_sequence_overestimate_rate": planning_metrics["selected_sequence_overestimate_rate"],
-        "training_curve_path": training_curve_path,
-        "rollout_plot_path": rollout_plot_path,
-        "comparison_plot_path": comparison_plot_path,
-    }
 
-    #raise NotImplementedError("Run the full model-based planning study.")
 
 
 def explain_model_based_planning() -> str:

@@ -291,7 +291,6 @@ def describe_pair_setup(config: MultimodalConfig) -> dict[str, object]:
         "label_meaning": {0.0: "image and text do not match", 1.0: "image and text match"},
         "output_shape": (config.batch_size,),
     }
-        #raise NotImplementedError("Return one raw matching logit per image-text pair.")
 
 
 # Build the tiny prompt vocabulary.
@@ -505,8 +504,7 @@ class ImageEncoder(nn.Module):
     # - linear layer to `image_feature_dim`
     def __init__(self, config: MultimodalConfig) -> None:
         super().__init__()
-        self.config = config
-        self.output_dim = config.image_feature_dim
+        raise NotImplementedError("Build a small image encoder that returns one feature vector per image.")
         # Beginner-friendly build idea:
         # - use a small CNN
         # - its job is to turn one image into one feature vector
@@ -524,11 +522,7 @@ class ImageEncoder(nn.Module):
         # - the image encoder is trying to compress a whole image into one useful summary vector
         # - that summary should keep the parts that matter for matching, like rough object type and shape
 
-        self.conv = nn.Conv2d(in_channels=config.image_channels, out_channels=config.image_encoder_hidden_channels, kernel_size=3, stride=1, padding="same")
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.linear = nn.Linear(in_features=(config.image_width//2) *(config.image_height//2) * config.image_encoder_hidden_channels, out_features=config.image_feature_dim)
 
-        #raise NotImplementedError("Build a small image encoder that returns one feature vector per image.")
 
     # Encode images.
     # Input:
@@ -538,14 +532,8 @@ class ImageEncoder(nn.Module):
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         """Return image features with shape `[batch_size, output_dim]`."""
 
-        x = self.conv(images)
-        x = F.relu(x)
-        x = self.pool(x)
-        x = x.flatten(start_dim=1)
-        features = self.linear(x)
+        raise NotImplementedError("Encode the image batch into one feature vector per image.")
 
-        return features
-        #raise NotImplementedError("Encode the image batch into one feature vector per image.")
 
 
 # Define the text encoder.
@@ -561,9 +549,7 @@ class TextEncoder(nn.Module):
     # - linear layer to `text_feature_dim`
     def __init__(self, vocab_size: int, pad_id: int, config: MultimodalConfig) -> None:
         super().__init__()
-        self.vocab_size = vocab_size
-        self.pad_id = pad_id
-        self.config = config
+        raise NotImplementedError("Build the text encoder that returns one feature vector per prompt.")
         # Beginner-friendly build idea:
         # - use an embedding layer for token ids
         # - then avg pool across the real tokens
@@ -578,10 +564,7 @@ class TextEncoder(nn.Module):
         # - the text encoder does for prompts what the image encoder does for images
         # - it turns several token vectors into one short summary of the prompt meaning
 
-        self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=config.text_embedding_dim, padding_idx=pad_id)
-        self.linear = nn.Linear(in_features = config.text_embedding_dim, out_features=config.text_feature_dim)
 
-        #raise NotImplementedError("Build the text encoder that returns one feature vector per prompt.")
 
     def forward(self, token_ids: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
         """Return text features with shape `[batch_size, text_feature_dim]`.
@@ -599,22 +582,13 @@ class TextEncoder(nn.Module):
 
         # token_ids is shape (32, 8),  lengths is shape (32)
 
-        embeddings = self.embedding(token_ids)      #embeddings is shape (32, 8, 64)
+        raise NotImplementedError("Encode the prompt batch into one feature vector per prompt.")
 
-        positions = torch.arange(token_ids.size(1), device=token_ids.device)         # positions is shape (8)
-        mask = positions.unsqueeze(0) < lengths.unsqueeze(1)                         # (1, 8) and (32, 1), broadcasting gives shape (32, 8)
-        mask = mask.unsqueeze(dim=-1)                                                # (32, 8, 1)
 
-        masked_embeddings = embeddings * mask                                        # (32, 8, 64) * (32, 8, 1) = broadcasting gives (32, 8, 64)
 
-        summed = masked_embeddings.sum(dim=1)                                        # (32, 64)
-        pooled = summed / lengths.unsqueeze(1)                                       # (32, 64) / (32, 1) = (32, 64)
 
-        features = self.linear(pooled)                                                 # (32, 128)
 
-        return features
 
-        # raise NotImplementedError("Encode the prompt batch into one feature vector per prompt.")
 
 
 # Define the image-text matching model.
@@ -634,9 +608,7 @@ class ImageTextMatchingModel(nn.Module):
     # - matching head
     def __init__(self, vocab_size: int, pad_id: int, config: MultimodalConfig) -> None:
         super().__init__()
-        self.vocab_size = vocab_size
-        self.pad_id = pad_id
-        self.config = config
+        raise NotImplementedError("Build the image encoder, text encoder, fusion step, and matching head.")
         # Beginner-friendly build order:
         # 1. image encoder
         # 2. text encoder
@@ -655,16 +627,8 @@ class ImageTextMatchingModel(nn.Module):
         # - the other branch says "this is what the text seems to mean"
         # - the matching head looks at both summaries together and decides whether they agree
 
-        self.image_encoder = ImageEncoder(config)
-        self.text_encoder = TextEncoder(vocab_size, pad_id, config)
 
-        self.matching_head = nn.Sequential(
-                        nn.Linear(config.image_feature_dim + config.text_feature_dim, config.fusion_hidden_dim),
-                        nn.ReLU(),
-                        nn.Linear(config.fusion_hidden_dim, 1),
-                        )
 
-        #raise NotImplementedError("Build the image encoder, text encoder, fusion step, and matching head.")
 
     # Run the multimodal model.
     # Input:
@@ -684,14 +648,10 @@ class ImageTextMatchingModel(nn.Module):
         - squeeze only if needed so the final shape is `[batch_size]`
         """
 
-        image_features = self.image_encoder(images)
-        text_features = self.text_encoder(token_ids, lengths)
+        raise NotImplementedError("Return one raw matching logit per image-text pair.")
 
-        combined_features = torch.concat([image_features, text_features], dim=-1)
 
-        logits = self.matching_head(combined_features)
 
-        return logits.squeeze(-1)
 
 
 
@@ -708,14 +668,9 @@ def build_training_objects(
     config: MultimodalConfig,
 ) -> tuple[nn.Module, nn.Module, torch.optim.Optimizer]:
 
-    model = ImageTextMatchingModel(vocab_size, pad_id, config)
-    model = model.to(device)
+    raise NotImplementedError("Return the multimodal matching model, BCEWithLogitsLoss, and optimizer.")
 
-    loss_fn = nn.BCEWithLogitsLoss()
-    optimizer = torch.optim.Adam(lr=config.learning_rate, params=model.parameters())
     
-    return model, loss_fn, optimizer
-    #raise NotImplementedError("Return the multimodal matching model, BCEWithLogitsLoss, and optimizer.")
 
 
 # Run one full training epoch.
@@ -743,40 +698,12 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
 ) -> dict[str, float]:
 
-    model.train()
+    raise NotImplementedError("Return the mean train loss and mean train accuracy for one full epoch.")
 
-    losses, accs = [], []
 
-    for data_dict in loader:
-        images = data_dict["images"]
-        token_ids = data_dict["token_ids"]
-        lengths = data_dict["lengths"]
-        labels = data_dict["labels"]
 
-        images = images.to(device)
-        token_ids = token_ids.to(device)
-        lengths = lengths.to(device)
-        labels = labels.to(device)
 
-        optimizer.zero_grad()
 
-        logits = model(images, token_ids, lengths)
-        loss = loss_fn(logits, labels)
-        loss.backward()
-        optimizer.step()
-
-        losses.append(loss.item())
-
-        preds = (logits > 0).float()
-        correct = (preds == labels).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss": mean_loss, "accuracy": mean_acc}
-
-    #raise NotImplementedError("Return the mean train loss and mean train accuracy for one full epoch.")
 
 
 # Run one full evaluation pass.
@@ -795,37 +722,13 @@ def train_one_epoch(
 @torch.no_grad()
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[str, float]:
 
-    model.eval()
-
-    losses, accs = [], []
-
-    for data_dict in loader:
-        images = data_dict["images"]
-        token_ids = data_dict["token_ids"]
-        lengths = data_dict["lengths"]
-        labels = data_dict["labels"]
-
-        images = images.to(device)
-        token_ids = token_ids.to(device)
-        lengths = lengths.to(device)
-        labels = labels.to(device)        
-
-        logits = model(images, token_ids, lengths)
-        loss = loss_fn(logits, labels)        
-
-        losses.append(loss.item())
-
-        preds = (logits > 0).float()
-        correct = (preds == labels).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss": mean_loss, "accuracy": mean_acc}
+    raise NotImplementedError("Return the mean loss and mean accuracy for the loader you evaluate.")
 
 
-    #raise NotImplementedError("Return the mean loss and mean accuracy for the loader you evaluate.")
+
+
+
+
 
 
 # Run the full training flow.
@@ -845,28 +748,13 @@ def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[s
 # - evaluate on validation data
 def run_training(config: MultimodalConfig) -> dict[str, float]:
 
-    loaders = load_dataloaders(config)
+    raise NotImplementedError("Run the full multimodal training flow and return the final train and val metrics.")
 
-    train_dataset = loaders["train"].dataset
-    vocab_size = train_dataset.vocab_size
-    pad_id = train_dataset.pad_id
 
-    model, loss_fn, optimizer = build_training_objects(vocab_size, pad_id, config)
 
-    for i in range(config.epochs):
 
-        train_dict = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-        val_dict = evaluate(model, loaders["val"], loss_fn)
 
-        print(f"Epoch {i} -> loss: {train_dict['loss']}, acc: {train_dict['accuracy']}, val_loss: {val_dict['loss']}, val_acc: {val_dict['accuracy']}")
 
-    test_dict = evaluate(model, loaders["test"], loss_fn)
-    print(f"Test results -> loss: {test_dict['loss']}, accuracy: {test_dict['accuracy']}")
-
-    return {"train_loss": train_dict["loss"], "train_accuracy": train_dict["accuracy"],
-            "val_loss": val_dict["loss"], "val_accuracy": val_dict["accuracy"]}
-
-    #raise NotImplementedError("Run the full multimodal training flow and return the final train and val metrics.")
 
 
 

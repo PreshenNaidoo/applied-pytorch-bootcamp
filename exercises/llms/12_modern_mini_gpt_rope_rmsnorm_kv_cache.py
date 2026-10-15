@@ -177,11 +177,8 @@ def describe_model_shapes(config: ModernMiniGPTConfig) -> dict[str, object]:
 def load_raw_text(config: ModernMiniGPTConfig) -> str:
     """Return the full Tiny Shakespeare text."""
 
-    with open(file=config.data_path, mode="r", encoding="utf-8") as f:
-        raw_text = f.read()
+    raise NotImplementedError("Load config.data_path and return one string.")
         
-    return raw_text
-    #raise NotImplementedError("Load config.data_path and return one string.")
 
 
 # Split the raw text before tokenizing.
@@ -193,14 +190,9 @@ def load_raw_text(config: ModernMiniGPTConfig) -> str:
 def split_text_corpus(raw_text: str) -> dict[str, str]:
     """Return a contiguous 60 / 20 / 20 split."""
 
-    num_train, num_val = int(len(raw_text) * 0.6), int(len(raw_text) * 0.2)
+    raise NotImplementedError("Return train_text, val_text, and test_text.")
 
-    train_text = raw_text[: num_train]
-    val_text = raw_text[num_train : num_train + num_val]
-    test_text = raw_text[num_train + num_val :]
 
-    return {"train_text": train_text, "val_text": val_text, "test_text": test_text}
-    #raise NotImplementedError("Return train_text, val_text, and test_text.")
 
 
 # Turn text into simple word and punctuation tokens.
@@ -208,7 +200,7 @@ def split_text_corpus(raw_text: str) -> dict[str, str]:
 # - "To be, or not" becomes ["To", "be", ",", "or", "not"]
 def basic_word_tokenize(text: str) -> list[str]:
     """Return simple word and punctuation tokens."""
-    return re.findall(r"\w+|[^\w\s]", text, flags=re.UNICODE)
+    raise NotImplementedError("Return token_to_int, int_to_token, and vocab_size.")
 
 
 # Build token id mappings from training tokens only.
@@ -231,7 +223,6 @@ def basic_word_tokenize(text: str) -> list[str]:
 # 7. Return both mappings and the vocabulary size.
 # def build_vocab(train_tokens: list[str]) -> dict[str, object]:
 #     """Build token mappings from training tokens only."""
-#     raise NotImplementedError("Return token_to_int, int_to_token, and vocab_size.")
 
 
 class NextTokenDataset(torch.utils.data.Dataset):
@@ -242,13 +233,8 @@ class NextTokenDataset(torch.utils.data.Dataset):
     # Keep an unknown-token id so validation/test words missing from training can still be encoded.
     def __init__(self, tokens: list[str], context_length: int, token_to_int: dict[str, int]) -> None:
 
-        self.tokens = tokens
-        self.num_tokens = len(tokens)
-        self.context_length = context_length
-        self.token_to_int = token_to_int
+        raise NotImplementedError("Store tokens, context length, vocabulary mapping, and unknown-token id.")
 
-        self.unk_id = 1
-        #raise NotImplementedError("Store tokens, context length, vocabulary mapping, and unknown-token id.")
 
     # The last usable input window starts `context_length` tokens before the end.
     # Example:
@@ -257,8 +243,7 @@ class NextTokenDataset(torch.utils.data.Dataset):
     # - number of windows = 10 - 4 = 6
     def __len__(self) -> int:
         """Return the number of windows."""
-        return self.num_tokens - self.context_length
-        #raise NotImplementedError("Return len(tokens) - context_length.")
+        raise NotImplementedError("Return len(tokens) - context_length.")
 
     # Build one next-token example.
     # If the input tokens are positions i to i + context_length,
@@ -269,18 +254,9 @@ class NextTokenDataset(torch.utils.data.Dataset):
     def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
         """Return input_ids and target_ids for one window."""
 
-        input_tokens = self.tokens[index: index + self.context_length]
-        target_tokens = self.tokens[index + 1: index + 1 + self.context_length]
+        raise NotImplementedError("Return shifted next-token tensors.")
 
-        input_ids, target_ids = [], []
-        for token in input_tokens:
-            input_ids.append(self.token_to_int.get(token, self.unk_id))
-        for token in target_tokens:
-            target_ids.append(self.token_to_int.get(token, self.unk_id))
 
-        return {"input_ids": torch.tensor(input_ids, dtype=torch.long), 
-                "target_ids": torch.tensor(target_ids, dtype=torch.long)}
-        #raise NotImplementedError("Return shifted next-token tensors.")
 
 
 # Build all dataloaders in one place.
@@ -295,27 +271,11 @@ class NextTokenDataset(torch.utils.data.Dataset):
 def load_dataloaders(config: ModernMiniGPTConfig) -> dict[str, DataLoader]:
     """Return train, validation, and test dataloaders."""
 
-    raw_text = load_raw_text(config)
-    text_dict = split_text_corpus(raw_text)
+    raise NotImplementedError("Load text, tokenize, build vocab, and return dataloaders.")
 
-    all_words = basic_word_tokenize(raw_text)
-    vocabulary = sorted(set(all_words))
-    vocabulary.insert(0, "[PAD]")
-    vocabulary.insert(1, "[UNK]")
-    vocab_size = len(vocabulary)
 
-    config.vocab_size = vocab_size
-    config.token_to_int = {t:i for i,t in enumerate(vocabulary)}
-    config.int_to_token = {i:t for t,i in config.token_to_int.items()}
 
-    train_ds = NextTokenDataset(tokens=basic_word_tokenize(text_dict["train_text"]), context_length=config.context_length, token_to_int=config.token_to_int)
-    val_ds = NextTokenDataset(tokens=basic_word_tokenize(text_dict["val_text"]), context_length=config.context_length, token_to_int=config.token_to_int)
-    test_ds = NextTokenDataset(tokens=basic_word_tokenize(text_dict["test_text"]), context_length=config.context_length, token_to_int=config.token_to_int)
 
-    return {"train": torch.utils.data.DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True),
-            "val": torch.utils.data.DataLoader(dataset=val_ds, batch_size=config.batch_size),
-            "test": torch.utils.data.DataLoader(dataset=test_ds, batch_size=config.batch_size)}
-    #raise NotImplementedError("Load text, tokenize, build vocab, and return dataloaders.")
 
 
 # Build the left-to-right attention mask.
@@ -330,12 +290,8 @@ def load_dataloaders(config: ModernMiniGPTConfig) -> dict[str, DataLoader]:
 def build_causal_mask(sequence_length: int) -> torch.Tensor:
     """Return a boolean causal mask with shape `[1, 1, seq, seq]`."""
 
-    ones = torch.ones(size=(sequence_length, sequence_length), dtype=torch.bool)
-    causal_mask = torch.tril(ones)
-    causal_mask = causal_mask.unsqueeze(dim=0).unsqueeze(dim=0)
+    raise NotImplementedError("Build a lower-triangular boolean mask.")
 
-    return causal_mask
-    #raise NotImplementedError("Build a lower-triangular boolean mask.")
 
 
 # Build the RoPE rotation instructions.
@@ -386,25 +342,14 @@ def build_causal_mask(sequence_length: int) -> torch.Tensor:
 def build_rope_cache(config: ModernMiniGPTConfig, sequence_length: int) -> dict[str, torch.Tensor]:
     """Return RoPE cosine and sine tensors."""
 
-    head_dim = config.embed_dim // config.num_heads     # 128 // 4 = 32
+    raise NotImplementedError("Build RoPE cos and sin values for the given sequence length.")
 
-    if head_dim % 2 != 0:
-        raise ValueError("Head dimension must be even.")
 
-    token_positions = torch.arange(start=0, end=sequence_length, step=1, dtype=torch.float)        # shape = [16] one for each token
 
-    pair_indexes = torch.arange(start=0, end=head_dim//2, step=1)               # shape = [16]
-    frequencies = 1.0 / (config.rope_base ** (pair_indexes / (head_dim // 2)))
 
-    angles = token_positions.unsqueeze(dim=-1) @ frequencies.unsqueeze(dim=0)   # [16, 1] @ [1, 16] = [16, 16]
 
-    angles = torch.concat([angles, angles], dim=-1)                             # shape = [16, 32]  = [seq_length, head_dim]
 
-    cos_table = torch.cos(angles).unsqueeze(dim=0).unsqueeze(dim=0)             # shape = [1, 1, 16, 32] 
-    sin_table = torch.sin(angles).unsqueeze(dim=0).unsqueeze(dim=0)             # shape = [1, 1, 16, 32]
 
-    return {"cos": cos_table, "sin": sin_table}
-    #raise NotImplementedError("Build RoPE cos and sin values for the given sequence length.")
 
 
 # Rotate the last dimension in pairs.
@@ -427,19 +372,11 @@ def build_rope_cache(config: ModernMiniGPTConfig, sequence_length: int) -> dict[
 def rotate_half(x: torch.Tensor) -> torch.Tensor:
     """Return the rotate-half version of x."""
 
-    batch_size, num_heads, sequence_length, head_dim = x.shape                      # shape = [16, 4, 16, 32]
+    raise NotImplementedError("Split the last dimension and return [-second_half, first_half].")
 
-    split_x = x.reshape(batch_size, num_heads, sequence_length, 2, head_dim//2)     # shape = [16, 4, 16, 2, 16]
-    first_half = split_x[:, :, :, 0:1, :]                                           # shape = [16, 4, 16, 1, 16]
-    second_half = split_x[:, :, :, 1:, :]                                           # shape = [16, 4, 16, 1, 16]
 
-    second_half = second_half * -1
 
-    merged = torch.concat([second_half, first_half], dim=3)                         # shape = [16, 4, 16, 2, 16]
-    merged = merged.reshape(batch_size, num_heads, sequence_length, head_dim)       # shape = [16, 4, 16, 32]
 
-    return merged
-    #raise NotImplementedError("Split the last dimension and return [-second_half, first_half].")
 
 
 # Apply RoPE to a query or key tensor.
@@ -466,7 +403,7 @@ def rotate_half(x: torch.Tensor) -> torch.Tensor:
 def apply_rope(x: torch.Tensor, rope_cache: dict[str, torch.Tensor], start_pos: int = 0) -> torch.Tensor:
     """Apply RoPE to query or key tensors."""
 
-    batch_size, num_heads, sequence_length, head_dim = x.shape          # shape = [16, 4, 16, 32]  or could also just be 1 token
+    raise NotImplementedError("Rotate pairs of query/key features using cos and sin values.")
     # sequence_length is not always the full context_length.
     # During normal training, it usually is the full context length
     # During cached generation, it may be just one new token
@@ -478,16 +415,9 @@ def apply_rope(x: torch.Tensor, rope_cache: dict[str, torch.Tensor], start_pos: 
     # start_pos = 5
     # i.e., use only the RoPE row for the token position you are currently processing
 
-    cos_table = rope_cache["cos"]                                       # shape = [1, 1, 16, 32]
-    sin_table = rope_cache["sin"]                                       # shape = [1, 1, 16, 32]
 
-    cos_table = cos_table[: , :, start_pos: start_pos + sequence_length, :]
-    sin_table = sin_table[: , :, start_pos: start_pos + sequence_length, :]
 
-    rotated_x = (x * cos_table) + (rotate_half(x) * sin_table)
 
-    return rotated_x
-    # raise NotImplementedError("Rotate pairs of query/key features using cos and sin values.")
 
 
 class RMSNorm(nn.Module):
@@ -503,10 +433,8 @@ class RMSNorm(nn.Module):
     def __init__(self, embed_dim: int, eps: float = 1e-6) -> None:
         super().__init__()
 
-        self.scale = nn.Parameter(torch.ones(embed_dim))
-        self.eps = eps
+        raise NotImplementedError("Create the learned RMSNorm scale.")
 
-        #raise NotImplementedError("Create the learned RMSNorm scale.")
 
     # Apply RMSNorm over the last dimension only.
     # Formula:
@@ -519,11 +447,8 @@ class RMSNorm(nn.Module):
 
         # x is of shape [batch_size, context_length, embed_dim]
 
-        rms = torch.sqrt(x.pow(2).mean(dim=-1, keepdim=True) + self.eps)
-        norm = (x / rms) * self.scale
+        raise NotImplementedError("Normalize over the last dimension and keep the same shape.")
 
-        return norm
-        #raise NotImplementedError("Normalize over the last dimension and keep the same shape.")
 
 
 class SwiGLUFeedForward(nn.Module):
@@ -539,11 +464,8 @@ class SwiGLUFeedForward(nn.Module):
     def __init__(self, embed_dim: int, mlp_dim: int) -> None:
         super().__init__()
 
-        self.gate = nn.Linear(in_features=embed_dim, out_features=mlp_dim)
-        self.value = nn.Linear(in_features=embed_dim, out_features=mlp_dim)
-        self.proj = nn.Linear(in_features=mlp_dim, out_features=embed_dim)
+        raise NotImplementedError("Build gate, value, and output projections.")
 
-        #raise NotImplementedError("Build gate, value, and output projections.")
 
     # Run the SwiGLU formula.
     # Formula:
@@ -559,14 +481,9 @@ class SwiGLUFeedForward(nn.Module):
 
         # x is shape [batch_size, sequence_length, embed_dim]
 
-        gate = self.gate(x)                             # shape = [batch, seq, mlp_dim]
-        value = self.value(x)                           # shape = [batch, seq, mlp_dim]
-        hidden = nn.functional.silu(gate) * value       # shape = [batch, seq, mlp_dim]
+        raise NotImplementedError("Apply SiLU gate times value, then project back to embed_dim.")
 
-        output = self.proj(hidden)                      # shape = [batch, seq, embed_dim]
 
-        return output        
-        #raise NotImplementedError("Apply SiLU gate times value, then project back to embed_dim.")
 
 
 # Compute scaled dot-product attention.
@@ -604,20 +521,12 @@ def scaled_dot_product_attention(
     # During cached generation, query_length may be 1 while key_length includes old cached tokens plus the new token.
     # mask is None or shape [1, 1, query_length, key_length]
 
-    batch_size, num_heads, seq_len, head_dim = query.shape
+    raise NotImplementedError("Compute masked scaled dot-product attention.")
 
-    scores = query @ key.transpose(dim0=-2, dim1=-1)   # [16, 4, 16, 32] @ [16, 4, 32, 16] = [16, 4, 16, 16] # or could be 1 instead of 16
-    scores /= sqrt(head_dim)
 
-    if mask is not None:
-        scores = torch.masked_fill(scores, ~mask, value=float("-inf"))
 
-    weights = scores.softmax(dim=-1)
 
-    output = weights @ value                         # [16, 4, 16, 16] @ [16, 4, 16, 32] = [16, 4, 16, 32]
 
-    return output
-    #raise NotImplementedError("Compute masked scaled dot-product attention.")
 
 
 # Create the starting KV cache.
@@ -633,8 +542,7 @@ def scaled_dot_product_attention(
 def init_empty_cache() -> dict[str, torch.Tensor] | None:
     """Return the starting KV cache value."""
 
-    return None
-    #raise NotImplementedError("Return None for the starting cache.")
+    raise NotImplementedError("Return None for the starting cache.")
 
 
 class ModernSelfAttention(nn.Module):
@@ -652,15 +560,9 @@ class ModernSelfAttention(nn.Module):
     def __init__(self, config: ModernMiniGPTConfig) -> None:
         super().__init__()
 
-        self.query = nn.Linear(in_features=config.embed_dim, out_features=config.embed_dim)
-        self.key = nn.Linear(in_features=config.embed_dim, out_features=config.embed_dim)
-        self.value = nn.Linear(in_features=config.embed_dim, out_features=config.embed_dim)
-        self.proj = nn.Linear(in_features=config.embed_dim, out_features=config.embed_dim)
+        raise NotImplementedError("Build Q, K, V projections and output projection.")
 
-        self.head_dim = config.embed_dim // config.num_heads
-        self.num_heads = config.num_heads
 
-        #raise NotImplementedError("Build Q, K, V projections and output projection.")
 
     # Run attention in two modes.
     #
@@ -695,42 +597,17 @@ class ModernSelfAttention(nn.Module):
 
         # x is shape [batch_size, seq, embed_dim]   seq may be 1 during inference, it is full context length during training
 
-        batch_size, seq, embed_dim = x.shape
+        raise NotImplementedError("Run attention, append cache during generation, and return updated cache.")
 
-        query = self.query(x)                                                               # [batch, seq, embed_dim]
-        key = self.key(x)                                                                   # [batch, seq, embed_dim]
-        value = self.value(x)                                                               # [batch, seq, embed_dim]
 
-        query = query.reshape(batch_size, seq, self.num_heads, self.head_dim)               # [batch, seq, heads, head_dim]
-        key = key.reshape(batch_size, seq, self.num_heads, self.head_dim)
-        value = value.reshape(batch_size, seq, self.num_heads, self.head_dim)
 
-        query = query.permute(dims=(0, 2, 1, 3))                                            # [batch, heads, seq, head_dim]
-        key = key.permute(dims=(0, 2, 1, 3))
-        value = value.permute(dims=(0, 2, 1, 3))
 
-        rope_query = apply_rope(query, rope_cache, start_pos)
-        rope_key = apply_rope(key, rope_cache, start_pos)
 
-        if kv_cache is None:
-            key_all = rope_key
-            value_all = value
-        else:
-            # dim=2 is correct because the cache length lives in the sequence dimension:
-            key_all = torch.concat([kv_cache["key"], rope_key], dim=2)
-            value_all = torch.concat([kv_cache["value"], value], dim=2)
 
-        updated_cache = {"key": key_all, "value": value_all}
 
-        attention_output = scaled_dot_product_attention(rope_query, key_all, value_all, mask)   # [batch, heads, seq, head_dim]
 
-        attention_output = attention_output.permute(dims=(0, 2, 1, 3))
-        attention_output = attention_output.reshape(batch_size, seq, embed_dim)
 
-        proj = self.proj(attention_output)                                                  # [batch, seq, embed_dim]
         
-        return proj, updated_cache
-        # raise NotImplementedError("Run attention, append cache during generation, and return updated cache.")
 
 
 class ModernDecoderBlock(nn.Module):
@@ -747,13 +624,9 @@ class ModernDecoderBlock(nn.Module):
     def __init__(self, config: ModernMiniGPTConfig) -> None:
         super().__init__()
 
-        self.norm1 = RMSNorm(embed_dim=config.embed_dim, eps=config.eps)
-        self.self_attention = ModernSelfAttention(config)
+        raise NotImplementedError("Build RMSNorm, attention, RMSNorm, and SwiGLU.")
 
-        self.norm2 = RMSNorm(embed_dim=config.embed_dim, eps=config.eps)
-        self.feed_forward = SwiGLUFeedForward(embed_dim=config.embed_dim, mlp_dim=config.mlp_dim)
 
-        #raise NotImplementedError("Build RMSNorm, attention, RMSNorm, and SwiGLU.")
 
     # Run the block.
     # Use this order:
@@ -779,18 +652,9 @@ class ModernDecoderBlock(nn.Module):
 
         # x is of shape [batch_size, seq, embed_dim]
 
-        residual = x
-        x = self.norm1(x)
-        x, updated_cache = self.self_attention(x, mask, rope_cache, kv_cache, start_pos)
-        x = x + residual
+        raise NotImplementedError("Run pre-norm attention, residual, pre-norm feed-forward, and residual.")
 
-        residual = x
-        x = self.norm2(x)
-        x = self.feed_forward(x)
-        x = x + residual
         
-        return x, updated_cache
-        #raise NotImplementedError("Run pre-norm attention, residual, pre-norm feed-forward, and residual.")
 
 
 class ModernMiniGPT(nn.Module):
@@ -807,18 +671,13 @@ class ModernMiniGPT(nn.Module):
     def __init__(self, vocab_size: int, config: ModernMiniGPTConfig) -> None:
         super().__init__()
 
-        self.token_embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=config.embed_dim, padding_idx=0)
+        raise NotImplementedError("Build embeddings, decoder blocks, final RMSNorm, and LM head.")
         #self.pos_embedding = nn.Embedding(num_embeddings=config.context_length, embedding_dim=config.embed_dim)
 
-        self.decoder_blocks = nn.ModuleList([ModernDecoderBlock(config) for _ in range(config.num_layers)])
 
-        self.norm = RMSNorm(embed_dim=config.embed_dim, eps=config.eps)
 
-        self.head = nn.Linear(in_features=config.embed_dim, out_features=vocab_size)
 
-        self.config = config
 
-        #raise NotImplementedError("Build embeddings, decoder blocks, final RMSNorm, and LM head.")
 
     # Run the model for training or generation.
     #
@@ -843,49 +702,26 @@ class ModernMiniGPT(nn.Module):
     ) -> tuple[torch.Tensor, list[dict[str, torch.Tensor]]]:
         """Return logits and updated per-layer KV caches."""
 
-        batch_size, seq_length = input_ids.shape
+        raise NotImplementedError("Run the model for training or cached generation.")
 
-        using_cache = kv_caches is not None
 
-        if using_cache:
-            mask = None
-        else:
-            # build mask
-            mask = build_causal_mask(seq_length)
-            mask = mask.to(input_ids.device)
 
         # build rope cache
-        rope_cache = build_rope_cache(self.config, start_pos + seq_length)
-        rope_cache["cos"] = rope_cache["cos"].to(input_ids.device)
-        rope_cache["sin"] = rope_cache["sin"].to(input_ids.device)
 
         # kv cache
-        if kv_caches is None:
-            kv_caches = [None] * len(self.decoder_blocks)
 
         # begin
 
-        token_embeddings = self.token_embedding(input_ids)                  # shape = [batch_size, seq, embed_dim]
 
         # positions = torch.arange(start=0, end=seq_length, step=1)           # shape = [seq_length]
         # positions = positions.unsqueeze(dim=0)                              # shape = [1, seq_length]
         # positions = positions.expand(size = (batch_size, seq_length))       # shape = [batch_size, sequence_length]
         # pos_embedings = self.pos_embedding(positions)                       # shape = [batch_size, seq, embed_dim]
 
-        embeddings = token_embeddings #+ pos_embedings                       # shape = [batch_size, seq, embed_dim]
 
-        features = embeddings
-        new_caches = []        
-        for block, layer_cache in zip(self.decoder_blocks, kv_caches):
-            features, new_cache = block(features, mask, rope_cache, layer_cache, start_pos)
-            new_caches.append(new_cache)
 
-        features = self.norm(features)
 
-        logits = self.head(features)
 
-        return logits, new_caches
-        #raise NotImplementedError("Run the model for training or cached generation.")
 
 
 # Build the model, loss function, and optimizer.
@@ -898,14 +734,9 @@ class ModernMiniGPT(nn.Module):
 def build_training_objects(config: ModernMiniGPTConfig) -> tuple[nn.Module, nn.Module, torch.optim.Optimizer]:
     """Return model, loss function, and optimizer."""
 
-    model = ModernMiniGPT(config.vocab_size, config)
-    model = model.to(device)
+    raise NotImplementedError("Build ModernMiniGPT, CrossEntropyLoss, and Adam optimizer.")
 
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.AdamW(lr=config.learning_rate, params=model.parameters())
     
-    return model, loss_fn, optimizer
-    #raise NotImplementedError("Build ModernMiniGPT, CrossEntropyLoss, and Adam optimizer.")
 
 
 # Train with full context windows.
@@ -921,32 +752,10 @@ def build_training_objects(config: ModernMiniGPTConfig) -> tuple[nn.Module, nn.M
 def train_one_epoch(model: nn.Module, loader: DataLoader, loss_fn: nn.Module, optimizer: torch.optim.Optimizer) -> dict[str, float]:
     """Return mean train loss and perplexity."""
 
-    model.train()
+    raise NotImplementedError("Train one epoch with full sequence windows.")
 
-    losses = []
-    for data_dict in loader:
-        input_ids = data_dict["input_ids"]
-        target_ids = data_dict["target_ids"]
 
-        input_ids = input_ids.to(device)
-        target_ids = target_ids.to(device)
 
-        optimizer.zero_grad()
-
-        logits, new_caches = model(input_ids=input_ids, kv_caches=None, start_pos=0)
-        batch_size, seq, vocab_size = logits.shape
-        loss = loss_fn(logits.reshape(batch_size*seq, vocab_size), target_ids.reshape(batch_size*seq))
-
-        loss.backward()
-        optimizer.step()
-
-        losses.append(loss.item())
-
-    mean_loss = torch.tensor(losses).mean()
-    perp = torch.exp(mean_loss)
-
-    return {"loss": mean_loss.item(), "perplexity": perp.item()}
-    #raise NotImplementedError("Train one epoch with full sequence windows.")
 
 
 # Evaluate without changing model weights.
@@ -958,27 +767,10 @@ def train_one_epoch(model: nn.Module, loader: DataLoader, loss_fn: nn.Module, op
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[str, float]:
     """Return mean evaluation loss and perplexity."""
 
-    model.eval()
+    raise NotImplementedError("Evaluate full sequence windows.")
 
-    losses = []
-    for data_dict in loader:
-        input_ids = data_dict["input_ids"]
-        target_ids = data_dict["target_ids"]
 
-        input_ids = input_ids.to(device)
-        target_ids = target_ids.to(device)       
 
-        logits, new_caches = model(input_ids=input_ids, kv_caches=None, start_pos=0)
-        batch_size, seq, vocab_size = logits.shape
-        loss = loss_fn(logits.reshape(batch_size*seq, vocab_size), target_ids.reshape(batch_size*seq))
-
-        losses.append(loss.item())
-
-    mean_loss = torch.tensor(losses).mean()
-    perp = torch.exp(mean_loss)
-
-    return {"loss": mean_loss.item(), "perplexity": perp.item()}   
-    #raise NotImplementedError("Evaluate full sequence windows.")
 
 
 # Generate text without using a KV cache.
@@ -993,39 +785,14 @@ def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[s
 def generate_without_cache(model: ModernMiniGPT, start_text: str, config: ModernMiniGPTConfig) -> str:
     """Generate text by rerunning the full context each step."""
 
-    temperature = 0.2
-    use_temperature=True
+    raise NotImplementedError("Generate one token at a time without passing a KV cache.")
 
-    if not start_text:
-        start_text = "hello world."
 
-    start_tokens = basic_word_tokenize(start_text)
-    start_tokens = start_tokens[-config.context_length:]
 
-    model_device = next(model.parameters()).device
 
-    encode = lambda st: [config.token_to_int.get(t, 1) for t in st]
-    decode = lambda l: " ".join([config.int_to_token[i] for i in l])
 
-    token_ids = torch.tensor(encode(start_tokens), dtype=torch.long, device=model_device).unsqueeze(dim=0)     # shape = [1, seq_len]
-    generated = []
 
-    for i in range(config.sample_length):
-        logits, new_caches = model(input_ids=token_ids, kv_caches=None, start_pos=0)    # shape is [batch_size, seq, vocab_size]
-        new_token_vec = logits[:, -1, :]     #shape is [batch_size, vocab_size]
 
-        if use_temperature:
-            prob = torch.softmax(new_token_vec/temperature, dim=-1)
-            new_token_id = torch.multinomial(prob, num_samples=1)
-        else:
-            new_token_id = new_token_vec.argmax(dim=-1, keepdim=True)
-
-        token_ids = torch.concat([token_ids, new_token_id], dim=-1)
-        token_ids = token_ids[:, -config.context_length:]
-        generated.append(new_token_id.squeeze().item())
-
-    return start_text + " " + decode(generated)
-    #raise NotImplementedError("Generate one token at a time without passing a KV cache.")
 
 
 # Generate text with a KV cache.
@@ -1043,64 +810,21 @@ def generate_without_cache(model: ModernMiniGPT, start_text: str, config: Modern
 def generate_with_cache(model: ModernMiniGPT, start_text: str, config: ModernMiniGPTConfig) -> dict[str, object]:
     """Generate text while reusing a KV cache."""
 
-    temperature = 0.2
-    use_temperature=True
+    raise NotImplementedError("Generate one token at a time and reuse cached keys and values.")
 
-    if not start_text:
-        start_text = "hello world."
 
-    start_tokens = basic_word_tokenize(start_text)
-    start_tokens = start_tokens[-config.context_length:]
 
-    model_device = next(model.parameters()).device
 
-    encode = lambda st: [config.token_to_int.get(t, 1) for t in st]
-    decode = lambda l: " ".join([config.int_to_token[i] for i in l])
 
-    token_ids = torch.tensor(encode(start_tokens), dtype=torch.long, device=model_device).unsqueeze(dim=0)     # shape = [1, seq_len]
-    generated = []
 
-    prompt_length = token_ids.shape[1]
 
     # run the prompt once to fill the cache
-    logits, kv_caches  = model(input_ids=token_ids, kv_caches=None, start_pos=0)    # shape is [batch_size, seq, vocab_size]
-    new_token_vec = logits[:, -1, :]     #shape is [batch_size, vocab_size]
 
-    if use_temperature:
-        prob = torch.softmax(new_token_vec/temperature, dim=-1)
-        new_token_id = torch.multinomial(prob, num_samples=1)
-    else:
-        new_token_id = new_token_vec.argmax(dim=-1, keepdim=True)    
     
-    generated.append(new_token_id.squeeze().item())
 
-    current_token = new_token_id
-    start_pos = prompt_length
     # now run it in a loop 1 token at a time
-    for i in range(1, config.sample_length):
 
-        logits, kv_caches = model(input_ids=current_token, kv_caches=kv_caches , start_pos=start_pos)    # shape is [batch_size, seq, vocab_size]
-        new_token_vec = logits[:, -1, :]     #shape is [batch_size, vocab_size]
 
-        if use_temperature:
-            prob = torch.softmax(new_token_vec/temperature, dim=-1)
-            new_token_id = torch.multinomial(prob, num_samples=1)
-        else:
-            new_token_id = new_token_vec.argmax(dim=-1, keepdim=True)
-        
-        current_token = new_token_id
-        generated.append(new_token_id.squeeze().item())
-        start_pos+=1
-
-    final_cache_length = kv_caches[0]["key"].shape[2]
-
-    return {
-                "text": start_text + " " + decode(generated),
-                "final_cache_length": final_cache_length,
-                "cached_work_estimate": config.sample_length,
-                "num_generated_tokens": len(generated),
-            }
-    #raise NotImplementedError("Generate one token at a time and reuse cached keys and values.")
 
 
 # Compare the rough work done by cached and non-cached generation.
@@ -1124,20 +848,9 @@ def generate_with_cache(model: ModernMiniGPT, start_text: str, config: ModernMin
 def compare_generation_work(sample_length: int) -> dict[str, float | str]:
     """Compare cached and non-cached generation work."""
 
-    no_cache_work_estimate = sum(range(1, sample_length + 1))
-    cached_work_estimate = sample_length
+    raise NotImplementedError("Compare simple cached and non-cached generation work estimates.")
 
-    saved_work = no_cache_work_estimate - cached_work_estimate
-    speedup_ratio = no_cache_work_estimate / cached_work_estimate if cached_work_estimate > 0 else 0.0
 
-    return {
-        "no_cache_work_estimate": float(no_cache_work_estimate),
-        "cached_work_estimate": float(cached_work_estimate),
-        "saved_work": float(saved_work),
-        "speedup_ratio": float(speedup_ratio),
-        "note": "KV cache avoids rebuilding old keys and values for every new token.",
-    }
-    #raise NotImplementedError("Compare simple cached and non-cached generation work estimates.")
 
 
 # Run the whole exercise.
@@ -1154,36 +867,13 @@ def compare_generation_work(sample_length: int) -> dict[str, float | str]:
 def run_training(config: ModernMiniGPTConfig) -> dict[str, float | str]:
     """Train, evaluate, and compare cached and non-cached generation."""
 
-    set_seed(config.random_state)
+    raise NotImplementedError("Run the full modern mini GPT experiment.")
 
-    loaders = load_dataloaders(config)
-    model, loss_fn, optimizer = build_training_objects(config)
 
-    for i in range(config.epochs):
-        train_dict = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-        val_dict = evaluate(model, loaders["val"], loss_fn)
 
-        print(f"Epoch {i+1} -> loss: {train_dict['loss']}, perp: {train_dict['perplexity']}, val_loss: {val_dict['loss']}, val_perp: {val_dict['perplexity']}")
 
-    sample_without_cache = generate_without_cache(model=model, start_text="To be or not", config=config)
-    cache_sample = generate_with_cache(model=model, start_text="To be or not", config=config)
-    work_comparison = compare_generation_work(config.sample_length)
 
-    print(f"\nGenerated without cache:\n{sample_without_cache}")
-    print(f"\nGenerated with cache:\n{cache_sample['text']}")
-    print(f"\n\n {work_comparison} \n\n")
 
-    return {
-        "train_loss": train_dict["loss"],
-        "val_loss": val_dict["loss"],
-        "val_perplexity": val_dict["perplexity"],
-        "sample_without_cache": sample_without_cache,
-        "sample_with_cache": str(cache_sample["text"]),
-        "cache_final_length": float(cache_sample["final_cache_length"]),
-        "cache_speedup_ratio": float(work_comparison["speedup_ratio"]),
-    }
-
-    #raise NotImplementedError("Run the full modern mini GPT experiment.")
 
 
 # Check the final summary from `run_training`.

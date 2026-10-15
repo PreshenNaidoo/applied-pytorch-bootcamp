@@ -309,12 +309,8 @@ def make_train_and_eval_envs(config: SB3DQNConfig) -> tuple[Any, Any]:
     # - For CartPole, observation space should have shape `(4,)`.
 
 
-    import gymnasium as gym
-    train_env = gym.make(config.env_name)
-    eval_env = gym.make(config.env_name)
+    raise NotImplementedError("Create train and eval Gymnasium environments.")
 
-    return train_env, eval_env
-    #raise NotImplementedError("Create train and eval Gymnasium environments.")
 
 
 def train_dqn_model(train_env: Any, config: SB3DQNConfig) -> Any:
@@ -357,12 +353,8 @@ def train_dqn_model(train_env: Any, config: SB3DQNConfig) -> Any:
     # - The returned model should have `.save(...)`.
     # - Keep `verbose=0` so normal runs do not print too much.
 
-    from stable_baselines3 import DQN
-    model = DQN(policy="MlpPolicy", env=train_env, verbose=0, seed=config.random_state)
-    model.learn(total_timesteps=config.total_timesteps)
+    raise NotImplementedError("Train and return an SB3 DQN model.")
 
-    return model
-    #raise NotImplementedError("Train and return an SB3 DQN model.")
 
 
 def evaluate_model(model: Any, eval_env: Any, episodes: int) -> float:
@@ -409,11 +401,8 @@ def evaluate_model(model: Any, eval_env: Any, episodes: int) -> float:
     # - Use deterministic evaluation for the trained model.
     # - Do not report only one episode.
 
-    from stable_baselines3.common.evaluation import evaluate_policy
-    mean_reward, std_reward = evaluate_policy(model, eval_env, n_eval_episodes=episodes, deterministic=True)
+    raise NotImplementedError("Evaluate the trained DQN model.")
 
-    return float(mean_reward)
-    #raise NotImplementedError("Evaluate the trained DQN model.")
 
 
 def evaluate_random_policy(eval_env: Any, episodes: int, max_steps: int = 500) -> float:
@@ -461,25 +450,9 @@ def evaluate_random_policy(eval_env: Any, episodes: int, max_steps: int = 500) -
     # - The random policy should use only `eval_env.action_space.sample()`.
     # - Return the average, not the list of returns.
 
-    episode_returns = []
+    raise NotImplementedError("Evaluate a random policy.")
 
-    for _ in range(episodes):
-        obs, info = eval_env.reset()
-        episode_return = 0.0
 
-        for _ in range(max_steps):
-            action = eval_env.action_space.sample()
-            obs, reward, terminated, truncated, info = eval_env.step(action)
-            episode_return += float(reward)
-
-            done = terminated or truncated
-            if done:
-                break
-
-        episode_returns.append(episode_return)
-
-    # raise NotImplementedError("Evaluate a random policy.")
-    return sum(episode_returns) / len(episode_returns)
 
 
 def check_trained_policy_beats_random(random_mean_return: float, trained_mean_return: float) -> bool:
@@ -515,8 +488,7 @@ def check_trained_policy_beats_random(random_mean_return: float, trained_mean_re
     # - This should compare evaluation returns, not training loss.
     # - This is a simple baseline check, not proof that DQN is optimal.
 
-    return trained_mean_return > random_mean_return
-    #raise NotImplementedError("Check whether trained DQN beats random actions.")
+    raise NotImplementedError("Check whether trained DQN beats random actions.")
 
 
 def save_and_load_model(model: Any, eval_env: Any, config: SB3DQNConfig) -> Any:
@@ -553,12 +525,7 @@ def save_and_load_model(model: Any, eval_env: Any, config: SB3DQNConfig) -> Any:
     # - The loaded model should still evaluate.
     # - Loading with `env=eval_env` lets the model keep using the same environment API.
 
-    Path(config.model_path).parent.mkdir(parents=True, exist_ok=True)
-    model.save(config.model_path)
-    from stable_baselines3 import DQN
-    loaded_model = DQN.load(config.model_path, env=eval_env)
-    return loaded_model
-    #raise NotImplementedError("Save and load the trained DQN model.")
+    raise NotImplementedError("Save and load the trained DQN model.")
 
 
 def run_sb3_dqn_baseline(config: SB3DQNConfig) -> SB3DQNSummary:
@@ -607,45 +574,9 @@ def run_sb3_dqn_baseline(config: SB3DQNConfig) -> SB3DQNSummary:
     # - For CartPole, these mean rewards are roughly average steps balanced.
     # - Close environments even if an earlier step fails.
 
-    train_env, eval_env = make_train_and_eval_envs(config)
+    raise NotImplementedError("Run the full SB3 DQN baseline workflow.")
 
-    try:
-        random_mean_return = evaluate_random_policy(eval_env, config.eval_episodes)
 
-        model = train_dqn_model(train_env, config)
-        trained_mean_return = evaluate_model(model, eval_env, config.eval_episodes)
-
-        loaded_model = save_and_load_model(model, eval_env, config)
-        loaded_mean_return = evaluate_model(loaded_model, eval_env, config.eval_episodes)
-
-        evaluation_passed = check_trained_policy_beats_random(random_mean_return, trained_mean_return)
-        note = (
-            "SB3 DQN gives a reference score for the same environment. "
-            "Compare custom DQN against this score and against random actions."
-        )
-
-        summary: SB3DQNSummary = {
-            "env_name": config.env_name,
-            "random_mean_return": random_mean_return,
-            "trained_mean_return": trained_mean_return,
-            "loaded_mean_return": loaded_mean_return,
-            "evaluation_passed": evaluation_passed,
-            "model_path": config.model_path,
-            "note": note,
-        }
-        print(
-            "SB3 DQN mean episode reward, about average steps balanced: "
-            f"random={random_mean_return:.1f}, "
-            f"trained={trained_mean_return:.1f}, "
-            f"loaded={loaded_mean_return:.1f}, "
-            f"passed={evaluation_passed}"
-        )
-        return summary
-    finally:
-        train_env.close()
-        eval_env.close()
-
-    # raise NotImplementedError("Run the full SB3 DQN baseline workflow.")
 
 
 def explain_baseline_first_workflow(summary: SB3DQNSummary) -> str:
@@ -667,13 +598,7 @@ def explain_baseline_first_workflow(summary: SB3DQNSummary) -> str:
     # - Mention the random policy comparison.
     # - Do not claim SB3 proves your custom implementation is correct.
     # - Keep it short and natural.
-    # raise NotImplementedError("Explain the baseline-first workflow.")
-    return (
-        "SB3 DQN gives a reference score for this environment. "
-        f"Here, random actions scored {summary['random_mean_return']:.1f} mean episode reward, "
-        f"while SB3 DQN scored {summary['trained_mean_return']:.1f}. "
-        "For CartPole, that reward is roughly the average number of steps the pole stayed balanced."
-    )
+    raise NotImplementedError("Explain the baseline-first workflow.")
 
 
 def check_metrics(metrics: SB3DQNSummary) -> bool:

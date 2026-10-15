@@ -335,11 +335,7 @@ class TinyPolicyEnv:
         # - `state.sum()` should be `1.0`.
         # - `self.position` should be `0` after reset.
 
-        self.position = 0
-        state = torch.zeros(self.config.state_dim, dtype=torch.float32)
-        state[self.position] = 1.0
-        return state
-        #raise NotImplementedError("Return the starting state vector.")
+        raise NotImplementedError("Return the starting state vector.")
 
     def step(self, action: int) -> tuple[torch.Tensor, float, bool]:
         """Run one environment step and return next state, reward, and done."""
@@ -384,24 +380,11 @@ class TinyPolicyEnv:
         # - The position should never go above `state_dim - 1`.
         # - `done` should be `True` only at the goal.
 
-        goal_position = self.config.state_dim - 1
+        raise NotImplementedError("Return the next state, reward, and done flag.")
 
-        if action == 0:
-            self.position = max(0, self.position-1)
-        elif action == 1:
-            self.position = min(goal_position, self.position+1)
 
-        done = self.position == goal_position
-        if done:
-            reward = 1.0
-        else:
-            reward = -0.01
 
-        state = torch.zeros(self.config.state_dim, dtype=torch.float32)
-        state[self.position] = 1
 
-        return state, reward, done
-        #raise NotImplementedError("Return the next state, reward, and done flag.")
 
 class PolicyNetwork(nn.Module):
     """Tiny policy network."""
@@ -443,13 +426,8 @@ class PolicyNetwork(nn.Module):
         # - For input shape `[batch_size, state_dim]`, output shape should be `[batch_size, num_actions]`.
         super().__init__()
 
-        self.net = nn.Sequential(nn.Linear(in_features=config.state_dim, out_features=config.hidden_dim),
-                                    nn.ReLU(inplace=True),
-                                    nn.Linear(in_features=config.hidden_dim, out_features=config.hidden_dim),
-                                    nn.ReLU(inplace=True),
-                                    nn.Linear(in_features=config.hidden_dim, out_features=config.num_actions))
+        raise NotImplementedError("Build a tiny policy network that returns action logits.")
 
-        #raise NotImplementedError("Build a tiny policy network that returns action logits.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return raw action logits."""
@@ -478,9 +456,7 @@ class PolicyNetwork(nn.Module):
         # - Do not apply softmax in `forward`.
         # - The second dimension should equal `num_actions`.
 
-        logits = self.net(x)
-        return logits
-        #raise NotImplementedError("Return one logit per action.")
+        raise NotImplementedError("Return one logit per action.")
 
 # Roll out one episode.
 # Return at least:
@@ -548,93 +524,12 @@ def collect_episode(policy_model: nn.Module, env: TinyPolicyEnv, config: Reinfor
     # - The four returned lists should have the same length.
     # - Each log-probability should be a scalar tensor that still has gradients.
 
-    model_device = next(policy_model.parameters()).device
+    raise NotImplementedError("Return one trajectory of states, actions, rewards, and log_probs.")
 
-    policy_model.train()
 
-    state = env.reset()
 
-    states, actions, rewards, log_probs = [], [], [], []
 
-    for i in range(config.max_steps_per_episode):
-        
-        logits = policy_model(state.unsqueeze(dim=0).to(model_device))   # add a fake batch dim  shape = [1, state_dim]   batch_size 1
 
-        # `logits` has shape `[1, num_actions]` because the policy saw one state.
-        # The first `1` is the batch size.
-        # `logits.squeeze(0)` removes that batch wrapper, so the scores become shape `[num_actions]`.
-        #
-        # `Categorical(logits=...)` is the PyTorch distribution for choosing one item
-        # from a short list of choices. Here the choices are actions:
-        # - action 0 = left
-        # - action 1 = right
-        #
-        # This is very similar to:
-        # ```python
-        # probs = torch.softmax(logits.squeeze(0), dim=-1)
-        # action_tensor = torch.multinomial(probs, num_samples=1)
-        # ```
-        #
-        # Both versions mean:
-        # turn raw action scores into probabilities, then randomly pick one action
-        # using those probabilities.
-        #
-        # Small example:
-        # ```python
-        # action_scores = torch.tensor([2.0, 0.5])
-        # probs = torch.softmax(action_scores, dim=-1)
-        # # probs is about tensor([0.8176, 0.1824])
-        # ```
-        #
-        # So action 0 is picked about 82% of the time,
-        # and action 1 is picked about 18% of the time.
-        #
-        # `Categorical` is nicer here because REINFORCE also needs `log_prob`.
-        # `log_prob` means "the log of the probability of the action we actually picked".
-        #
-        # Example:
-        # If the policy probabilities are:
-        # - action 0: 0.82
-        # - action 1: 0.18
-        #
-        # and the sampled action is action 0, then:
-        # ```python
-        # log_prob = torch.log(torch.tensor(0.82))
-        # # about -0.20
-        # ```
-        #
-        # If the sampled action is action 1, then:
-        # ```python
-        # log_prob = torch.log(torch.tensor(0.18))
-        # # about -1.71
-        # ```
-        #
-        # A more likely action has a log_prob closer to 0.
-        # A less likely action has a more negative log_prob.
-        #
-        # REINFORCE saves this value because the loss later says:
-        # "if the return was good, make this sampled action more likely next time;
-        # if the return was bad, make this sampled action less likely next time."
-        dist = torch.distributions.Categorical(logits=logits.squeeze(0))
-        
-        action_tensor = dist.sample()
-        log_prob = dist.log_prob(action_tensor)
-        action = int(action_tensor.item())
-
-        next_state, reward, done = env.step(action)
-
-        actions.append(action)
-        states.append(state)
-        rewards.append(reward)
-        log_probs.append(log_prob)
-        
-        state = next_state
-
-        if done:
-            break
-
-    return {"states":states, "actions":actions, "rewards": rewards, "log_probs": log_probs}
-    #raise NotImplementedError("Return one trajectory of states, actions, rewards, and log_probs.")
 
 def compute_discounted_returns(rewards: list[float], gamma: float) -> list[float]:
     """Return discounted returns for each time step."""
@@ -694,16 +589,10 @@ def compute_discounted_returns(rewards: list[float], gamma: float) -> list[float
     # - With `rewards=[1.0, 1.0]` and `gamma=0.5`, the result should be `[1.5, 1.0]`.
     # - The final return should equal the final reward because there is no future reward after it.
 
-    returns = []
-    running_return = 0.0
+    raise NotImplementedError("Return the discounted return from each step onward.")
 
-    for reward in reversed(rewards):
-        running_return = reward + gamma * running_return
-        returns.insert(0, running_return)
 
-    return returns
 
-    #raise NotImplementedError("Return the discounted return from each step onward.")
 
 # Compute the REINFORCE loss.
 # In plain words:
@@ -809,12 +698,8 @@ def reinforce_loss(log_probs: list[torch.Tensor], returns: list[float]) -> torch
     # - The returned loss should be a scalar tensor.
     # - Do not call `.item()` before `loss.backward()`, because that would remove gradients.
 
-    log_prob_tensor = torch.stack(log_probs)
-    return_tensor = torch.tensor(returns, dtype=torch.float32, device=log_prob_tensor.device)
-    loss = -(log_prob_tensor * return_tensor).mean()
+    raise NotImplementedError("Return the REINFORCE loss from log_probs and returns.")
 
-    return loss
-    #raise NotImplementedError("Return the REINFORCE loss from log_probs and returns.")
 
 def train_reinforce(config: ReinforceConfig) -> ReinforceSummary:
     """Run the full REINFORCE workflow."""
@@ -877,48 +762,12 @@ def train_reinforce(config: ReinforceConfig) -> ReinforceSummary:
     # - A useful practical check is whether later returns are often better than early returns.
     # - Do not expect a perfectly smooth curve because actions are sampled.
 
-    env = TinyPolicyEnv(config)
-    policy_model = PolicyNetwork(config).to(device)
-    optimizer = torch.optim.Adam(policy_model.parameters(), lr=config.learning_rate)
+    raise NotImplementedError("Collect episodes, update the policy, and return training summaries.")
 
-    episode_returns = []
-    last_loss = 0.0
 
-    for episode_idx in range(config.episodes):
-        trajectory = collect_episode(policy_model, env, config)
 
-        returns = compute_discounted_returns(trajectory["rewards"], config.gamma)
-        loss = reinforce_loss(trajectory["log_probs"], returns)
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
 
-        episode_return = sum(trajectory["rewards"])
-        episode_returns.append(episode_return)
-        last_loss = float(loss.item())
-
-        print_every = max(1, config.episodes // 5)
-        if (episode_idx + 1) % print_every == 0 or episode_idx == 0:
-            print(
-                f"Episode {episode_idx + 1}/{config.episodes}: "
-                f"return={episode_return:.3f}, loss={last_loss:.3f}"
-            )
-
-    mean_return = float(sum(episode_returns) / len(episode_returns))
-    first_window = episode_returns[: min(10, len(episode_returns))]
-    last_window = episode_returns[-min(10, len(episode_returns)) :]
-
-    summary: ReinforceSummary = {
-        "episode_returns": episode_returns,
-        "mean_return": mean_return,
-        "last_loss": last_loss,
-        "num_episodes": config.episodes,
-        "note": "",
-    }
-    summary["note"] = explain_policy_gradient_noise(summary)
-
-    print(f"Mean return over {config.episodes} episodes: {mean_return:.3f}")
     # These two lines compare early training to late training.
     # More exactly, they compare total episode reward, also called episode return.
     #
@@ -950,13 +799,7 @@ def train_reinforce(config: ReinforceConfig) -> ReinforceSummary:
     #
     # So if the last 10 episodes have a bigger mean return than the first 10,
     # that is a useful sign that the policy learned better actions.
-    print(f"Mean return in first {len(first_window)} episodes: {sum(first_window) / len(first_window):.3f}")
-    print(f"Mean return in last {len(last_window)} episodes: {sum(last_window) / len(last_window):.3f}")
-    print(f"Last loss: {last_loss:.3f}")
-    print(f"Training note: {summary['note']}")
 
-    return summary
-    #raise NotImplementedError("Collect episodes, update the policy, and return training summaries.")
 
 def explain_policy_gradient_noise(summary: ReinforceSummary) -> str:
     """Write a short note about why REINFORCE can be noisy."""
@@ -993,12 +836,7 @@ def explain_policy_gradient_noise(summary: ReinforceSummary) -> str:
     # - Keep the note short and plain.
     # - Do not say the method is broken just because the curve is noisy.
     # - Do not mention baselines as if this exercise already implemented one.
-    return (
-        f"REINFORCE sampled actions for {summary['num_episodes']} episodes, "
-        f"then updated from each whole episode's returns. "
-        f"The mean return was {summary['mean_return']:.3f}, but one lucky or unlucky episode can still move the policy a lot."
-    )
-    #raise NotImplementedError("Explain REINFORCE noise in simple words.")
+    raise NotImplementedError("Explain REINFORCE noise in simple words.")
 
 def check_metrics(metrics: ReinforceSummary) -> bool:
     """Return True when the REINFORCE summary has the expected keys."""

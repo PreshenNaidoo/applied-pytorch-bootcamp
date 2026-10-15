@@ -163,9 +163,7 @@ from common.training_checks import check_threshold, print_pass_or_try_again
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-@dataclass
 
-        #raise NotImplementedError("Return raw logits from the transfer learning model.")
 
 
 # Build the train, validation, and test loaders.
@@ -186,14 +184,9 @@ def load_dataloaders(config: TransferLearningConfig) -> dict[str, DataLoader]:
     # using the dataset with transform=..., turns each image into a PyTorch tensor in the right order already.
 
     #weights = torchvision.models.ResNet18_Weights.DEFAULT
-    weights = torchvision.models.MobileNet_V3_Small_Weights.DEFAULT
-    transform = weights.transforms()
+    raise NotImplementedError("Return train, val, and test loaders for resized CIFAR10.")
 
-    data_train = torchvision.datasets.CIFAR10(root = config.data_root, train=True, download=True, transform=transform)
-    data_test = torchvision.datasets.CIFAR10(root = config.data_root, train=False, download=True, transform=transform)
 
-    full_ds = torch.utils.data.ConcatDataset([data_train, data_test])
-    train_ds, val_ds, test_ds = torch.utils.data.random_split(full_ds, [0.6, 0.2, 0.2])
 
     # dataset object handles image prep, subset or split handles which examples belong to train/val/test, dataloader handles batching
     # the above is correct.
@@ -221,12 +214,9 @@ def load_dataloaders(config: TransferLearningConfig) -> dict[str, DataLoader]:
     
     # if os.cpu_count() is something like 8, use 8 if os.cpu_count() is None, use 1
     # the or handles the none case
-    num_workers = min(4, os.cpu_count() or 1)
 
-    return {"train": DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True, num_workers=num_workers, pin_memory=False),
-            "val": DataLoader(dataset=val_ds, batch_size=config.batch_size, num_workers=num_workers, pin_memory=False),
-            "test": DataLoader(dataset=test_ds, batch_size=config.batch_size, num_workers=num_workers, pin_memory=False)}
 
+@dataclass
 class TransferLearningConfig:
     """Settings for the transfer learning exercise."""
 
@@ -263,7 +253,7 @@ class TransferLearningClassifier(nn.Module):
 
     def __init__(self, num_classes: int) -> None:
         super().__init__()
-        self.num_classes = num_classes
+        raise NotImplementedError( "Load a pretrained backbone, replace the final classifier head, and freeze the backbone first." )
 
         ######################## code for resnet18
         # self.weights = torchvision.models.ResNet18_Weights.DEFAULT #imagenet
@@ -279,14 +269,10 @@ class TransferLearningClassifier(nn.Module):
         # self.backbone.fc = nn.Linear(in_features=in_features, out_features=num_classes)
         ########################
 
-        self.weights = MobileNet_V3_Small_Weights.DEFAULT
-        self.backbone = torchvision.models.mobilenet_v3_small(weights=self.weights)
 
         # for param in self.backbone.parameters():
         #     param.requires_grad = False
 
-        in_features = self.backbone.classifier[-1].in_features
-        self.backbone.classifier[-1] = nn.Linear(in_features=in_features, out_features=num_classes)
 
 
         # no need to do this below because the new fc layer below is trainable by default
@@ -294,19 +280,14 @@ class TransferLearningClassifier(nn.Module):
         #     param.requires_grad = True
 
 
-        # raise NotImplementedError(
-        #     "Load a pretrained backbone, replace the final classifier head, and freeze the backbone first."
-        # )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return raw class logits with shape `[batch_size, num_classes]`."""
 
-        x = self.backbone(x)
-
-        return x
+        raise NotImplementedError("Return raw logits from the transfer learning model.")
 
 
-    #raise NotImplementedError("Return train, val, and test loaders for resized CIFAR10.")
+
 
 
 # Build the model, loss, and optimizer.
@@ -318,15 +299,10 @@ class TransferLearningClassifier(nn.Module):
 # Only optimize the trainable parameters.
 def build_training_objects(config: TransferLearningConfig) -> tuple[nn.Module, nn.Module, torch.optim.Optimizer]:
 
-    model = TransferLearningClassifier(config.num_classes)
-    model.to(device)
+    raise NotImplementedError("Return the transfer model, CrossEntropyLoss, and optimizer.")
 
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(lr=config.learning_rate, params=model.parameters())
 
-    return model, loss_fn, optimizer
 
-    #raise NotImplementedError("Return the transfer model, CrossEntropyLoss, and optimizer.")
 
 
 # Run one full training epoch.
@@ -344,32 +320,11 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
 ) -> dict[str, float]:
 
-    model.train()
-    losses, accs = [], []
+    raise NotImplementedError("Return the mean train loss and mean train accuracy for one full epoch.")
 
-    for x_data, y_targets in loader:
-        x_data = x_data.to(device)
-        y_targets = y_targets.to(device)
 
-        optimizer.zero_grad()
 
-        logits = model(x_data)
-        loss = loss_fn(logits, y_targets)
-        loss.backward()
-        optimizer.step()
 
-        losses.append(loss.item())
-
-        preds = torch.argmax(logits, dim=1).float()
-        correct = (preds==y_targets).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss":mean_loss, "accuracy":mean_acc}
-
-    #raise NotImplementedError("Return the mean train loss and mean train accuracy for one full epoch.")
 
 
 # Run one full evaluation pass.
@@ -386,29 +341,12 @@ def train_one_epoch(
 @torch.no_grad()
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[str, float]:
 
-    model.eval()
+    raise NotImplementedError("Return the mean loss and mean accuracy for the loader you evaluate.")
 
-    losses, accs = [], []
 
-    for x_data, y_targets in loader:
-        x_data = x_data.to(device)
-        y_targets = y_targets.to(device)
 
-        logits = model(x_data)
-        loss = loss_fn(logits, y_targets)
 
-        losses.append(loss.item())
 
-        preds = torch.argmax(logits, dim=1).float()
-        correct = (preds == y_targets).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss":mean_loss, "accuracy":mean_acc}
-
-    #raise NotImplementedError("Return the mean loss and mean accuracy for the loader you evaluate.")
 
 
 # Run the full training flow.
@@ -419,20 +357,9 @@ def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[s
 # - `val_accuracy`
 def run_training(config: TransferLearningConfig) -> dict[str, float]:
 
-    torch.manual_seed(config.random_state)
+    raise NotImplementedError("Run the full training flow and return the final train and val metrics.")
 
-    loaders = load_dataloaders(config)
-    model, loss_fn, optimizer = build_training_objects(config)
 
-    train_dict = None
-    val_dict = None
-    for i in range(config.epochs):
-
-        train_dict = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-        val_dict = evaluate(model, loaders["val"], loss_fn)
-
-        #if i % 10 == 0:
-        print(f"Epoch {i} -> loss: {train_dict['loss']}, acc {train_dict['accuracy']}, val_loss: {val_dict['loss']}, val_acc: {val_dict['accuracy']}")
 
     # Freezing the backbone and training only the head gave much lower validation accuracy than 
     # full fine-tuning. The head-only model got stuck around 46.7% validation accuracy, while full 
@@ -451,10 +378,8 @@ def run_training(config: TransferLearningConfig) -> dict[str, float]:
     # starting point, and once the preprocessing was corrected, the backbone could transfer well to CIFAR10, 
     # with full fine-tuning giving the best final performance.
 
-    return {"train_loss": train_dict['loss'], "train_accuracy": train_dict['accuracy'], "val_loss":val_dict['loss'], "val_accuracy":val_dict['accuracy']}
 
 
-    #raise NotImplementedError("Run the full training flow and return the final train and val metrics.")
 
 
 def check_metrics(metrics: dict[str, float], target: float) -> bool:

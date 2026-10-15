@@ -987,9 +987,7 @@ def unimix_categorical(logits: torch.Tensor, ratio: float) -> torch.Tensor:
     # `torch.allclose(probs.sum(dim=-1), torch.ones_like(probs[..., 0]))`
     # should be true, and every returned value should be greater than zero.
 
-    probs = torch.softmax(logits, dim=-1)
-    num_classes = logits.shape[-1]
-    probs = (1 - ratio) * probs + ratio / num_classes
+    raise NotImplementedError("Apply categorical unimix.")
 
     # This stops the model from becoming completely certain that some classes
     # are impossible. For four classes, imagine softmax returns:
@@ -1003,8 +1001,6 @@ def unimix_categorical(logits: torch.Tensor, ratio: float) -> torch.Tensor:
     # `log(probability)` calculations stable, and makes it easier for the model
     # to use a class again later. This function does not sample a class. It only
     # returns the safer probabilities used by later code.
-    return probs
-    #raise NotImplementedError("Apply categorical unimix.")
 
 
 def sample_straight_through(probabilities: torch.Tensor, deterministic: bool = False) -> torch.Tensor:
@@ -1051,10 +1047,7 @@ def sample_straight_through(probabilities: torch.Tensor, deterministic: bool = F
     # and the result should require gradients when probabilities do.
 
     # `probabilities` shape: `[B, 8, 8]`
-    if deterministic:
-        ids = probabilities.argmax(dim=-1)  # shape: `[B, 8]`
-    else:
-        ids = torch.distributions.Categorical(probs = probabilities).sample()  # shape: `[B, 8]`  # or could use torch.multinomial here
+    raise NotImplementedError("Sample a straight-through categorical latent.")
 
     # Example with `deterministic=False`:
     # `probabilities = [[0.1, 0.7, 0.2], [0.6, 0.1, 0.3]]` shape `[2, 3]`
@@ -1064,11 +1057,8 @@ def sample_straight_through(probabilities: torch.Tensor, deterministic: bool = F
     #
     # Example output for deterministic=False:
     # `hard = [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]` shape `[2, 3]`
-    hard = F.one_hot(ids, num_classes=probabilities.shape[-1]).float()  # shape: `[B, 8, 8]`
 
-    return hard + probabilities - probabilities.detach()  # shape: `[B, 8, 8]`
 
-    #raise NotImplementedError("Sample a straight-through categorical latent.")
 
 
 class RMSNorm(nn.Module):
@@ -1400,26 +1390,14 @@ class TinyDreamerWorldModel(nn.Module):
         # The reward and continuation heads predict what follows the action.
         super().__init__()
 
-        self.config = config
+        raise NotImplementedError("Build the small DreamerV3 world-model modules.")
 
         # IMAGE ENCODER
         # Normalize hidden channels before each activation. RMSNorm uses each
         # example's own features, so collection with batch size 1 uses the same
         # calculation as training. It has no BatchNorm running averages.
-        self.image_encoder = nn.Sequential(
-            nn.Conv2d(3, 32, 4, 2, 1), ChannelRMSNorm(32), nn.SiLU(),
-            nn.Conv2d(32, 64, 4, 2, 1), ChannelRMSNorm(64), nn.SiLU(),
-            nn.Conv2d(64, 128, 4, 2, 1), ChannelRMSNorm(128), nn.SiLU(),
-            nn.Conv2d(128, 256, 4, 2, 1), ChannelRMSNorm(256), nn.SiLU(),
-            nn.Flatten(),
-        )
 
         # OBSERVATION ENCODER
-        self.observation_encoder = nn.Sequential(
-            nn.Linear(in_features=256 * 4 * 4, out_features=config.encoder_dim),
-            RMSNorm(config.encoder_dim),
-            nn.SiLU(),
-        )
 
         # RECURRENT DETERMINISTIC STATE
         # One stochastic sample has shape `[B, variables, classes]`. Flattening
@@ -1429,44 +1407,23 @@ class TinyDreamerWorldModel(nn.Module):
         # The old plain GRU did not include the official input networks, groups,
         # normalization, or gate calculations:
         # self.gru = nn.GRUCell(input_size=config.stochastic_dim + config.action_dim, hidden_size=config.deterministic_dim)
-        self.gru = GroupedDreamerGRU(config)
 
         # PRIOR AND POSTERIOR DISTRIBUTIONS
         # - prior = prediction before seeing the next observation
         # - posterior = corrected belief after seeing the next observation
         # Both networks output one logit for every category of every stochastic variable.
         # Their output size is therefore:
-        output_size = config.stochastic_variables * config.categorical_classes
 
         # The posterior reads recurrent memory(h_t) plus the encoded real observation(x_t). This is Z_t
-        self.posterior_net = nn.Sequential(nn.Linear(config.deterministic_dim + config.encoder_dim, config.hidden_dim),
-                                           RMSNorm(config.hidden_dim),
-                                           nn.SiLU(),
-                                           nn.Linear(config.hidden_dim, output_size))
 
         # The prior only reads recurrent memory(h_t). This is Z_hat_t
-        self.prior_net = nn.Sequential(nn.Linear(config.deterministic_dim, config.hidden_dim),
-                                        RMSNorm(config.hidden_dim),
-                                        nn.SiLU(),
-                                        nn.Linear(config.hidden_dim, output_size))
 
         # IMAGE DECODER
         # A complete latent feature joins deterministic memory with the flattened stochastic sample:
-        feature_dim = config.deterministic_dim + config.stochastic_dim  # h_t is the deterministic part, Z_t is the stochastic part
         # 256 + 64
 
         # First expand that feature back to a small spatial map:
-        self.image_decoder_input = nn.Sequential(
-            nn.Linear(feature_dim, 256 * 4 * 4),
-            nn.Unflatten(1, (256, 4, 4)),
-            ChannelRMSNorm(256),
-            nn.SiLU(),
-        )
 
-        self.image_decoder = nn.Sequential(nn.ConvTranspose2d(256, 128, 4, 2, 1), ChannelRMSNorm(128), nn.SiLU(),
-                                           nn.ConvTranspose2d(128, 64, 4, 2, 1), ChannelRMSNorm(64), nn.SiLU(),
-                                           nn.ConvTranspose2d(64, 32, 4, 2, 1), ChannelRMSNorm(32), nn.SiLU(),
-                                           nn.ConvTranspose2d(32, 3, 4, 2, 1), nn.Sigmoid())
         # `Sigmoid` keeps reconstructed pixels between 0 and 1, matching replay.
         # Normalize hidden features only. The final pixel layer keeps its own
         # brightness scale; reward/action/value output layers keep raw scores.
@@ -1475,24 +1432,15 @@ class TinyDreamerWorldModel(nn.Module):
         # Do not put a sigmoid inside the continuation head. The later
         # `binary_cross_entropy_with_logits(...)` call expects raw logits and
         # applies the stable sigmoid calculation itself.
-        self.reward_head = nn.Sequential(nn.Linear(feature_dim, config.hidden_dim), RMSNorm(config.hidden_dim), nn.SiLU(),
-                                        nn.Linear(config.hidden_dim, config.reward_bins))
-        self.continue_head = nn.Sequential(nn.Linear(feature_dim, config.hidden_dim), RMSNorm(config.hidden_dim), nn.SiLU(),
-                                        nn.Linear(config.hidden_dim, 1))
 
         # A randomly initialized reward head can predict large rewards before it
         # has learned anything. Those false rewards can delay the start of useful
         # learning. Dreamer avoids this by setting the output weights and bias to
         # zero. Every reward bin then starts with the same score, so the first
         # decoded reward is close to zero and early learning is more stable.
-        nn.init.zeros_(self.reward_head[-1].weight)
-        nn.init.zeros_(self.reward_head[-1].bias)
 
         # for the reward head, the bin centers are fixed and not learned. They are used to convert the categorical output into a scalar reward value.
-        reward_bins = make_symexp_bins(config.reward_bins, config.reward_symlog_limit)
-        self.register_buffer("reward_bin_centers", reward_bins)
 
-        #raise NotImplementedError("Build the small DreamerV3 world-model modules.")
 
     def encode_observation(self, image: torch.Tensor) -> torch.Tensor:
         """Turn a Pong image into one observation embedding."""
@@ -1509,11 +1457,8 @@ class TinyDreamerWorldModel(nn.Module):
         # it sends normalized pixels through the convolutional image encoder and
         # does not apply `symlog` here.
 
-        image_features = self.image_encoder(image)  # `[B,4096]`
-        obs = self.observation_encoder(image_features)  # `[B,encoder_dim]`
+        raise NotImplementedError("Encode and join one real observation.")
 
-        return obs
-        #raise NotImplementedError("Encode and join one real observation.")
 
     def distribution_from_logits(self, logits: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Reshape flat logits and make one categorical latent sample."""
@@ -1548,15 +1493,10 @@ class TinyDreamerWorldModel(nn.Module):
         #
         # Check: both output tensors are `[B,8,8]` with default settings.
 
-        batch_size = logits.shape[0]  # `logits` shape: `[B, stochastic_dim]`
-        reshaped_logits = logits.view(batch_size, self.config.stochastic_variables,  self.config.categorical_classes)  # shape: `[B, stochastic_variables, categorical_classes]`
+        raise NotImplementedError("Build a categorical stochastic state from logits.")
 
-        probabilities = unimix_categorical(reshaped_logits, self.config.unimix_ratio)       # shape: `[B, stochastic_variables, categorical_classes]`
-        samples = sample_straight_through(probabilities, deterministic=not self.training)   # shape: `[B, stochastic_variables, categorical_classes]`
 
-        return probabilities, samples  # each shape: `[B, 8, 8]` by default
 
-        #raise NotImplementedError("Build a categorical stochastic state from logits.")
 
     def initial_posterior(self, image: torch.Tensor) -> RSSMState:
         """Use the first real observation to begin the recurrent state."""
@@ -1594,22 +1534,11 @@ class TinyDreamerWorldModel(nn.Module):
         # All three returned tensors keep batch size `B`; probabilities and the
         # stochastic sample are `[B,8,8]` with the default configuration.
 
-        batch_size = image.shape[0]  # `image` shape: `[B, 3, 64, 64]` i.e. [1, 3, 64, 64]
-        deterministic = torch.zeros(batch_size, self.config.deterministic_dim, dtype=torch.float32, device=image.device,)  # shape: `[B, deterministic_dim]`
+        raise NotImplementedError("Build the initial posterior from the first observation.")
 
-        observation_embedding = self.encode_observation(image)  # `[B,encoder_dim]`
 
-        posterior_input = torch.cat((deterministic, observation_embedding), dim=-1) # h_t, x_t    # shape: `[B, deterministic_dim + encoder_dim]`
 
-        posterior_logits = self.posterior_net(posterior_input)          # shape: `[B, stochastic_variables * categorical_classes]`
-        probabilities, stochastic = self.distribution_from_logits(posterior_logits)  # each shape: `[B, stochastic_variables, categorical_classes]`
 
-        return RSSMState(
-            deterministic=deterministic,
-            stochastic=stochastic,
-            probabilities=probabilities,
-        )  # shapes: `[B,D]`, `[B,V,C]`, `[B,V,C]`
-        # raise NotImplementedError("Build the initial posterior from the first observation.")
 
     def observe_step(
         self,
@@ -1662,22 +1591,13 @@ class TinyDreamerWorldModel(nn.Module):
         # `torch.equal(prior["deterministic"], posterior["deterministic"])`
         # should be true. Their categorical probabilities usually differ.
 
-        flat_stochastic = previous["stochastic"].flatten(start_dim=1)  # shape: `[B, stochastic_dim]`, default `[B, 64]`
+        raise NotImplementedError("Implement one RSSM observation step.")
         # Process previous memory, sampled state, and action separately. Both
         # observation and imagination use this same core; it does not see images.
-        deterministic = self.gru(previous["deterministic"], flat_stochastic, action)  # [B,256]
 
-        prior_logits = self.prior_net(deterministic)                    # shape: `[B, stochastic_variables * categorical_classes]`
-        prior_probabilities, prior_stochastic = self.distribution_from_logits(prior_logits)  # each shape: `[B, stochastic_variables, categorical_classes]`
 
         # The next image shows the Pong screen after the action.
-        observation_embedding = self.encode_observation(next_image)  # `[B,encoder_dim]`
-        posterior_input = torch.cat((deterministic, observation_embedding), dim=-1)  # shape: `[B, deterministic_dim + encoder_dim]`  i.e. [B, 512]
-        posterior_logits = self.posterior_net(posterior_input)  # shape: `[B, stochastic_variables * categorical_classes]`  i.e. [B, 8*8]
-        posterior_probabilities, posterior_stochastic = (self.distribution_from_logits(posterior_logits))  # each shape: `[B, stochastic_variables, categorical_classes]`
 
-        prior = RSSMState(deterministic=deterministic, stochastic=prior_stochastic, probabilities=prior_probabilities)
-        posterior = RSSMState(deterministic=deterministic, stochastic=posterior_stochastic, probabilities=posterior_probabilities)
 
         # Both states use `deterministic = h_t`, the new GRU memory.
         # observation_embedding is the encoded version of x_t
@@ -1685,8 +1605,6 @@ class TinyDreamerWorldModel(nn.Module):
         # `posterior` uses `stochastic = z_t`, corrected using the observation.
         # Dynamics predictor is the network: self.prior_net.  z_hat_t is the latent state produced by that network.
         # Encoder/posterior is the network that produces the latent state. z_t is the latent state it produces
-        return prior, posterior
-        # raise NotImplementedError("Implement one RSSM observation step.")
 
     def imagine_step(self, previous: RSSMState, action: torch.Tensor) -> RSSMState:
         """Predict one next state without reading the real next observation."""
@@ -1726,17 +1644,11 @@ class TinyDreamerWorldModel(nn.Module):
         # The method has no image argument and never calls
         # `self.encode_observation(...)` or `self.posterior_net(...)`.
 
-        flat_stochastic = previous["stochastic"].flatten(start_dim=1)  # shape: `[B, stochastic_dim]`, default `[B, 64]`
+        raise NotImplementedError("Implement one prior-only imagination step.")
         # The core also applies the same action limit as in observation steps.
-        deterministic = self.gru(previous["deterministic"], flat_stochastic, action)  # [B,256]
 
-        prior_logits = self.prior_net(deterministic)                    # shape: `[B, stochastic_variables * categorical_classes]`
-        prior_probabilities, prior_stochastic = self.distribution_from_logits(prior_logits)  # each shape: `[B, stochastic_variables, categorical_classes]`
 
-        prior = RSSMState(deterministic=deterministic, stochastic=prior_stochastic, probabilities=prior_probabilities)
 
-        return prior
-        #raise NotImplementedError("Implement one prior-only imagination step.")
 
     def state_features(self, state: RSSMState) -> torch.Tensor:
         flat_stochastic = state["stochastic"].flatten(start_dim=1)
@@ -1820,55 +1732,15 @@ class TinyDreamerWorldModel(nn.Module):
         # are `[B,64,8,8]` with the default 64 training steps.
         # Also check that every output's time size equals `actions.shape[1]`.
 
-        images = batch["images"]  # `[B,T+1,3,S,S]`, default `[16,65,3,64,64]`
-        actions = batch["actions"]  # one-hot: `[B,T,6]`, default `[16,64,6]`
+        raise NotImplementedError("Run the RSSM across one observed sequence.")
 
-        current = RSSMState(                                # current here is from the initial posterior state, which is the posterior after seeing the first observation
-            deterministic=batch["initial_deterministic"],   # [16, 256]
-            stochastic=batch["initial_stochastic"],         # [16, 8, 8]
-            probabilities=batch["initial_probabilities"],   # [16, 8, 8]
-        )
 
-        prior_probabilities = []
-        posterior_probabilities = []
-        posterior_deterministic = []
-        posterior_stochastic = []
-        posterior_images = []
-        reward_logits = []
-        continue_logits = []
 
-        for time_index in range(actions.shape[1]):  # `0` through `T - 1`
-            prior, posterior = self.observe_step(current, actions[:, time_index], images[:, time_index + 1])
-
-            posterior_image = self.decode(posterior)  # `[B,3,64,64]`
-            features = self.state_features(posterior)
-            reward_logit = self.predict_reward_logits(posterior)       # `[B,reward_bins]` i.e. [B, 255]
-            continue_logit = self.continue_head(features)              # `[B,1]`
-
-            prior_probabilities.append(prior["probabilities"])
-            posterior_probabilities.append(posterior["probabilities"])
-            posterior_deterministic.append(posterior["deterministic"])
-            posterior_stochastic.append(posterior["stochastic"])
-            posterior_images.append(posterior_image)
-            reward_logits.append(reward_logit)
-            continue_logits.append(continue_logit)
-
-            current = posterior
 
         # stack on dim=1 because each list contains one tensor per time step
         # V = number of stochastic variables. Default: 8
         # C = number of categories each stochastic variable can choose from. Default: 8
 
-        return WorldModelOutputs(
-            prior_probabilities=torch.stack(prior_probabilities, dim=1),            # `[B,T,V,C]`  i.e. [B,T,8,8]
-            posterior_probabilities=torch.stack(posterior_probabilities, dim=1),    # `[B,T,V,C]`  i.e. [B,T,8,8]
-            posterior_deterministic=torch.stack(posterior_deterministic, dim=1),    # `[B,T,D]`    i.e. [B,T,256]
-            posterior_stochastic=torch.stack(posterior_stochastic, dim=1),          # `[B,T,V,C]`  i.e. [B,T,8,8]
-            posterior_images=torch.stack(posterior_images, dim=1),                  # `[B,T,3,64,64]`
-            reward_logits=torch.stack(reward_logits, dim=1),                         # `[B,T,reward_bins]`  i.e. [B, T, 255]
-            continue_logits=torch.stack(continue_logits, dim=1),                    # `[B,T,1]`
-        )
-        #raise NotImplementedError("Run the RSSM across one observed sequence.")
 
 
 def categorical_kl(left_probabilities: torch.Tensor, right_probabilities: torch.Tensor) -> torch.Tensor:
@@ -1950,13 +1822,10 @@ def balanced_kl_loss(posterior_probabilities: torch.Tensor, prior_probabilities:
     # Both outputs are zero-dimensional tensors, are at least `free_nats`, and
     # still have `requires_grad == True` during training.
 
-    dynamics_kl = categorical_kl(posterior_probabilities.detach(), prior_probabilities)  # shape: `[B, T]`
+    raise NotImplementedError("Compute balanced categorical KL with free bits.")
 
-    representation_kl = categorical_kl(posterior_probabilities, prior_probabilities.detach())  # shape: `[B, T]`
 
-    dynamics_kl = dynamics_kl.clamp_min(free_nats).mean()  # scalar shape: `[]`
 
-    representation_kl = representation_kl.clamp_min(free_nats).mean()
 
     # `free_nats=1.0` means: reduce KL when it is above 1, but stop trying to
     # reduce it after it falls below 1.
@@ -1999,9 +1868,7 @@ def balanced_kl_loss(posterior_probabilities: torch.Tensor, prior_probabilities:
     # `2.0 - 0.1 * (1/3) = 1.97` approximately.
     # In the real model, the optimizer changes network weights, not the KL value
     # directly. Those weight changes make the prior and posterior agree more.
-    return dynamics_kl, representation_kl  # two scalar tensors, each shape `[]`
 
-    #raise NotImplementedError("Compute balanced categorical KL with free bits.")
 
 
 def compute_world_model_loss(outputs: WorldModelOutputs, batch: SequenceBatch, config: DreamerWorldModelConfig) -> WorldModelLosses:
@@ -2055,72 +1922,22 @@ def compute_world_model_loss(outputs: WorldModelOutputs, batch: SequenceBatch, c
     # and time. Using a pixel mean here would divide the reconstruction signal
     # by `3 * 64 * 64 = 12,288`, making it far too weak compared with the other
     # world-model losses.
-    image_loss_per_step = F.mse_loss(outputs["posterior_images"], batch["images"][:, 1:], reduction="none").sum(dim=(-3, -2, -1)) # sum across channels and pixels, leaving `[B,T]`
-    image_loss = image_loss_per_step.mean() # across batch and time
+    raise NotImplementedError("Compute the complete Dreamer world-model loss.")
 
     # Pong has sparse rewards: most actions receive reward `0`, and a non-zero
     # reward appears only when either player scores a point. Sparse means useful
     # feedback happens rarely.
     # The reward head must learn which visual states and actions lead toward
     # those uncommon `+1` and `-1` outcomes.
-    reward_bins = make_symexp_bins(
-        config.reward_bins,             # number of bins, default 255
-        config.reward_symlog_limit,     # symexp limit, default 20.0
-        device=outputs["reward_logits"].device,
-        dtype=outputs["reward_logits"].dtype,
-    )   # shape: `[reward_bins]` i.e. [255]
     # batch["rewards"] has shape `[B,T,1]`, this is ground truth.
     # convert this scalar reward into a two-hot target over the 255 bins. This is the target for the reward head loss.
-    reward_targets = two_hot_targets(batch["rewards"].squeeze(-1), reward_bins)     # shape: `[B,T,reward_bins]` i.e. [B,T,255]
 
-    reward_log_probabilities = F.log_softmax(outputs["reward_logits"], dim=-1)      # shape: `[B,T,reward_bins]` i.e. [B,T,255]
-    reward_loss_per_step = -(reward_targets * reward_log_probabilities).sum(dim=-1) # shape: `[B,T]`, one soft-target cross-entropy per batch item and time step
-    reward_loss = reward_loss_per_step.mean()
 
     # This belongs in `torch.no_grad()` because it is only for logging and evaluation. It does not contribute to the loss or gradients.
-    with torch.no_grad():
-        predicted_rewards = weighted_bin_average(torch.softmax(outputs["reward_logits"], dim=-1), reward_bins).squeeze(-1)
-        real_rewards = batch["rewards"].squeeze(-1)
-        reward_mae = (predicted_rewards - real_rewards).abs().mean()
-        real_nonzero_reward_fraction = (real_rewards != 0.0).float().mean()
-        predicted_reward_mean = predicted_rewards.mean()
-        predicted_continue_mean = outputs["continue_logits"].sigmoid().mean()
 
-    continuation_loss_per_step = F.binary_cross_entropy_with_logits(
-        outputs["continue_logits"], batch["continues"], reduction="none"
-    ).squeeze(-1)
-    continuation_loss = continuation_loss_per_step.mean()
 
-    dynamics_kl, representation_kl = balanced_kl_loss(
-        outputs["posterior_probabilities"],
-        outputs["prior_probabilities"],
-        config.free_nats,
-    )
 
-    total_loss = (
-        image_loss
-        + config.reward_loss_weight * reward_loss
-        + config.continuation_loss_weight * continuation_loss # L_pred in paper (these 3)
 
-        + config.dynamics_kl_weight * dynamics_kl   # L_dyn in paper
-
-        + config.representation_kl_weight * representation_kl # L_rep in paper
-    )
-
-    return WorldModelLosses(
-        total=total_loss,
-        image=image_loss,
-        reward=reward_loss,
-        continuation=continuation_loss,
-        dynamics_kl=dynamics_kl,
-        representation_kl=representation_kl,
-        reward_mae=reward_mae,
-        real_nonzero_reward_fraction=real_nonzero_reward_fraction,
-        predicted_reward_mean=predicted_reward_mean,
-        predicted_continue_mean=predicted_continue_mean,
-        gradient_norm=torch.zeros((), device=total_loss.device),
-    )
-    # raise NotImplementedError("Compute the complete Dreamer world-model loss.")
 
 
 def move_batch(batch: SequenceBatch, target_device: str) -> SequenceBatch:
@@ -2175,21 +1992,15 @@ def train_one_batch(
     # - the returned total requires gradients
     # - the returned loss can be tracked across normal training epochs
 
-    model.train()
+    raise NotImplementedError("Complete one world-model training update.")
 
-    batch = move_batch(batch, device)
 
-    optimizer.zero_grad()
 
-    outputs = model.forward_sequence(batch)
 
-    losses = compute_world_model_loss(outputs, batch, config)
 
     # Stored posterior states can become stale as the model learns. Refresh
     # every sampled position with posteriors inferred by the current model.
-    replay.refresh_states(batch, outputs)
 
-    losses["total"].backward()
 
     # Computes one combined norm across all parameter gradients.
     # If that norm is above 100, scales every gradient down by the same factor.
@@ -2203,14 +2014,8 @@ def train_one_batch(
     # It does not:
     # Calculate the gradients—that is done by .backward().
     # Update model parameters—that is done by optimizer.step().
-    losses["gradient_norm"] = torch.nn.utils.clip_grad_norm_(
-        model.parameters(), max_norm=100.0
-    ).detach()
 
-    optimizer.step()
 
-    return losses
-    # raise NotImplementedError("Complete one world-model training update.")
 
 
 class TinyDreamerActor(nn.Module):
@@ -2318,17 +2123,9 @@ class TinyDreamerCritic(nn.Module):
         # `dict(critic.named_parameters())`.
         super().__init__()
 
-        self.config = config
+        raise NotImplementedError("Build the distributional return critic.")
 
-        feature_dim = config.deterministic_dim + config.stochastic_dim  #(h_t + z_t) = 256 + 64 = 320
 
-        self.network = nn.Sequential(nn.Linear(feature_dim, config.behavior_hidden_dim),
-                                     RMSNorm(config.behavior_hidden_dim),
-                                     nn.SiLU(),
-                                     nn.Linear(config.behavior_hidden_dim, config.behavior_hidden_dim),
-                                     RMSNorm(config.behavior_hidden_dim),
-                                     nn.SiLU(),
-                                     nn.Linear(config.behavior_hidden_dim, config.critic_bins))
 
         # Future returns can have several likely values and can differ greatly
         # in size across environments. Dreamer makes critic learning faster and
@@ -2336,8 +2133,6 @@ class TinyDreamerCritic(nn.Module):
         # These bins are evenly spaced on the compressed symlog scale. After
         # `symexp` changes them back to the normal return scale, their spacing
         # grows roughly exponentially as they move away from zero.
-        bin_centers = make_symexp_bins(config.critic_bins, config.critic_symlog_limit)
-        self.register_buffer("bin_centers", bin_centers)
         # register_buffer moves the tensor with the model but does not train it.
 
         # A randomly initialized critic can predict large future returns before
@@ -2345,17 +2140,13 @@ class TinyDreamerCritic(nn.Module):
         # Dreamer sets the output weights and bias to zero so every return bin
         # begins with the same score. This gives a neutral initial value estimate
         # and makes the beginning of training more stable.
-        nn.init.zeros_(self.network[-1].weight)
-        nn.init.zeros_(self.network[-1].bias)
 
-        # raise NotImplementedError("Build the distributional return critic.")
 
     def forward(self, features: torch.Tensor) -> torch.Tensor:
         # Goal: return critic logits `[..., critic_bins]` from RSSM features.
         # Method: call the `nn.Sequential` network created in the constructor.
         # Check: `[4,320]` default features produce `[4,255]` logits.
-        return self.network(features)
-        # raise NotImplementedError("Predict critic return-bin logits.")
+        raise NotImplementedError("Predict critic return-bin logits.")
 
     def value(self, features: torch.Tensor) -> torch.Tensor:
         """Read one continuous return estimate from the critic distribution."""
@@ -2720,29 +2511,11 @@ def posterior_replay_states(model: TinyDreamerWorldModel, batch: SequenceBatch) 
     #
     # Check: the start state has batch size `B*T` and requires no gradients.
 
-    images = batch["images"]    # shape: [B, T+1, C, H, W] i.e. [16, 65, 3, 64, 64]
-    actions = batch["actions"]  # shape: [B, T, A] i.e. [16, 64, 6]
+    raise NotImplementedError("Infer posterior states where imagination begins.")
 
-    current = RSSMState(
-        deterministic=batch["initial_deterministic"],   # shape: [B, deterministic_dim] i.e. [16, 256]
-        stochastic=batch["initial_stochastic"],         # shape: [16, 8, 8]
-        probabilities=batch["initial_probabilities"],   # shape: [16, 8, 8]
-    )
 
-    state_steps = [current]
-    feature_steps = [model.state_features(current)]
 
-    for time_index in range(actions.shape[1]): # 64
-        _, current = model.observe_step(current, actions[:, time_index], images[:, time_index + 1])  # returns prior, posterior
-        state_steps.append(current)
-        feature_steps.append(model.state_features(current)) # state_features = h_t + z_t  i.e. 256 + 64 = 320
 
-    replay_features = torch.stack(feature_steps, dim=1).detach()    # len(feature_steps) = 65, feature_steps[0].shape = [16, 320], replay_features.shape = [B, T+1, F] i.e. [16, 65, 320]
-    imagined_starts = RSSMState(
-        deterministic=torch.stack([state["deterministic"] for state in state_steps[1:]], dim=1).flatten(0, 1).detach(), # shape: [B*T, deterministic_dim] i.e. [1024, 256]
-        stochastic=torch.stack([state["stochastic"] for state in state_steps[1:]], dim=1).flatten(0, 1).detach(),       # shape: [B*T, stochastic_variables, categorical_classes] i.e. [1024, 8, 8]
-        probabilities=torch.stack([state["probabilities"] for state in state_steps[1:]], dim=1).flatten(0, 1).detach(), # shape: [B*T, stochastic_variables, categorical_classes] i.e. [1024, 8, 8]
-    )
 
     # Dreamer deliberately turns the states along each real replay sequence
     # into separate starting points for new imagined futures. For example, a
@@ -2777,8 +2550,6 @@ def posterior_replay_states(model: TinyDreamerWorldModel, batch: SequenceBatch) 
     # T=64, this gives 16*64=1,024 starting states. The actor uses each one to
     # begin a separate imagined future.
 
-    return replay_features, imagined_starts
-    # raise NotImplementedError("Infer posterior states where imagination begins.")
 
 
 def imagine_actor_critic_trajectory(world_model: TinyDreamerWorldModel, actor: TinyDreamerActor, start: RSSMState, config: DreamerWorldModelConfig,) -> ImaginedTrajectory:
@@ -2820,49 +2591,13 @@ def imagine_actor_critic_trajectory(world_model: TinyDreamerWorldModel, actor: T
     # - actor log-probabilities require gradients
     # - rewards and features from the frozen model do not require gradients
 
-    feature_steps: list[torch.Tensor] = []
-    log_probability_steps: list[torch.Tensor] = []
-    entropy_steps: list[torch.Tensor] = []
-    reward_steps: list[torch.Tensor] = []
-    continue_steps: list[torch.Tensor] = []
+    raise NotImplementedError("Imagine an actor-critic training trajectory.")
 
     # current is intiliased to start state, which is the posterior state inferred from the real replay sequence/observation.
     # Then starting from this real posterior state, we will imagine a trajectory of H steps using the actor and the world model.
     # When imagining using imagine_step, we save the prior state features
-    current = start # determinstic shape : [1024, 256], stochastic shape : [1024, 8, 8], probabilities shape : [1024, 8, 8]
-    for _ in range(config.imagination_horizon): # 15
-        with torch.no_grad():
-            features = world_model.state_features(current)  # shape [1024, 320] i.e. deterministic_dim + stochastic_dim
 
-        feature_steps.append(features)
 
-        action, log_probability, entropy = actor.sample_action(features, deterministic=False)
-        # action shape : [1024, 6], log_probability shape : [1024], entropy shape : [1024]
-
-        with torch.no_grad():
-            next_state = world_model.imagine_step(current, action.detach()) # prior state
-            # next_state shape : [1024, 256], [1024, 8, 8], [1024, 8, 8]
-            # this is deterministic, stochastic and probabilities of the imagined next state after taking the action from the current state.
-            reward, continue_logit = world_model.predict_signals(next_state)    # shape : [1024, 1], [1024, 1]
-            continue_probability = continue_logit.sigmoid() # shape : [1024, 1] sigmoid to get probability of continuing the episode
-
-        log_probability_steps.append(log_probability)
-        entropy_steps.append(entropy)
-        reward_steps.append(reward.squeeze(-1))
-        continue_steps.append(continue_probability.squeeze(-1))
-        current = next_state
-
-    with torch.no_grad():
-        feature_steps.append(world_model.state_features(current))
-
-    return ImaginedTrajectory(
-        features=torch.stack(feature_steps, dim=1),                     # shape : [1024, 16, 320] i.e. [B, H+1, feature_dim]
-        log_probabilities=torch.stack(log_probability_steps, dim=1),    # shape : [1024, 15] i.e. [B, H]
-        entropies=torch.stack(entropy_steps, dim=1),                    # shape : [1024, 15] i.e. [B, H]
-        rewards=torch.stack(reward_steps, dim=1),                       # shape : [1024, 15] i.e. [B, H]
-        continues=torch.stack(continue_steps, dim=1),                   # shape : [1024, 15] i.e. [B, H]
-    )
-    # raise NotImplementedError("Imagine an actor-critic training trajectory.")
 
 
 def lambda_returns(rewards: torch.Tensor, continues: torch.Tensor, next_values: torch.Tensor, discount: float, lambda_: float) -> torch.Tensor:
@@ -2892,14 +2627,7 @@ def lambda_returns(rewards: torch.Tensor, continues: torch.Tensor, next_values: 
     # Small example with lambda=0 uses only reward plus the next critic value.
     # With lambda=1 it follows all imagined rewards to the final bootstrap.
     # Check: output shape exactly matches rewards.
-    if rewards.ndim != 2:
-        raise ValueError("rewards, continues, and next_values must have shape [B, H].")
-    if rewards.shape != continues.shape or rewards.shape != next_values.shape:   # i.e. [B, H] = [1024, 15]
-        raise ValueError("rewards, continues, and next_values must have matching shapes.")
-    if not 0.0 <= discount <= 1.0:
-        raise ValueError("discount must be between 0 and 1.")
-    if not 0.0 <= lambda_ <= 1.0:
-        raise ValueError("lambda_ must be between 0 and 1.")
+    raise NotImplementedError("Compute backward bootstrapped lambda returns.")
 
     # This loop calculates one lambda-return target for every imagined step. It
     # works backward from the end of the imagined trajectory. For example:
@@ -2948,19 +2676,7 @@ def lambda_returns(rewards: torch.Tensor, continues: torch.Tensor, next_values: 
     # horizon.
     # `next_values` received `all_values[:, 1:]`, so its last column contains the
     # critic's value estimate for the state reached after the final imagined action.
-    running = next_values[:, -1]  # shape: `[B]`, next_values shape is [B,H] i.e. [1024, 15]
-    returns_reversed: list[torch.Tensor] = []  # each saved tensor has shape `[B]`
 
-    for time_index in range(rewards.shape[1] - 1, -1, -1):  # rewards.shape is [1024, 15], so time_index goes from 14 down to 0
-        running =   (
-                        rewards[:, time_index]                              # reward now
-                        + discount * continues[:, time_index]               # how much the future counts
-                        *   (
-                                (1.0 - lambda_) * next_values[:, time_index]    # the critic's estimate of all remaining rewards from the next state
-                                + lambda_ * running                             # the return already calculated using later rewards and a critic value
-                            )
-                    )  # shape: `[B]`
-        returns_reversed.append(running)
 
     # The terms are grouped like this:
     # current reward
@@ -2979,9 +2695,6 @@ def lambda_returns(rewards: torch.Tensor, continues: torch.Tensor, next_values: 
     # Reverse it back to normal time order, then stack the B-value tensors into
     # `[B,H]`. The result contains one lambda-return target for every imagined
     # step in every trajectory.
-    returns_reversed.reverse()
-    return torch.stack(returns_reversed, dim=1)  # shape: `[B, H]`
-    # raise NotImplementedError("Compute backward bootstrapped lambda returns.")
 
 
 def compute_behavior_losses(
@@ -3143,45 +2856,8 @@ def compute_behavior_losses(
     # critic loss. The replay critic learns to predict these targets from
     # `replay_features`.
 
-    features = trajectory["features"]  # shape: `[N, H+1, F]` i.e. `[1024, 16, 320]`
-    current_features = features[:, :-1]  # shape: `[N, H, F]` i.e. `[1024, 15, 320]`
+    raise NotImplementedError("Compute imagined actor and critic losses.")
 
-    with torch.no_grad():
-        # Use the critic to help build the lambda-return targets. Do not track
-        # gradients here because these values are part of the training target.
-        # The target should stay fixed while the actor and critic losses are
-        # differentiated.
-        # Each lambda return uses predicted rewards, continuation probabilities,
-        # and value predictions for the following states. The alignment at the
-        # first trajectory step is:
-        #
-        # current state:          s_0, the posterior starting state
-        # sampled action:         a_0
-        # predicted reward:       r_0
-        # imagined next state:    s_1, a prior state
-        # next value prediction:  V(s_1)
-        # lambda return:          G_0, calculated for current state s_0
-        #
-        # `all_values[:, 1:]` removes V(s_0) and keeps V(s_1) through V(s_H)
-        # because `lambda_returns(...)` needs the value prediction for the state
-        # after each action. Removing V(s_0) from `next_values` does not remove
-        # s_0 from the trajectory or remove G_0 from `lambda_targets`.
-        all_values = critic.value(features)  # shape: `[N, H+1]` i.e. [1024, 16]
-        lambda_targets = lambda_returns(
-            trajectory["rewards"],
-            trajectory["continues"],
-            all_values[:, 1:],
-            config.discount,
-            config.return_lambda,
-        )  # shape: `[N, H]` i.e. [1024, 15]
-
-        # Step 0 always counts. Each later step counts only as much as all
-        # earlier predictions say the episode is still running.
-        # Example: with discount 0.9 and continues `[1.0, 0.5, ...]`, the
-        # weights begin `[1.0, 0.9, 0.405, ...]`.
-        discounts = config.discount * trajectory["continues"]  # `[N,H]` i.e. [1024, 15]
-        first_weight = torch.ones_like(discounts[:, :1])  # `[N,1]` i.e. [1024, 1]  array of ones for the first time step
-        weights = torch.cumprod(torch.cat((first_weight, discounts[:, :-1]), dim=1), dim=1)  # `[N,H]`
         # The shape stays `[N,H]`, but the discount values are shifted one
         # position to the right. For one trajectory, suppose:
         #
@@ -3260,11 +2936,8 @@ def compute_behavior_losses(
 
     # This is the critic's trainable forward pass. It runs outside
     # `torch.no_grad()`, so PyTorch records it in the computation graph.
-    critic_logits = critic(current_features)                     # input shape: [1024, 15, 320], output shape: `[N, H, K]` i.e. [1024, 15, 255]
-    critic_log_probabilities = F.log_softmax(critic_logits, dim=-1)                 # shape: `[N, H, K]` i.e. [1024, 15, 255]
 
     # take scalar lambda return targets and convert them into two-hot targets over the bin centers
-    critic_targets = two_hot_targets(lambda_targets, critic.bin_centers)            # shape: `[N, H, K]` i.e. [1024, 15, 255]
 
 
     # The paper calls this maximum-likelihood training. The critic should place
@@ -3303,13 +2976,11 @@ def compute_behavior_losses(
     # `loss` is about `0.68`.
     # Summing over K removes the return-bin axis. This leaves one loss for every
     # imagined step in every trajectory, with shape `[N,H]`.
-    critic_prediction_loss_per_step = -(critic_targets * critic_log_probabilities).sum(dim=-1)  # `[N,H]` i.e. [1024, 15]
 
     # Multiply each step's loss by its cumulative weight. Early, reachable
     # steps count more; steps after a likely episode ending count little or
     # nothing. Then average all B*H weighted losses into one scalar that can be
     # used by `.backward()`.
-    critic_prediction_loss = (weights * critic_prediction_loss_per_step).mean()  # scalar `[]`
 
     # Now, we have calculated `critic_prediction_loss`, the main
     # maximum-likelihood loss on imagined return targets. Two supporting parts
@@ -3358,111 +3029,29 @@ def compute_behavior_losses(
     # `no_grad()` keeps this target fixed during backpropagation. Only the
     # current critic learns from this loss; update_slow_critic() separately
     # moves the slow critic's parameters towards the current critic's parameters.
-    with torch.no_grad():
-        slow_values = slow_critic.value(current_features)  # [N,H], here [1024,15]
-        slow_targets = two_hot_targets(slow_values, critic.bin_centers)  # [N,H,K]
 
     # Cross-entropy: -sum(target_probability * log(predicted_probability)).
     # This increases the current critic's probability on the target bins.
     # Sum over the K bins to get one loss per state, then apply the existing
     # weights so imagined steps after a likely episode ending count less.
-    slow_critic_regularization_per_step = -(slow_targets * critic_log_probabilities).sum(dim=-1)  # [N,H]
-    slow_critic_regularization = (weights * slow_critic_regularization_per_step).mean()  # scalar `[]`
 
     # Replay part of the loss:
     # Also train the critic on the real replay sequence. Each real next state
     # gets the first imagined return from the rollout that started there. This
     # is DreamerV3's replay value loss, called `repval` in the official config.
-    replay_current_features = replay_features[:, :-1]   # [16, 65, 320] -> [16, 64, 320]  # shape: `[B,T,F]` i.e. `[16, 64, 320]`
-    with torch.no_grad():
-        # There is one imagined rollout starting from the real next state of
-        # every replay transition. "Real next states" means the posterior RSSM
-        # states that became the starting points for imagination. They are
-        # called real next states because each one was inferred after the world
-        # model saw a real next image from replay. They are also the starting
-        # states used for imagination because Dreamer begins a separate
-        # imagined trajectory from each one of these starting states.
-        #
-        # lambda_targets has shape: [B*T, H] i.e. [1024, 15]
-        # `lambda_targets` has one row for each posterior state used to start an
-        # imagined trajectory. Its H columns contain G_0 through G_(H-1): one
-        # lambda return for each action-taking state s_0 through s_(H-1).
-        #
-        # The important index alignment is:
-        #
-        # trajectory feature column 0:  posterior starting state s_0
-        # trajectory reward column 0:   predicted reward r_0 after action a_0
-        # all_values column 0:           V(s_0)
-        # all_values column 1:           V(s_1)
-        # after `all_values[:, 1:]`, its new column 0 is V(s_1)
-        # lambda_targets column 0:       G_0, the lambda return for s_0
-        #
-        # Therefore, `all_values[:, 1:]` removed V(s_0) from the next-value
-        # inputs, but the lambda-return calculation still produces G_0 for s_0.
-        # It can do this because column 0 still contains the transition that
-        # starts from s_0:
-        #
-        # G_0 = r_0 + gamma * c_0 * ((1 - lambda) * V(s_1)
-        #                              + lambda * G_1)
-        #
-        # `r_0` and `c_0` come from taking a_0 in s_0. `V(s_1)` describes the
-        # next state reached by that action, and `G_1` carries information from
-        # later in the trajectory. The calculation does not need V(s_0). G_0 is
-        # calculated last because the loop works backwards from the final step.
-        # The critic later trains V(s_0) to match G_0.
-        # Select `lambda_targets[:, 0]` to get that G_0 for every posterior
-        # imagination starting state. Reshape `[B*T]` back to `[B,T]` so these
-        # lambda returns line up with the T real rewards and continuation values
-        # in each replay sequence. They are then passed as the next-state values
-        # used to calculate `replay_targets`.
-        # lambda_targets[:, 0] gives shape `[B*T]` i.e. `[1024]` because `B*T = 16*64 = 1024`.
-        # Reshape it to `[B,T]` i.e. `[16, 64]`.
-        replay_next_values = lambda_targets[:, 0].view(replay_features.shape[0], replay_features.shape[1] - 1) # shape: `[B,T]` i.e. `[16, 64]`
-        replay_targets = lambda_returns(
-            replay_batch["rewards"].squeeze(-1),    # shape: `[B,T]` i.e. `[16, 64]` after squeezing the last dimension
-            replay_batch["continues"].squeeze(-1),  # shape: `[B,T]` i.e. `[16, 64]` after squeezing the last dimension
-            replay_next_values,                     # just calculated above, shape: `[B,T]` i.e. `[16, 64]`
-            config.discount,
-            config.return_lambda,
-        )
-        # Old approach: these probabilities would make the current critic copy
-        # the slow critic's whole distribution, rather than its predicted value.
-        # replay_slow_logits = slow_critic(replay_current_features)
-        # replay_slow_probabilities = torch.softmax(replay_slow_logits, dim=-1)
 
-        # Use the same value target as above, now for states from real replay.
-        # `.value(...)` gives one number per state: [B,T], here [16,64].
-        # The local two_hot_targets helper converts those numbers into [B,T,K]
-        # bin targets for the current critic. This existing no_grad() block
-        # prevents the target from changing through this loss's backward pass.
-        replay_slow_values = slow_critic.value(replay_current_features)
-        replay_slow_targets = two_hot_targets(replay_slow_values, critic.bin_centers)
 
-    replay_logits = critic(replay_current_features)
-    replay_log_probabilities = F.log_softmax(replay_logits, dim=-1)
 
-    replay_target_probabilities = two_hot_targets(replay_targets, critic.bin_centers)
-
-    replay_prediction_per_step = -(replay_target_probabilities * replay_log_probabilities).sum(dim=-1)
 
     # Old loss used the full slow distribution, which is the wrong target here.
     # replay_slow_per_step = -(replay_slow_probabilities * replay_log_probabilities).sum(dim=-1)
     # Compare the current critic against the two-hot encoding of the slow value.
     # Summing over K bins leaves one supporting loss per replay state: [B,T].
-    replay_slow_per_step = -(replay_slow_targets * replay_log_probabilities).sum(dim=-1)
-    replay_critic_loss = (replay_prediction_per_step + config.slow_critic_regularization_weight * replay_slow_per_step).mean()
 
     # Complete critic loss:
     # 1. Learn the imagined lambda-return targets.
     # 2. Stay close to the slowly changing critic.
     # 3. Also learn value targets from the real replay sequence.
-    critic_loss = (
-        critic_prediction_loss
-        + config.slow_critic_regularization_weight
-        * slow_critic_regularization
-        + config.replay_critic_loss_weight
-        * replay_critic_loss
-    )
 
     # Side note: how PyTorch autograd handles these critic forward passes
     #
@@ -3499,24 +3088,6 @@ def compute_behavior_losses(
     # -------------------------------------------------------------------------
     # ACTOR LOSS COMPUTATION STARTS HERE
     # -------------------------------------------------------------------------
-    with torch.no_grad():
-        # `all_values` already contains critic values for
-        # `[state_0, state_1, ..., state_H]`. Earlier, `all_values[:, 1:]` gave
-        # the next-state values used to build `lambda_targets`. Here,
-        # `all_values[:, :-1]` gives the matching current-state values
-        # `[V(state_0), ..., V(state_H-1)]`. Reuse them instead of running the
-        # critic on `current_features` a second time.
-        current_values = all_values[:, :-1]  # shape: `[N,H]`, i.e. `[1024,15]`
-
-        # Advantage asks: "Was the return from this imagined path better or
-        # worse than the critic normally expected from this state?"
-        # `lambda_targets` is the return target after following the sampled
-        # action, while `current_values` is the critic's baseline expectation
-        # before judging that action. A positive difference means the result was
-        # better than expected; a negative difference means it was worse.
-        advantage = lambda_targets - current_values  # shape: `[N, H]` i.e. [1024, 15]
-        scale = return_scale.update(lambda_targets)  # one Python float
-        normalized_advantage = advantage / scale  # shape: `[N, H]` i.e. [1024, 15]
 
     # The first term is the REINFORCE, or score-function policy-gradient,
     # objective. It multiplies the log-probability of each sampled action by
@@ -3535,26 +3106,7 @@ def compute_behavior_losses(
     # are objectives to maximize. PyTorch optimizers minimize a loss, so the
     # code negates their sum. `weights` reduces the effect of later steps when
     # the discounted continuation probability is small.
-    actor_objective = (
-        normalized_advantage.detach() * trajectory["log_probabilities"]
-        + config.entropy_scale * trajectory["entropies"]
-    )  # `[N,H]`
-    actor_loss = -(weights * actor_objective).mean()  # scalar `[]`
 
-    return BehaviorLosses(
-        actor=actor_loss,
-        critic=critic_loss,
-        critic_prediction=critic_prediction_loss,
-        replay_critic=replay_critic_loss,
-        slow_critic_regularization=slow_critic_regularization,
-        mean_lambda_return=lambda_targets.mean().detach(),  # scalar shape: `[]`
-        actor_entropy=trajectory["entropies"].mean().detach(),  # scalar shape: `[]`
-        imagined_reward_mean=trajectory["rewards"].mean().detach(),
-        imagined_continue_mean=trajectory["continues"].mean().detach(),
-        actor_gradient_norm=torch.zeros((), device=actor_loss.device),
-        critic_gradient_norm=torch.zeros((), device=critic_loss.device),
-    )  # all values are scalar tensors
-    # raise NotImplementedError("Compute imagined actor and critic losses.")
 
 
 @torch.no_grad()
@@ -3601,14 +3153,9 @@ def train_actor_critic_one_batch(
     # Checks:
     # - world-model parameters all have `grad is None`
     # - actor and critic losses are finite
-    actor.train()
-    critic.train()
-    batch = move_batch(raw_batch, device)
+    raise NotImplementedError("Complete one imagined actor-critic update.")
 
-    actor_optimizer.zero_grad()
-    critic_optimizer.zero_grad()
 
-    replay_features, start = posterior_replay_states(world_model, batch)
     # replay_features contains the features for the critic loss, and start is the initial RSSM state for imagination.
     # replay_features is the model state features combining the deterministic and stochastic parts of the posteriorRSSM state (h_t and z_t),
     # `start` contains the RSSM states reached after each real action in the
@@ -3620,28 +3167,14 @@ def train_actor_critic_one_batch(
     # points for imagined futures. The parts inside each RSSM state are not
     # flattened or mixed together. With B=16 and T=64, `start` contains 1,024
     # separate RSSM states.
-    trajectory = imagine_actor_critic_trajectory(world_model, actor, start, config)
     # trajectory.features has shape `[B*T, H+1, F]` and contains the imagined features for the critic loss.
     # trajectory.log_probabilities, trajectory.entropies, trajectory.rewards, and trajectory.continues all
     # have shape `[B*T, H]` and contain the imagined log probabilities, entropies, rewards, and
     # continuation probabilities for the actor loss.
-    losses = compute_behavior_losses(trajectory, replay_features, batch, critic, slow_critic, return_scale, config)
 
-    (losses["actor"] + losses["critic"]).backward()
 
-    losses["actor_gradient_norm"] = torch.nn.utils.clip_grad_norm_(
-        actor.parameters(), max_norm=100.0
-    ).detach()
-    losses["critic_gradient_norm"] = torch.nn.utils.clip_grad_norm_(
-        critic.parameters(), max_norm=100.0
-    ).detach()
 
-    actor_optimizer.step()
-    critic_optimizer.step()
 
-    update_slow_critic(critic, slow_critic, config.slow_critic_decay)
-    return losses
-    # raise NotImplementedError("Complete one imagined actor-critic update.")
 
 
 def save_metrics(metrics: dict[str, Any], config: DreamerWorldModelConfig) -> str:

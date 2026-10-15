@@ -203,6 +203,7 @@ from common.training_checks import check_threshold, print_pass_or_try_again
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
+@dataclass
 class TextClassificationConfig:
     """Settings for the beginner text-classification exercise."""
 
@@ -246,7 +247,6 @@ def describe_expected_pipeline(config: TextClassificationConfig) -> dict[str, ob
         "notes": describe_text_batch_rules(),
     }
 
-        #raise NotImplementedError("Embed the tokens, pool across real tokens, and return raw logits.")
 
 
 # Load the raw text dataset and build one shared split.
@@ -267,25 +267,11 @@ def describe_expected_pipeline(config: TextClassificationConfig) -> dict[str, ob
 # - if your split helper wants counts instead of fractions, compute integer sizes first
 def load_text_splits(config: TextClassificationConfig) -> dict[str, object]:
 
-    data = hf_datasets.load_dataset("ag_news")
-    train_data = data["train"]
-    test_data = data["test"]
+    raise NotImplementedError("Load AG News, combine the original splits, and return one shared 60/20/20 split.")
 
-    train_list = list(train_data["text"])
-    train_labels_list = list(train_data["label"])
     
-    test_texts = list(test_data["text"])
-    test_labels = list(test_data["label"])
 
-    num_train = int(len(train_labels_list)*0.8)
-    train_texts = train_list[:num_train]
-    train_labels = train_labels_list[:num_train]
-    val_texts = train_list[num_train:]
-    val_labels = train_labels_list[num_train:]
 
-    return {"train_texts": train_texts,"train_labels": train_labels,
-            "val_texts": val_texts,"val_labels": val_labels,
-            "test_texts": test_texts,"test_labels": test_labels}
 
 
 class TokenDataset(torch.utils.data.Dataset):
@@ -332,38 +318,15 @@ class TokenDataset(torch.utils.data.Dataset):
 
 
 
-@dataclass
 
 def load_dataloaders(config: TextClassificationConfig) -> dict[str, DataLoader]:
 
-    data_dicts = load_text_splits(config)
+    raise NotImplementedError("Return train, val, and test text dataloaders with padded token-id batches.")
 
     #build vocabulary from train split:
     #lets assign zero as 
-    vocabulary = {"[PAD]":0, "[UNK]":1}  #Unknown word, #out of vocabulary (OOV)
-    train_texts = data_dicts["train_texts"]
-    index=2
-    for text in train_texts:
-        words = [word.strip(string.punctuation) for word in text.split()]
-        distinct_words = set(words)
-        for word in distinct_words:
-            if not word: # if word is an emty string ""
-                continue
-            if word not in vocabulary:
-                vocabulary[word]=index
-                index+=1
-                if index==config.max_vocab_size:
-                    break
-        if index==config.max_vocab_size:
-            break
 
-    train_ds = TokenDataset(texts= data_dicts["train_texts"], labels = data_dicts["train_labels"], vocabulary=vocabulary, max_length=config.max_length)
-    val_ds = TokenDataset(texts= data_dicts["val_texts"], labels = data_dicts["val_labels"], vocabulary=vocabulary, max_length=config.max_length)
-    test_ds = TokenDataset(texts= data_dicts["test_texts"], labels = data_dicts["test_labels"], vocabulary=vocabulary, max_length=config.max_length)
 
-    return {"train": torch.utils.data.DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True),
-            "val": torch.utils.data.DataLoader(dataset=val_ds, batch_size=config.batch_size),
-            "test": torch.utils.data.DataLoader(dataset=test_ds, batch_size=config.batch_size)}
 
 
 
@@ -378,8 +341,7 @@ class SimpleTextClassifier(nn.Module):
 
     def __init__(self, vocab_size: int, config: TextClassificationConfig) -> None:
         super().__init__()
-        self.vocab_size = vocab_size
-        self.config = config
+        raise NotImplementedError( "Build the default embedding-based text classifier. Return raw logits with shape [batch_size, num_classes]." )
         # Beginner-friendly build order:
         # 1. create an embedding layer
         #    - maps token ids to vectors
@@ -396,12 +358,7 @@ class SimpleTextClassifier(nn.Module):
         # Its shape is: [vocab_size, embedding_dim]
         # That means one row for each token id, each row is that token's vector
         # if vocab_size = 20000 and embedding_dim = 64, then the embedding table has shape: [20000, 64]
-        self.embed = nn.Embedding(num_embeddings=vocab_size, embedding_dim=config.embedding_dim, padding_idx=0)
-        self.classifier_head = nn.Linear(in_features=config.embedding_dim, out_features=config.num_classes)
 
-        # raise NotImplementedError(
-        #     "Build the default embedding-based text classifier. Return raw logits with shape [batch_size, num_classes]."
-        # )
 
     def forward(self, token_ids: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
         """Return raw class logits.
@@ -426,7 +383,7 @@ class SimpleTextClassifier(nn.Module):
            - final logits shape becomes `[batch_size, num_classes]`
         """
         # token_ids shape is (32, 40)
-        embeddings = self.embed(token_ids)      # [batch_size, max_length, embedding_dim]  (32, 40, 64)
+        raise NotImplementedError("Embed the tokens, pool across real tokens, and return raw logits.")
         # You want to average only the token embeddings that come from real words, and ignore the padding embeddings.
         # Having pad token id 0 does not automatically mean its embedding vector is all zeros.
         # token_ids contains 0 at padding positions and nn.Embedding looks up row 0 in the embedding table
@@ -435,7 +392,6 @@ class SimpleTextClassifier(nn.Module):
         # sum across the sequence dimension 
         # divide by the number of real tokens, not by max_length
 
-        positions = torch.arange(token_ids.size(1), device=token_ids.device)            # (40)
         # shape: [max_length]
 
         # Over here, positions is shape 40 and lengths is shape 32
@@ -450,26 +406,18 @@ class SimpleTextClassifier(nn.Module):
         # [True, True, True, True, True, False, False, ..., False]
         # That means positions 0 to 4 are real tokens and positions 5 onward are padding
         # Basically, for each example in the batch, mark which token positions are before the real length.
-        mask = positions.unsqueeze(0) < lengths.unsqueeze(1)
         # shape: [batch_size, max_length]
         # True for real tokens, False for padding
 
-        mask = mask.unsqueeze(-1)                           #(32, 40, 1)
         # shape: [batch_size, max_length, 1]
 
-        masked_embeddings = embeddings * mask               #(32, 40, 64) * (32, 40, 1) = (32, 40, 64)
         # padding positions become 0        
 
-        summed = masked_embeddings.sum(dim=1)               #(32, 64)
         # [batch_size, embedding_dim] 
 
-        pooled = summed / lengths.unsqueeze(1)              #(32, 64) / (32, 1)
-        logits = self.classifier_head(pooled)
-
-        return logits
 
 
-    #raise NotImplementedError("Load AG News, combine the original splits, and return one shared 60/20/20 split.")
+
 
 
 # Build the train, validation, and test dataloaders.
@@ -499,7 +447,6 @@ class SimpleTextClassifier(nn.Module):
 import string
 
 
-    #raise NotImplementedError("Return train, val, and test text dataloaders with padded token-id batches.")
 
 
 # Build the three training objects.
@@ -514,15 +461,10 @@ def build_training_objects(config: TextClassificationConfig) -> tuple[nn.Module,
     # - loss_fn: `nn.CrossEntropyLoss()`
     # - optimizer: something simple like `torch.optim.Adam(...)`
 
-    model = SimpleTextClassifier(vocab_size=config.max_vocab_size, config=config)
-    model.to(device)
+    raise NotImplementedError("Return the text classifier, CrossEntropyLoss, and optimizer.")
 
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(lr=config.learning_rate, params=model.parameters())
 
-    return model, loss_fn, optimizer
 
-    #raise NotImplementedError("Return the text classifier, CrossEntropyLoss, and optimizer.")
 
 
 # Run one full training epoch.
@@ -557,37 +499,11 @@ def train_one_epoch(
     # - step the optimizer
     # - track total loss and total correct predictions across the epoch
 
-    losses, accs = [],[]
+    raise NotImplementedError("Return the mean training loss and mean training accuracy for one full epoch.")
 
-    model.train()
     
-    for batch_dict in loader:
-        tokens_batch = batch_dict["token_ids"]
-        lengths = batch_dict["lengths"]
-        targets = batch_dict["labels"]
 
-        tokens_batch = tokens_batch.to(device)
-        lengths = lengths.to(device)
-        targets = targets.to(device)
 
-        optimizer.zero_grad()
-
-        logits = model(tokens_batch, lengths)
-        loss = loss_fn(logits, targets)
-        loss.backward()
-        optimizer.step()
-
-        losses.append(loss.item())
-
-        preds = logits.argmax(dim=1).float()
-        correct = (preds == targets).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss": mean_loss, "accuracy":mean_acc}
-    #raise NotImplementedError("Return the mean training loss and mean training accuracy for one full epoch.")
 
 
 # Run one full evaluation pass.
@@ -610,33 +526,12 @@ def train_one_epoch(
 @torch.no_grad()
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[str, float]:
 
-    losses, accs = [],[]
+    raise NotImplementedError("Return the mean loss and mean accuracy for the loader you evaluate.")
 
-    model.eval()
     
-    for batch_dict in loader:
-        tokens_batch = batch_dict["token_ids"]
-        lengths = batch_dict["lengths"]
-        targets = batch_dict["labels"]
 
-        tokens_batch = tokens_batch.to(device)
-        lengths = lengths.to(device)
-        targets = targets.to(device)
 
-        logits = model(tokens_batch, lengths)
-        loss = loss_fn(logits, targets)
-        losses.append(loss.item())
 
-        preds = logits.argmax(dim=1).float()
-        correct = (preds == targets).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss": mean_loss, "accuracy":mean_acc}
-
-    #raise NotImplementedError("Return the mean loss and mean accuracy for the loader you evaluate.")
 
 
 # Run the full training flow.
@@ -657,26 +552,11 @@ def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[s
 # - `val_accuracy` means final validation loader mean accuracy
 def run_training(config: TextClassificationConfig) -> dict[str, float]:
 
-    torch.manual_seed(config.random_state)
+    raise NotImplementedError("Run the full text-classification training flow and return the final train and val metrics.")
 
-    loaders = load_dataloaders(config)
-    model, loss_fn, optimizer = build_training_objects(config)
 
-    train_dict = {}
-    val_dict = {}
-    for i in range(config.epochs):
 
-        train_dict = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-        val_dict = evaluate(model, loaders["val"], loss_fn)
 
-        print(f"Epoch {i} -> loss: {train_dict['loss']}, acc: {train_dict['accuracy']}, val_loss: {val_dict['loss']}, val_acc: {val_dict['accuracy']}")
-
-    test_dict = evaluate(model, loaders["test"], loss_fn)
-    print(f"Test results -> loss: {test_dict['loss']}, accuracy: {test_dict['accuracy']}")
-
-    return {"train_loss": train_dict["loss"], "train_accuracy": train_dict["accuracy"],
-            "val_loss": val_dict["loss"], "val_accuracy": val_dict["accuracy"]}
-    #raise NotImplementedError("Run the full text-classification training flow and return the final train and val metrics.")
 
 
 

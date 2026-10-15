@@ -159,8 +159,6 @@ from common.training_checks import check_threshold, print_pass_or_try_again
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-@dataclass
-        #raise NotImplementedError("Return raw logits from the toy ViT.")
 
 
 # Build the train, validation, and test loaders.
@@ -177,18 +175,12 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 # - if `random_split(...)` does not accept fractions, compute integer sizes first
 def load_dataloaders(config: VisionTransformerConfig) -> dict[str, DataLoader]:
 
-    plain_tf = torchvision.transforms.Compose([torchvision.transforms.ToTensor()])
+    raise NotImplementedError("Return train, val, and test loaders for FashionMNIST.")
 
-    data_train = torchvision.datasets.FashionMNIST(root=config.data_root, train=True, transform=plain_tf, download=True)
-    data_test = torchvision.datasets.FashionMNIST(root=config.data_root, train=False, transform=plain_tf, download=True)
 
-    data = torch.utils.data.ConcatDataset([data_train, data_test])
-    train_ds, val_ds, test_ds = torch.utils.data.random_split(data, [0.6, 0.2, 0.2])
 
-    return {"train": torch.utils.data.DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True),
-            "val": torch.utils.data.DataLoader(dataset=val_ds, batch_size=config.batch_size),
-            "test": torch.utils.data.DataLoader(dataset=test_ds, batch_size=config.batch_size)}
 
+@dataclass
 class VisionTransformerConfig:
     """Settings for the toy ViT exercise."""
 
@@ -234,9 +226,7 @@ class PatchEmbedding(nn.Module):
 
     def __init__(self, image_channels: int, patch_size: int, embed_dim: int) -> None:
         super().__init__()
-        self.image_channels = image_channels
-        self.patch_size = patch_size
-        self.embed_dim = embed_dim
+        raise NotImplementedError("Split images into patches, flatten them, and project them into embedding vectors.")
         # Beginner-friendly build idea:
         # - this class has one main job:
         #   turn image patches into embedding vectors
@@ -254,10 +244,7 @@ class PatchEmbedding(nn.Module):
         # `raw_patch_dim` means:
         # - `image_channels * patch_size * patch_size`
 
-        raw_patch_dim = image_channels * patch_size * patch_size
-        self.patch_proj = nn.Linear(in_features= raw_patch_dim, out_features=embed_dim)
         
-        #raise NotImplementedError("Split images into patches, flatten them, and project them into embedding vectors.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return embedded patches with shape `[batch_size, num_patches, embed_dim]`.
@@ -280,12 +267,8 @@ class PatchEmbedding(nn.Module):
         - `nn.Linear` can act on the last dimension of a 3D tensor directly
         """
 
-        patches = F.unfold(input=x, kernel_size=self.patch_size, stride=self.patch_size) # This returns a tensor of shape (64, 16, 49)
-        patches = patches.permute(0, 2, 1) # This returns a tensor of shape (64, 49, 16)
-        embeddings = self.patch_proj(patches) #This returns (64, 49, 64)
-        return embeddings
+        raise NotImplementedError("Return the embedded patch sequence.")
 
-        #raise NotImplementedError("Return the embedded patch sequence.")
 
 
 class ToyVisionTransformer(nn.Module):
@@ -293,7 +276,7 @@ class ToyVisionTransformer(nn.Module):
 
     def __init__(self, config: VisionTransformerConfig) -> None:
         super().__init__()
-        self.config = config
+        raise NotImplementedError("Build the patch embedder, positional embeddings, transformer blocks, and classifier head.")
         # Picture of the full toy ViT:
         #
         # image `[batch_size, 1, 28, 28]`
@@ -356,26 +339,13 @@ class ToyVisionTransformer(nn.Module):
         # - set `batch_first=True`
         # - then stack them with `nn.TransformerEncoder(...)`
         #
-        self.patch_embed = PatchEmbedding(image_channels=config.image_channels, 
-                                          patch_size=config.patch_size, 
-                                          embed_dim=config.embed_dim)
 
-        self.num_patches = (config.image_size // config.patch_size)**2  # double slash gives an integer
 
-        self.class_token = nn.Parameter(torch.zeros([1, 1, config.embed_dim], dtype=torch.float))
 
-        self.positional_embed = nn.Parameter(torch.zeros([1, self.num_patches+1, config.embed_dim]))
         
-        self.encoder = nn.TransformerEncoderLayer(config.embed_dim, 
-                                                  nhead=config.num_heads, 
-                                                  dim_feedforward=config.mlp_dim,
-                                                  batch_first=True)
 
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layer=self.encoder, num_layers=config.num_layers)
 
-        self.classifier_head = nn.Linear(in_features=config.embed_dim, out_features=config.num_classes)
 
-        #raise NotImplementedError("Build the patch embedder, positional embeddings, transformer blocks, and classifier head.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return raw class logits with shape `[batch_size, num_classes]`.
@@ -403,14 +373,10 @@ class ToyVisionTransformer(nn.Module):
         - it takes the patch-token sequence
         """
 
-        patch_tokens = self.patch_embed(x)                                  # output shape is (64, 49, 64)
+        raise NotImplementedError("Return raw logits from the toy ViT.")
 
-        batch_size = x.shape[0] # batch size may not always be 64, depending on the last training step.
-        expanded_class_tokens = self.class_token.expand([batch_size, *self.class_token.shape[1:]]) # output shape is (64, 1, 64)
 
-        joined = torch.concat([expanded_class_tokens, patch_tokens], dim=1)  # output shape is (64, 50, 64)
 
-        embeddings = joined + self.positional_embed                          # output shape is (64, 50, 64)
 
         # joined:
         # [token_content_0] [token_content_1] [token_content_2] ...
@@ -432,16 +398,10 @@ class ToyVisionTransformer(nn.Module):
         # After this addition, the model can tell the difference between
         # a patch from the top-left and a patch from the bottom-right.
 
-        features = self.transformer_encoder(embeddings)             # output shape is (64, 50, 64)
-        summary_vector = features[:,0:1,:]                          # output shape is (64, 1, 64)
-        summary_vector = summary_vector.squeeze(dim=1)               # output shape is (64, 64)
-
-        output = self.classifier_head(summary_vector)               # output shape is (64, 10)
-
-        return output
 
 
-    #raise NotImplementedError("Return train, val, and test loaders for FashionMNIST.")
+
+
 
 
 # Build the model, loss, and optimizer.
@@ -455,15 +415,10 @@ class ToyVisionTransformer(nn.Module):
 # - optimizer: something simple like `torch.optim.Adam(...)`
 def build_training_objects(config: VisionTransformerConfig) -> tuple[nn.Module, nn.Module, torch.optim.Optimizer]:
 
-    model = ToyVisionTransformer(config)
-    model.to(device)
+    raise NotImplementedError("Return the toy ViT, CrossEntropyLoss, and optimizer.")
 
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(lr=config.learning_rate, params=model.parameters())
 
-    return model, loss_fn, optimizer
 
-    #raise NotImplementedError("Return the toy ViT, CrossEntropyLoss, and optimizer.")
 
 
 # Run one full training epoch.
@@ -492,33 +447,11 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
 ) -> dict[str, float]:
 
-    model.train()
+    raise NotImplementedError("Return the mean train loss and mean train accuracy for one full epoch.")
 
-    losses = []
-    accs = []
 
-    for images, targets in loader:
-        images = images.to(device)
-        targets = targets.to(device)
 
-        optimizer.zero_grad()
 
-        logits = model(images)
-        loss = loss_fn(logits, targets)
-        loss.backward()
-        optimizer.step()
-
-        losses.append(loss.item())
-
-        preds = logits.argmax(dim=1).float()
-        correct = (preds == targets).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss":mean_loss, "accuracy": mean_acc}
-    #raise NotImplementedError("Return the mean train loss and mean train accuracy for one full epoch.")
 
 
 # Run one full evaluation pass.
@@ -540,28 +473,11 @@ def train_one_epoch(
 @torch.no_grad()
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[str, float]:
 
-    model.eval()
+    raise NotImplementedError("Return the mean loss and mean accuracy for the loader you evaluate.")
 
-    losses = []
-    accs = []
 
-    for images, targets in loader:
-        images = images.to(device)
-        targets = targets.to(device)
 
-        logits = model(images)
-        loss = loss_fn(logits, targets)
-        losses.append(loss.item())
 
-        preds = logits.argmax(dim=1).float()
-        correct = (preds == targets).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss": mean_loss, "accuracy": mean_acc}
-    #raise NotImplementedError("Return the mean loss and mean accuracy for the loader you evaluate.")
 
 
 # Run the full training flow.
@@ -580,22 +496,10 @@ def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[s
 # - return the final epoch summary
 def run_training(config: VisionTransformerConfig) -> dict[str, float]:
 
-    loaders = load_dataloaders(config)
-    model, loss_fn, optimizer = build_training_objects(config)
+    raise NotImplementedError("Run the full training flow and return the final train and val metrics.")
 
-    train_dict = None
-    val_dict = None
 
-    for i in range(config.epochs):
 
-        train_dict = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-        val_dict = evaluate(model, loaders["val"], loss_fn)
-
-        print(f"Epoch {i} -> loss: {train_dict["loss"]}, acc: {train_dict["accuracy"]}, val_loss: {val_dict["loss"]}, val_acc: {val_dict["accuracy"]}")
-
-    return {"train_loss": train_dict["loss"], "train_accuracy": train_dict["accuracy"],
-            "val_loss": val_dict["loss"], "val_accuracy": val_dict["accuracy"]}
-    #raise NotImplementedError("Run the full training flow and return the final train and val metrics.")
 
 
 def check_metrics(metrics: dict[str, float], target: float) -> bool:

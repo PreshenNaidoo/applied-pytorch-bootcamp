@@ -217,40 +217,12 @@ def build_vqa_dataset(config: TinyLLaVAProjectorConfig) -> list[VQAExample]:
     # - `examples[0]["image"].shape == (3, config.image_size, config.image_size)`.
     # - Questions and answers should be strings, not token ids yet.
 
-    from datasets import load_dataset
+    raise NotImplementedError("Build image-question-answer training data.")
 
-    transform = torchvision.transforms.Compose([
-        torchvision.transforms.Resize(size=(config.image_size, config.image_size)),
-        torchvision.transforms.ToTensor(),
-    ])
 
-    data = load_dataset(path=config.hf_dataset_name, split=f"train[:{config.sample_size}]")
 
-    examples: list[VQAExample] = []
 
-    for row in data:
-        image = row["image"].convert("RGB")
-        image_tensor = transform(image)
 
-        question = str(row["question"]).strip()
-        answer = str(row["multiple_choice_answer"]).lower().strip()
-
-        if not question or not answer:
-            continue
-
-        examples.append({
-            "image": image_tensor,
-            "question": question,
-            "answer": answer,
-            "color": str(row.get("color", "")),
-            "shape": str(row.get("shape", "")),
-        })
-
-        if len(examples) >= config.sample_size:
-            break
-
-    # raise NotImplementedError("Build image-question-answer training data.")
-    return examples
 
 
 def build_text_vocabulary(texts: list[str]) -> dict[str, int]:
@@ -279,20 +251,11 @@ def build_text_vocabulary(texts: list[str]) -> dict[str, int]:
     # Check:
     # - Common words like `"what"` and `"color"` should have ids if they appear.
 
-    all_words = []
+    raise NotImplementedError("Build question vocabulary.")
 
-    for text in texts:
-        words = text.lower().strip(string.punctuation).split()
-        all_words.extend(words)
 
-    vocabulary = sorted(set(all_words))
-    vocabulary.insert(0, "<pad>")
-    vocabulary.insert(1, "<unk>")
 
-    token_to_id = {w:i for i,w in enumerate(vocabulary)}
 
-    return token_to_id
-    #raise NotImplementedError("Build question vocabulary.")
 
 
 def encode_questions(questions: list[str], token_to_id: dict[str, int]) -> torch.Tensor:
@@ -323,17 +286,9 @@ def encode_questions(questions: list[str], token_to_id: dict[str, int]) -> torch
     # Check:
     # - If a question has words, its row sum should be greater than 0.    
 
-    vectors = torch.zeros(len(questions), len(token_to_id), dtype=torch.float32)    
+    raise NotImplementedError("Encode questions.")
     
-    for i, question in enumerate(questions):
-        words = question.lower().strip(string.punctuation).split()
-        
-        for word in words:
-            token_id = token_to_id.get(word, token_to_id["<unk>"])
-            vectors[i][token_id] += 1.0        
 
-    return vectors
-    #raise NotImplementedError("Encode questions.")
 
 
 def build_answer_vocabulary(answers: list[str]) -> dict[str, int]:
@@ -360,11 +315,8 @@ def build_answer_vocabulary(answers: list[str]) -> dict[str, int]:
     # Check:
     # - Every example answer should be in this dictionary before building the dataset.
 
-    vocabulary = sorted({answer.lower().strip() for answer in answers if answer.strip()})
-    token_to_id = {answer: i for i, answer in enumerate(vocabulary)}
+    raise NotImplementedError("Build answer vocabulary.")
 
-    return token_to_id
-    #raise NotImplementedError("Build answer vocabulary.")
 
 
 class TinyVQADataset(Dataset):
@@ -485,15 +437,11 @@ class TinyLLaVAProjectorModel(nn.Module):
         # - The projector input width must equal `config.vision_hidden_size`.
         # - The answer head output width must equal `num_answers`.
 
-        self.vision_encoder = TinyImageEncoder(config)
+        raise NotImplementedError("Build the tiny LLaVA projector model.")
 
-        self.projector = nn.Sequential(nn.Linear(in_features=config.vision_hidden_size, out_features=config.language_hidden_size))
         
-        self.question_encoder = QuestionEncoder(question_vocab_size, config)
 
-        self.answer_head = nn.Linear(config.language_hidden_size, num_answers)
 
-        #raise NotImplementedError("Build the tiny LLaVA projector model.")
 
     def forward(self, images: torch.Tensor, question_vectors: torch.Tensor) -> torch.Tensor:
         """Return answer logits with shape `[batch_size, num_answers]`."""
@@ -523,19 +471,13 @@ class TinyLLaVAProjectorModel(nn.Module):
         # Check:
         # - Do not apply softmax. Cross entropy expects raw logits.
 
-        visual_features = self.vision_encoder(images)       # [B, vision_hidden_size]
+        raise NotImplementedError("Encode image and question, then predict answer logits.")
 
-        projection = self.projector(visual_features)        # [B, language_hidden_size]
 
-        question_embeddings = self.question_encoder(question_vectors)   # [B, language_hidden_size]
 
-        add = projection + question_embeddings
 
-        logits = self.answer_head(add)
 
-        return logits
 
-        #raise NotImplementedError("Encode image and question, then predict answer logits.")
 
 
 def train_one_epoch(model: TinyLLaVAProjectorModel, loader: DataLoader, optimizer: torch.optim.Optimizer) -> float:
@@ -562,34 +504,11 @@ def train_one_epoch(model: TinyLLaVAProjectorModel, loader: DataLoader, optimize
     # Check:
     # - Return mean loss as a Python float.
 
-    model.train()
+    raise NotImplementedError("Train one projector VQA epoch.")
 
-    total_loss = 0
-    total_examples = 0
-    loss_fn = nn.CrossEntropyLoss()
 
-    for data in loader:
-        images = data["image"]
-        question_vectors = data["question_vector"]
-        answer_ids = data["answer_id"]
 
-        images = images.to(device)
-        question_vectors = question_vectors.to(device)
-        answer_ids = answer_ids.to(device)
 
-        optimizer.zero_grad()
-        logits = model(images, question_vectors)
-        loss = loss_fn(logits, answer_ids)
-        loss.backward()
-        optimizer.step()
-
-        batch_size = images.shape[0]
-        total_loss += loss.item() * batch_size
-        total_examples += batch_size
-
-    return total_loss / total_examples
-
-    # raise NotImplementedError("Train one projector VQA epoch.")
 
 @torch.no_grad()
 def evaluate_answers(model: TinyLLaVAProjectorModel, loader: DataLoader) -> float:
@@ -612,33 +531,11 @@ def evaluate_answers(model: TinyLLaVAProjectorModel, loader: DataLoader) -> floa
     # Check:
     # - Accuracy should be between `0.0` and `1.0`.
 
-    model.eval()
+    raise NotImplementedError("Evaluate answer accuracy.")
 
-    total_correct = 0
-    total_examples = 0    
 
-    for data in loader:
-        images = data["image"]
-        question_vectors = data["question_vector"]
-        answer_ids = data["answer_id"]
 
-        images = images.to(device)
-        question_vectors = question_vectors.to(device)
-        answer_ids = answer_ids.to(device)
 
-        
-        logits = model(images, question_vectors)
-
-        pred = logits.argmax(dim=-1)
-        correct = (pred == answer_ids).sum().item()
-
-        batch_size = images.shape[0]
-        total_correct += correct
-        total_examples += batch_size
-
-    return total_correct / total_examples
-
-    #raise NotImplementedError("Evaluate answer accuracy.")
 
 
 def save_projector_visuals(losses: list[float], model: TinyLLaVAProjectorModel, examples: list[VQAExample], config: TinyLLaVAProjectorConfig) -> tuple[str, str]:
@@ -666,62 +563,20 @@ def save_projector_visuals(losses: list[float], model: TinyLLaVAProjectorModel, 
     # Check:
     # - The saved grid should be readable without rerunning training.
 
-    import matplotlib
+    raise NotImplementedError("Save projector training visuals.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
 
-    loss_curve_path = config.output_dir / "projector_loss_curve.png"
-    visual_grid_path = config.output_dir / "projector_prediction_grid.png"
 
-    plt.figure(figsize=(6, 4))
-    plt.plot(range(1, len(losses) + 1), losses, marker="o")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.title("Projector training loss")
-    plt.tight_layout()
-    plt.savefig(loss_curve_path)
-    plt.close()
 
-    question_vocab = build_text_vocabulary([example["question"] for example in examples])
-    answer_vocab = build_answer_vocabulary([example["answer"] for example in examples])
-    id_to_answer = {answer_id: answer for answer, answer_id in answer_vocab.items()}
 
-    sample_examples = examples[: min(6, len(examples))]
-    images = torch.stack([example["image"] for example in sample_examples]).to(device)
-    question_vectors = encode_questions([example["question"] for example in sample_examples], question_vocab).to(device)
 
-    model.eval()
-    with torch.no_grad():
-        logits = model(images, question_vectors)
-        predicted_ids = logits.argmax(dim=-1).cpu().tolist()
 
-    fig, axes = plt.subplots(2, 3, figsize=(12, 7))
-    axes = axes.flatten()
 
-    for axis, example, predicted_id in zip(axes, sample_examples, predicted_ids):
-        image = example["image"].permute(1, 2, 0).cpu().numpy()
-        predicted_answer = id_to_answer[predicted_id]
 
-        axis.imshow(image)
-        axis.set_title(
-            f"Q: {example['question']}\nTarget: {example['answer']}\nPred: {predicted_answer}",
-            fontsize=8,
-        )
-        axis.axis("off")
 
-    for axis in axes[len(sample_examples):]:
-        axis.axis("off")
 
-    plt.tight_layout()
-    plt.savefig(visual_grid_path)
-    plt.close(fig)
 
-    return str(visual_grid_path), str(loss_curve_path)
-
-    # raise NotImplementedError("Save projector training visuals.")
 
 
 def run_exercise(config: TinyLLaVAProjectorConfig) -> ProjectorMetrics:

@@ -315,49 +315,13 @@ def collect_cartpole_episodes(config: CartPoleWorldModelConfig) -> list[list[Car
     # - Every observation tensor should have shape `(4,)`.
     # - The total number of rows should equal `config.transitions`.
 
-    env = make_cartpole_env(config)
+    raise NotImplementedError("Collect real CartPole episodes.")
 
-    obs, info = env.reset(seed=config.random_state)
-    env.action_space.seed(config.random_state)
 
-    episodes = []
-    current_episode = []
-    transition_count = 0
 
-    while transition_count < config.transitions:
 
-        action = env.action_space.sample()
 
-        next_obs, reward, terminated, truncated, info = env.step(action)
 
-        done = terminated or truncated
-
-        transition = CartPoleTransition(obs=torch.tensor(obs, dtype=torch.float32),
-                                        action=action,
-                                        done=done,
-                                        next_obs=torch.tensor(next_obs, dtype=torch.float),
-                                        reward=reward,
-                                        terminated=terminated,
-                                        truncated=truncated)
-
-        current_episode.append(transition)
-
-        if done:
-            episodes.append(current_episode)
-            current_episode=[]
-            obs, info = env.reset(seed=config.random_state) #reset env
-        else:
-            obs = next_obs
-
-        transition_count+=1
-
-    if len(current_episode) > 0:
-        episodes.append(current_episode) # any partial current_episode needs to be kept
-
-    env.close()
-
-    return episodes
-    #raise NotImplementedError("Collect real CartPole episodes.")
 
 
 def encode_observation_action(obs: torch.Tensor, action: int, config: CartPoleWorldModelConfig) -> torch.Tensor:
@@ -386,18 +350,11 @@ def encode_observation_action(obs: torch.Tensor, action: int, config: CartPoleWo
     # - The output shape should be `(6,)`.
     # - The final two values should contain exactly one `1.0`.
 
-    if obs.shape != (config.obs_dim,):
-        raise ValueError("Invalid observation shape.")
+    raise NotImplementedError("Encode one CartPole observation-action pair.")
 
-    if not 0 <= action < config.num_actions:
-        raise ValueError("Invalid action id.")
 
-    action_one_hot = torch.zeros(config.num_actions, dtype=torch.float)
-    action_one_hot[action] = 1.0
 
-    return torch.cat([obs, action_one_hot], dim=0)  # shape = [4] concat [2] = [6]
 
-    #raise NotImplementedError("Encode one CartPole observation-action pair.")
 
 
 def build_cartpole_dataset(config: CartPoleWorldModelConfig) -> CartPoleDatasetSplits:
@@ -426,48 +383,16 @@ def build_cartpole_dataset(config: CartPoleWorldModelConfig) -> CartPoleDatasetS
     # - No CartPole episode may appear in both groups.
     # - Do not recollect validation data separately with a different policy.
 
-    episodes = collect_cartpole_episodes(config)
-
-    shuffled_indices = torch.randperm(n=len(episodes), generator=torch.Generator().manual_seed(config.random_state))
-
-    num_val = int(len(episodes) * config.val_fraction)
-    num_train = len(episodes) - num_val
-
-    train_eps = [episodes[shuffled_indices[index].item()] for index in range(0, num_train)]
-    val_eps = [episodes[shuffled_indices[index].item()] for index in range(num_train, len(episodes))]    
-
-    train_flat_transitions = [transition for episode in train_eps for transition in episode]
-    val_flat_transitions = [transition for episode in val_eps for transition in episode]
-
-    def build_tensors(steps: list[CartPoleTransition]) -> tuple[torch.Tensor, ...]:
-        inputs: list[torch.Tensor] = []
-        next_observations: list[torch.Tensor] = []
-        rewards: list[torch.Tensor] = []
-        dones: list[torch.Tensor] = []
-
-        for transition in steps:
-            input = encode_observation_action(transition["obs"], transition["action"], config).to(device)
-            next_obs = transition["next_obs"].to(device)
-            reward = torch.tensor([transition["reward"]], dtype=torch.float, device=device)
-            done = torch.tensor([transition["done"]], dtype=torch.float, device=device)
-
-            inputs.append(input)
-            next_observations.append(next_obs)
-            rewards.append(reward)
-            dones.append(done)
-
-        return (torch.stack(inputs), torch.stack(next_observations), torch.stack(rewards), torch.stack(dones))
+    raise NotImplementedError("Build CartPole train and validation tensors.")
 
 
-    train_tensors = build_tensors(train_flat_transitions)
-    val_tensors = build_tensors(val_flat_transitions)
 
-    return CartPoleDatasetSplits(train_inputs=train_tensors[0], train_next_obs=train_tensors[1], 
-                                    train_rewards=train_tensors[2], train_dones=train_tensors[3],
-                                    val_inputs=val_tensors[0], val_next_obs=val_tensors[1], 
-                                    val_rewards=val_tensors[2], val_dones=val_tensors[3])
 
-    #raise NotImplementedError("Build CartPole train and validation tensors.")
+
+
+
+
+
 
 
 class CartPoleWorldModel(nn.Module):
@@ -495,18 +420,10 @@ class CartPoleWorldModel(nn.Module):
         # - `binary_cross_entropy_with_logits` expects raw logits.
         super().__init__()
 
-        input_dim = config.obs_dim + config.num_actions
+        raise NotImplementedError("Build the CartPole world model.")
 
-        self.trunk = nn.Sequential(nn.Linear(input_dim, config.hidden_dim), 
-                                    nn.ReLU(), 
-                                    nn.Linear(config.hidden_dim, config.hidden_dim), 
-                                    nn.ReLU())
 
-        self.next_obs_head = nn.Linear(config.hidden_dim, config.obs_dim)
-        self.reward_head = nn.Linear(config.hidden_dim, 1)
-        self.done_head = nn.Linear(config.hidden_dim, 1)
 
-        #raise NotImplementedError("Build the CartPole world model.")
 
     def forward(self, inputs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Return next observation, reward, and done logit."""
@@ -526,14 +443,9 @@ class CartPoleWorldModel(nn.Module):
         # 2. Run all three heads on `hidden`.
         # 3. Return `(pred_next_obs, pred_reward, pred_done_logit)`.
 
-        hidden = self.trunk(inputs)
-        pred_next_obs = self.next_obs_head(hidden)
-        pred_reward = self.reward_head(hidden)
-        pred_done_logit = self.done_head(hidden)
+        raise NotImplementedError("Run the CartPole world model.")
 
-        return (pred_next_obs, pred_reward, pred_done_logit)
 
-        #raise NotImplementedError("Run the CartPole world model.")
 
 
 def compute_world_model_loss(
@@ -560,17 +472,10 @@ def compute_world_model_loss(
     # - `dones` should contain floats shaped `[batch_size, 1]`.
     # - Do not apply `torch.sigmoid` before the loss.
 
-    pred_next_obs, pred_rewards, pred_done_logit = predictions
-    next_obs, rewards, dones = targets
+    raise NotImplementedError("Compute CartPole world-model loss.")
 
-    next_obs_loss = nn.functional.mse_loss(pred_next_obs, next_obs)
-    reward_loss = nn.functional.mse_loss(pred_rewards, rewards)
-    done_loss = nn.functional.binary_cross_entropy_with_logits(pred_done_logit, dones)
 
-    loss = next_obs_loss + reward_loss + done_loss
 
-    return loss, {"next_obs_loss": next_obs_loss.item(), "reward_loss": reward_loss.item(), "done_loss": done_loss.item(),}
-    #raise NotImplementedError("Compute CartPole world-model loss.")
 
 
 def train_one_epoch(model: CartPoleWorldModel, loader: DataLoader, optimizer: torch.optim.Optimizer) -> float:
@@ -590,34 +495,11 @@ def train_one_epoch(model: CartPoleWorldModel, loader: DataLoader, optimizer: to
     # 9. Return mean loss weighted by batch size.
 
 
-    model.train()
+    raise NotImplementedError("Train one CartPole world-model epoch.")
 
-    total_loss = 0.0
-    total_samples = 0
 
-    for inputs, next_obs, rewards, dones in loader:
-        inputs = inputs.to(device)
-        next_obs = next_obs.to(device)
-        rewards = rewards.to(device)
-        dones = dones.to(device)
 
-        pred_next_obs, pred_reward, pred_done_logit = model(inputs)
 
-        loss, loss_parts = compute_world_model_loss(predictions=(pred_next_obs, pred_reward, pred_done_logit),
-                                                    targets=(next_obs, rewards, dones))
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        batch_size = inputs.shape[0]
-        total_loss += loss.item() * batch_size
-        total_samples+=batch_size
-
-    mean_loss = total_loss / total_samples
-
-    return mean_loss
-    #raise NotImplementedError("Train one CartPole world-model epoch.")
 
 @torch.no_grad()
 def evaluate_cartpole_world_model(
@@ -646,26 +528,10 @@ def evaluate_cartpole_world_model(
     # Check:
     # - This function should not call `backward()` or `optimizer.step()`.
 
-    model.eval()
+    raise NotImplementedError("Evaluate CartPole world-model validation metrics.")
 
-    with torch.no_grad():
-        val_inputs = splits["val_inputs"].to(device)
-        val_next_obs = splits["val_next_obs"].to(device)
-        val_rewards = splits["val_rewards"].to(device)
-        val_dones = splits["val_dones"].to(device)
 
-        pred_next_obs, pred_reward, pred_done_logit = model(val_inputs)
-
-        val_next_obs_mse = nn.functional.mse_loss(pred_next_obs, val_next_obs).item()
-        val_reward_mse = nn.functional.mse_loss(pred_reward, val_rewards).item()
-
-        done_probs = torch.sigmoid(pred_done_logit)
-        done_preds = (done_probs >= 0.5).float()
-        val_done_accuracy = (done_preds == val_dones).float().mean().item()
-
-    return {"val_next_obs_mse": val_next_obs_mse, "val_reward_mse": val_reward_mse, "val_done_accuracy": val_done_accuracy}
    
-    #raise NotImplementedError("Evaluate CartPole world-model validation metrics.")
 
 
 def save_training_curves(
@@ -686,28 +552,11 @@ def save_training_curves(
     # 3. Plot train loss and validation next-observation MSE by epoch.
     # 4. Label axes and add a legend.
     # 5. Save the figure and close it.
-    import matplotlib
+    raise NotImplementedError("Save CartPole training curve plot.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = config.output_dir / "training_curves.png"
 
-    epochs = list(range(1, len(train_losses) + 1))
-    plt.figure(figsize=(7, 4))
-    plt.plot(epochs, train_losses, label="train loss")
-    plt.plot(epochs, val_next_obs_mses, label="validation next-observation MSE")
-    plt.xlabel("epoch")
-    plt.ylabel("loss")
-    plt.title("CartPole world model training")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(output_path)
-    plt.close()
 
-    return str(output_path)
-    # raise NotImplementedError("Save CartPole training curve plot.")
 
 
 def save_next_obs_prediction_plot(
@@ -730,39 +579,14 @@ def save_next_obs_prediction_plot(
     #
     # Check:
     # - Good predictions should sit close to the diagonal.
-    import matplotlib
+    raise NotImplementedError("Save CartPole next-observation prediction plot.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = config.output_dir / "next_obs_predictions.png"
 
-    model.eval()
-    with torch.no_grad():
-        val_inputs = splits["val_inputs"].to(device)
-        val_next_obs = splits["val_next_obs"].to(device)
-        pred_next_obs, _, _ = model(val_inputs)
 
-    true_values = val_next_obs.cpu().flatten()
-    pred_values = pred_next_obs.cpu().flatten()
 
-    min_value = min(true_values.min().item(), pred_values.min().item())
-    max_value = max(true_values.max().item(), pred_values.max().item())
 
-    plt.figure(figsize=(5, 5))
-    plt.scatter(true_values, pred_values, s=8, alpha=0.35)
-    plt.plot([min_value, max_value], [min_value, max_value], color="black", linewidth=1, label="perfect prediction")
-    plt.xlabel("true next-observation value")
-    plt.ylabel("predicted next-observation value")
-    plt.title("True vs predicted next observations")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(output_path)
-    plt.close()
 
-    return str(output_path)
-    # raise NotImplementedError("Save CartPole next-observation prediction plot.")
 
 
 def save_done_probability_histogram(
@@ -785,39 +609,13 @@ def save_done_probability_histogram(
     #    - probabilities for rows where true done is `0`
     #    - probabilities for rows where true done is `1`
     # 4. Save and close the plot.
-    import matplotlib
+    raise NotImplementedError("Save CartPole done probability histogram.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = config.output_dir / "done_probability_histogram.png"
 
-    model.eval()
-    with torch.no_grad():
-        val_inputs = splits["val_inputs"].to(device)
-        val_dones = splits["val_dones"].to(device)
-        _, _, pred_done_logit = model(val_inputs)
-        done_probs = torch.sigmoid(pred_done_logit)
 
-    done_probs = done_probs.cpu().flatten()
-    val_dones = val_dones.cpu().flatten()
-    not_done_probs = done_probs[val_dones == 0]
-    done_probs_only = done_probs[val_dones == 1]
 
-    plt.figure(figsize=(7, 4))
-    plt.hist(not_done_probs, bins=20, alpha=0.7, label="true done = 0")
-    plt.hist(done_probs_only, bins=20, alpha=0.7, label="true done = 1")
-    plt.xlabel("predicted done probability")
-    plt.ylabel("validation rows")
-    plt.title("Predicted done probabilities")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(output_path)
-    plt.close()
 
-    return str(output_path)
-    # raise NotImplementedError("Save CartPole done probability histogram.")
 
 
 def train_cartpole_world_model(config: CartPoleWorldModelConfig) -> CartPoleWorldModelMetrics:
@@ -840,72 +638,18 @@ def train_cartpole_world_model(config: CartPoleWorldModelConfig) -> CartPoleWorl
     # - Return validation metrics, not only training loss.
     # - Return paths for all saved visuals.
     
-    set_seed(config.random_state)
+    raise NotImplementedError("Train and evaluate the CartPole world model.")
 
-    splits = build_cartpole_dataset(config)
 
-    train_ds = TensorDataset(
-        splits["train_inputs"],
-        splits["train_next_obs"],
-        splits["train_rewards"],
-        splits["train_dones"],
-    )
 
-    train_loader = DataLoader(train_ds, batch_size=config.batch_size, shuffle=True)
 
-    model = CartPoleWorldModel(config)
-    model = model.to(device)
-    optimizer = torch.optim.AdamW(params=model.parameters(), lr=config.learning_rate)
 
-    train_losses: list[float] = []
-    val_next_obs_mses: list[float] = []
-    final_val_metrics: dict[str, float] = {}
 
-    print("Training CartPole world model")
-    print("epoch | train loss | val next-obs MSE | val reward MSE | val done accuracy")
-    print("-" * 72)
 
-    for epoch in range(1, config.epochs + 1):
-        train_loss = train_one_epoch(model, train_loader, optimizer)
-        val_metrics = evaluate_cartpole_world_model(model, splits)
 
-        train_losses.append(train_loss)
-        val_next_obs_mses.append(val_metrics["val_next_obs_mse"])
-        final_val_metrics = val_metrics
 
-        print(
-            f"{epoch:>5} | "
-            f"{train_loss:>10.4f} | "
-            f"{val_metrics['val_next_obs_mse']:>16.6f} | "
-            f"{val_metrics['val_reward_mse']:>14.6f} | "
-            f"{val_metrics['val_done_accuracy']:>17.3f}"
-        )
 
-    training_curve_path = save_training_curves(train_losses, val_next_obs_mses, config)
-    next_obs_prediction_path = save_next_obs_prediction_plot(model, splits, config)
-    done_probability_path = save_done_probability_histogram(model, splits, config)
 
-    metrics = CartPoleWorldModelMetrics(
-        final_train_loss=train_losses[-1],
-        val_next_obs_mse=final_val_metrics["val_next_obs_mse"],
-        val_reward_mse=final_val_metrics["val_reward_mse"],
-        val_done_accuracy=final_val_metrics["val_done_accuracy"],
-        training_curve_path=training_curve_path,
-        next_obs_prediction_path=next_obs_prediction_path,
-        done_probability_path=done_probability_path,
-    )
-
-    print("\nFinal metrics")
-    print(f"- final train loss: {metrics['final_train_loss']:.4f}")
-    print(f"- validation next-observation MSE: {metrics['val_next_obs_mse']:.6f}")
-    print(f"- validation reward MSE: {metrics['val_reward_mse']:.6f}")
-    print(f"- validation done accuracy: {metrics['val_done_accuracy']:.3f}")
-    print(f"- training curve: {metrics['training_curve_path']}")
-    print(f"- next-observation plot: {metrics['next_obs_prediction_path']}")
-    print(f"- done probability histogram: {metrics['done_probability_path']}")
-
-    return metrics
-    # raise NotImplementedError("Train and evaluate the CartPole world model.")
 
 
 def explain_cartpole_world_model() -> str:

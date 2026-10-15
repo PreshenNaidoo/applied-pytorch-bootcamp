@@ -254,15 +254,8 @@ def build_gridworld(config: QLearningConfig) -> Gridworld:
     # - The start state and goal state should be different.
     # - The goal state is the only terminal state in this simple exercise.
 
-    gridworld = {"grid_size": config.grid_size,
-                 "start_state": (0,0),
-                 "goal_state": (config.grid_size - 1, config.grid_size - 1),
-                 "actions": ["up", "down", "left", "right"],
-                 "step_reward": -0.1,
-                 "goal_reward": 1.0}
+    raise NotImplementedError("Return the gridworld structure with states, actions, start, and goal.")
 
-    return gridworld
-    #raise NotImplementedError("Return the gridworld structure with states, actions, start, and goal.")
 
 # Return the starting state for one new episode.
 def reset_environment(gridworld: Gridworld) -> State:
@@ -290,8 +283,7 @@ def reset_environment(gridworld: Gridworld) -> State:
     # - The returned state should be inside the grid.
     # - Reset should not change the Q-table.
 
-    return gridworld["start_state"]
-    #raise NotImplementedError("Return the gridworld start state.")
+    raise NotImplementedError("Return the gridworld start state.")
 
 # Apply one action in the environment.
 # Return:
@@ -360,25 +352,10 @@ def step_environment(
     # - `done` should be `True` only at the goal.
     # - This function should not update Q-values.
 
-    actions = gridworld["actions"]
+    raise NotImplementedError("Return next state, reward, and done flag.")
 
-    row, col = state
-    next_row, next_col = state
-    if action == actions[0]: #up
-        next_row = row-1 if row-1>=0 else 0
-    elif action == actions[1]: #down
-        next_row = row+1 if row+1 < gridworld["grid_size"] else row
-    elif action == actions[2]: #left
-        next_col = col-1 if col-1>=0 else 0
-    elif action == actions[3]: #right
-        next_col = col+1 if col+1 < gridworld["grid_size"] else col
 
-    next_state = (next_row, next_col)
-    done = next_state == gridworld["goal_state"]
-    reward = gridworld["goal_reward"] if done else gridworld["step_reward"]
 
-    return next_state, reward, done
-    #raise NotImplementedError("Return next state, reward, and done flag.")
 
 # Return the starting Q-table.
 # A simple first version can use nested dictionaries.
@@ -415,15 +392,8 @@ def initialize_q_table(gridworld: Gridworld) -> QTable:
     # - `len(q_table)` should equal `grid_size * grid_size`.
     # - `set(q_table[(0, 0)])` should equal `set(gridworld["actions"])`.
 
-    q_table = {}
-    for i in range(gridworld["grid_size"]):
-        for j in range(gridworld["grid_size"]):
-            state = (i, j)
-            pairs = {action:0.0 for action in gridworld["actions"]}
-            q_table[state] = pairs
+    raise NotImplementedError("Return one Q-value per state-action pair.")
 
-    return q_table
-    #raise NotImplementedError("Return one Q-value per state-action pair.")
 
 def choose_action(
     q_table: QTable,
@@ -465,21 +435,11 @@ def choose_action(
     # - With `epsilon=0.0`, this should always choose the current best action.
     # - With `epsilon=1.0`, this should choose random actions.
 
-    available_actions = list(q_table[state])  #returns ['up', 'down', 'left', 'right']
+    raise NotImplementedError("Return one action using epsilon-greedy.")
     # the above is equivalent to available_actions = list(q_table[state].keys())
     # Because looping over a dictionary gives its keys by default.
 
-    random_num = random.random()
-    if random_num < epsilon:
-        # Exploration
-        random_int = random.randint(0, len(available_actions)-1)
-        action = available_actions[random_int]
-    else:
-        # Exploitation
-        action = max(available_actions, key=lambda action: q_table[state][action])
 
-    return action
-    #raise NotImplementedError("Return one action using epsilon-greedy.")
 
 # Update one Q-value.
 # Standard shape:
@@ -536,12 +496,8 @@ def q_learning_update(
     # - If `learning_rate=1.0`, the result should equal `target`.
     # - If `best_next_q=0.0`, the target is just the immediate reward.
 
-    target = reward + gamma * best_next_q
-    difference = target - current_q
-    new_q = current_q + learning_rate * difference
+    raise NotImplementedError("Return the tabular Q-learning update.")
 
-    return new_q
-    #raise NotImplementedError("Return the tabular Q-learning update.")
 
 # Train the agent for several episodes.
 # Return a summary with at least:
@@ -603,68 +559,11 @@ def train_q_learning_agent(config: QLearningConfig) -> QLearningSummary:
     # - `goal_reach_count` should be between `0` and `config.episodes`.
     # - Only the chosen `(state, action)` Q-value should update on each step.
 
-    random.seed(config.random_state)
-    gridworld = build_gridworld(config)
-    q_table = initialize_q_table(gridworld)    
-    episode_returns = []
-    goal_reach_count = 0
+    raise NotImplementedError("Train the Q-learning agent and return a summary.")
 
-    for i in range(config.episodes):
-        # Start a new run from the start cell.
-        state = reset_environment(gridworld)
-        episode_reward = 0.0
 
-        for j in range(config.max_steps_per_episode):
 
-            # Use the policy to choose what to do next.
-            # Epsilon-greedy means sometimes explore and sometimes use the best known action.
-            action = choose_action(q_table, state, config.epsilon)
 
-            # Ask the environment what happened after this move.
-            # It gives the next state, the reward, and whether the episode ended.
-            next_state, reward, done = step_environment(gridworld, state, action)
-
-            # Read the old guess for this exact state-action pair.
-            current_q = q_table[state][action]
-            if done:
-                # If the episode ended, there is no next-state value to add.
-                best_next_q = 0.0
-            else:
-                # Otherwise, use the best action value from the next state.
-                best_next_q = max(q_table[next_state].values())
-
-            # Use the new experience to update only the chosen state-action value.
-            updated_q = q_learning_update(current_q, reward, best_next_q, config.learning_rate, config.gamma)
-            q_table[state][action] = updated_q
-
-            episode_reward+=reward
-            # Move the agent's current state forward.
-            state = next_state
-
-            if done:
-                # The goal was reached, so this episode is finished.
-                goal_reach_count+=1
-                break
-
-        episode_returns.append(episode_reward)
-
-    greedy_policy = extract_greedy_policy(q_table, gridworld)
-
-    print("Q-learning training summary:")
-    print(f"  episodes: {config.episodes}")
-    print(f"  goal reaches: {goal_reach_count}")
-    print(f"  final episode return: {episode_returns[-1]}")
-    print("  greedy policy:")
-    print(greedy_policy)
-
-    return {
-        "q_table": q_table,
-        "episode_returns": episode_returns,
-        "goal_reach_count": goal_reach_count,
-        "greedy_policy": greedy_policy,
-        "note": "Q-values are learned guesses for how good each action is in each state.",
-    }
-    #raise NotImplementedError("Train the Q-learning agent and return a summary.")
 
 def extract_greedy_policy(
     q_table: QTable,
@@ -699,17 +598,9 @@ def extract_greedy_policy(
     # Checks:
     # - The goal state should not be in the returned policy.
     # - Every policy action should be one of `gridworld["actions"]`.
-    policy = {}
-    goal_state = gridworld["goal_state"]
+    raise NotImplementedError("Return the greedy policy from the learned Q-table.")
 
-    for state, action_values in q_table.items():
-        if state == goal_state:
-            continue
-        best_action = max(action_values, key=lambda action: action_values[action])
-        policy[state] = best_action
 
-    return policy
-    #raise NotImplementedError("Return the greedy policy from the learned Q-table.")
 
 def explain_q_values(summary: QLearningSummary) -> str:
     """Write a short note explaining what the Q-values mean."""
@@ -743,11 +634,7 @@ def explain_q_values(summary: QLearningSummary) -> str:
     # Checks:
     # - Do not say Q-values are the same thing as one episode return.
     # - Q-values are learned estimates for state-action pairs.
-    return (
-        "A Q-value is a learned guess for one state and one action. "
-        f"Higher Q-values mean the agent expects better future reward; it reached the goal in {summary['goal_reach_count']} episodes."
-    )
-    #raise NotImplementedError("Explain learned Q-values in simple words.")
+    raise NotImplementedError("Explain learned Q-values in simple words.")
 
 def check_metrics(metrics: QLearningSummary) -> bool:
     """Return True when the Q-learning summary has the expected keys."""

@@ -545,13 +545,11 @@ def sample_frame_indices(clip_length: int, sampled_frames: int) -> list[int]:
     # - The last index should be less than `clip_length`.
     # - The list length should equal `sampled_frames`.
 
-    indexes_to_select = torch.linspace(0, clip_length - 1, steps=sampled_frames).round().long().tolist()
+    raise NotImplementedError("Sample frame indices.")
 
     # Example:
     # If `clip_length == 16` and `sampled_frames == 4`,
     # this returns `[0, 5, 10, 15]`.
-    return indexes_to_select
-    #raise NotImplementedError("Sample frame indices.")
 
 
 def temporal_iou(pred_start: int, pred_end: int, target_start: int, target_end: int) -> float:
@@ -580,16 +578,9 @@ def temporal_iou(pred_start: int, pred_end: int, target_start: int, target_end: 
     # - Same windows should return 1.
     # - Non-overlapping windows should return 0.
 
-    overlap_start = max(pred_start, target_start)
-    overlap_end = min(pred_end, target_end)
-    overlap = max(0, overlap_end - overlap_start)       # intersection
+    raise NotImplementedError("Compute temporal IoU.")
 
-    union_start = min(pred_start, target_start)
-    union_end = max(pred_end, target_end)
-    union = max(0, union_end - union_start)             
 
-    if union == 0:
-         return 0.0
 
     # Example:
     # Prediction: frames 2 to 6.
@@ -597,9 +588,7 @@ def temporal_iou(pred_start: int, pred_end: int, target_start: int, target_end: 
     # The shared part is frames 4 to 6, so `overlap = 2`.
     # The full covered range is frames 2 to 8, so `union = 6`.
     # The temporal IoU is `2 / 6`, which is about `0.33`.
-    return overlap/union
 
-    #raise NotImplementedError("Compute temporal IoU.")
 
 
 class TinyVideoEventModel(nn.Module):
@@ -637,24 +626,9 @@ class TinyVideoEventModel(nn.Module):
         # - Event logits should be `[batch_size, config.num_event_classes]`.
         # - Window predictions should be `[batch_size, 2]`.
 
-        self.config = config
-        self.frame_encoder = nn.Sequential(
-            nn.Conv2d(3, 16, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2),
-            nn.Conv2d(16, 32, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2),
-            nn.AdaptiveAvgPool2d((1, 1)),
-            nn.Flatten(),
-            nn.Linear(32, config.hidden_size),
-            nn.ReLU(),
-        )
-        self.event_head = nn.Linear(config.hidden_size, config.num_event_classes)
-        self.window_head = nn.Linear(config.hidden_size, 2)
+        raise NotImplementedError("Build video event model.")
 
 
-        #raise NotImplementedError("Build video event model.")
 
     def forward(self, sampled_frames: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Return event logits and predicted event window."""
@@ -689,21 +663,13 @@ class TinyVideoEventModel(nn.Module):
         # Check:
         # - Start/end predictions should be in frame-index units.
 
-        batch_size, sampled_count = sampled_frames.shape[:2]
-        flattened_frames = sampled_frames.reshape(batch_size * sampled_count, 3, self.config.image_size, self.config.image_size)
+        raise NotImplementedError("Predict event class and time window.")
         # this will not work: flattened_frames = sampled_frames.reshape(batch_size * sampled_count, 3, -1, -1)
         # PyTorch only allows one -1 in a reshape. It can infer one missing size, not two.
         # this is valid: flattened_frames = sampled_frames.reshape(batch_size * sampled_count, 3, self.config.image_size, -1)
 
-        encoded_frames = self.frame_encoder(flattened_frames)
-        encoded_frames = encoded_frames.reshape(batch_size, sampled_count, self.config.hidden_size)
-        video_features = encoded_frames.mean(dim=1)
-        event_logits = self.event_head(video_features)
-        event_window = torch.sigmoid(self.window_head(video_features)) * self.config.clip_length
 
-        return event_logits, event_window
 
-        #raise NotImplementedError("Predict event class and time window.")
 
 
 def train_one_epoch(model: TinyVideoEventModel, loader: DataLoader, optimizer: torch.optim.Optimizer, config: VideoEventConfig) -> float:
@@ -730,36 +696,11 @@ def train_one_epoch(model: TinyVideoEventModel, loader: DataLoader, optimizer: t
     #
     # Check:
     # - Return mean loss as a Python float.
-    class_loss_fn = nn.CrossEntropyLoss()
-    window_loss_fn = nn.L1Loss()
-    model.train()
+    raise NotImplementedError("Train one video event epoch.")
 
-    total_loss = 0.0
-    example_count = 0
 
-    for batch in loader:
-        sampled_frames = batch["sampled_frames"].to(device)
-        event_labels = batch["event_label"].to(device)
-        target_windows = batch["event_window"].to(device)
-        batch_size = sampled_frames.shape[0]
 
-        event_logits, predicted_windows = model(sampled_frames)
-        class_loss = class_loss_fn(event_logits, event_labels)
-        window_loss = window_loss_fn(predicted_windows, target_windows)
-        loss = class_loss + window_loss
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        total_loss += loss.item() * batch_size
-        example_count += batch_size
-
-    if example_count == 0:
-        return 0.0
-
-    return total_loss / example_count
-    #raise NotImplementedError("Train one video event epoch.")
 
 
 def evaluate_events(model: TinyVideoEventModel, examples: list[VideoEventExample], config: VideoEventConfig) -> VideoEventMetrics:
@@ -789,63 +730,12 @@ def evaluate_events(model: TinyVideoEventModel, examples: list[VideoEventExample
     #
     # Check:
     # - Mean temporal IoU should be between 0 and 1.
-    model.eval()
-    sample_indices = sample_frame_indices(config.clip_length, config.sampled_frames)
-    short_event_threshold = max(1, config.clip_length // config.sampled_frames)
+    raise NotImplementedError("Evaluate video event detection.")
 
-    correct_count = 0
-    total_iou = 0.0
-    short_event_count = 0
-    missed_short_event_count = 0
 
-    with torch.no_grad():
-        for example in examples:
-            sampled_frames = example["frames"][sample_indices].unsqueeze(0).to(device)
-            event_logits, predicted_windows = model(sampled_frames)
 
-            predicted_label = int(event_logits.argmax(dim=-1).item())
-            if predicted_label == example["event_label"]:
-                correct_count += 1
 
-            predicted_start = int(round(float(predicted_windows[0, 0].item())))
-            predicted_end = int(round(float(predicted_windows[0, 1].item())))
-            predicted_start = max(0, min(config.clip_length, predicted_start))
-            predicted_end = max(0, min(config.clip_length, predicted_end))
-            if predicted_end < predicted_start:
-                predicted_start, predicted_end = predicted_end, predicted_start
 
-            target_start = example["event_start"]
-            target_end = example["event_end"]
-            total_iou += temporal_iou(predicted_start, predicted_end, target_start, target_end)
-
-            event_length = target_end - target_start
-            if event_length <= short_event_threshold:
-                short_event_count += 1
-                sampled_event_frames = [index for index in sample_indices if target_start <= index < target_end]
-                if len(sampled_event_frames) == 0:
-                    missed_short_event_count += 1
-
-    if not examples:
-        return {
-            "event_accuracy": 0.0,
-            "mean_temporal_iou": 0.0,
-            "missed_short_event_rate": 0.0,
-            "frame_grid_path": "",
-            "timeline_path": "",
-        }
-
-    missed_short_event_rate = 0.0
-    if short_event_count > 0:
-        missed_short_event_rate = missed_short_event_count / short_event_count
-
-    return {
-        "event_accuracy": correct_count / len(examples),
-        "mean_temporal_iou": total_iou / len(examples),
-        "missed_short_event_rate": missed_short_event_rate,
-        "frame_grid_path": "",
-        "timeline_path": "",
-    }
-    #raise NotImplementedError("Evaluate video event detection.")
 
 
 def save_video_visuals(examples: list[VideoEventExample], predictions: list[tuple[int, int]], config: VideoEventConfig) -> tuple[str, str]:
@@ -874,62 +764,18 @@ def save_video_visuals(examples: list[VideoEventExample], predictions: list[tupl
     #
     # Check:
     # - The timeline should show missed short events clearly.
-    import matplotlib
+    raise NotImplementedError("Save video frame and timeline visuals.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    frame_grid_path = config.output_dir / "video_sampled_frames.png"
-    timeline_path = config.output_dir / "video_event_timeline.png"
 
-    if not examples:
-        return str(frame_grid_path), str(timeline_path)
 
-    sample_indices = sample_frame_indices(config.clip_length, config.sampled_frames)
-    first_example = examples[0]
-    sampled_frames = first_example["frames"][sample_indices]
 
-    fig, axes = plt.subplots(1, len(sample_indices), figsize=(3 * len(sample_indices), 3))
-    if len(sample_indices) == 1:
-        axes = [axes]
 
-    for ax, frame, frame_index in zip(axes, sampled_frames, sample_indices):
-        image = frame.detach().cpu().clamp(0, 1).permute(1, 2, 0).numpy()
-        ax.imshow(image)
-        ax.set_title(f"frame {frame_index}")
-        ax.axis("off")
 
-    fig.suptitle(f"Sampled frames: {first_example['event_text']}")
-    fig.tight_layout()
-    fig.savefig(frame_grid_path)
-    plt.close(fig)
 
-    shown_examples = examples[: len(predictions)]
-    fig, ax = plt.subplots(figsize=(10, max(3, 0.6 * len(shown_examples))))
 
-    for row_index, (example, prediction) in enumerate(zip(shown_examples, predictions)):
-        target_start = example["event_start"]
-        target_end = example["event_end"]
-        pred_start, pred_end = prediction
 
-        ax.broken_barh([(target_start, target_end - target_start)], (row_index - 0.18, 0.16), facecolors="tab:green")
-        ax.broken_barh([(pred_start, pred_end - pred_start)], (row_index + 0.02, 0.16), facecolors="tab:orange")
 
-    ax.set_xlim(0, config.clip_length)
-    ax.set_ylim(-0.5, max(0.5, len(shown_examples) - 0.5))
-    ax.set_xlabel("frame index")
-    ax.set_ylabel("example")
-    ax.set_title("Target event window and predicted event window")
-    ax.set_yticks(range(len(shown_examples)))
-    ax.set_yticklabels([example["event_text"][:40] for example in shown_examples])
-    ax.legend(["target", "prediction"], loc="upper right")
-    fig.tight_layout()
-    fig.savefig(timeline_path)
-    plt.close(fig)
-
-    return str(frame_grid_path), str(timeline_path)
-    #raise NotImplementedError("Save video frame and timeline visuals.")
 
 
 def run_exercise(config: VideoEventConfig) -> VideoEventMetrics:

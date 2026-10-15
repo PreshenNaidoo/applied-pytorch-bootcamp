@@ -436,26 +436,11 @@ def load_dense_vjepa_dataloaders(config: DenseVJEPAConfig) -> dict[str, DataLoad
     # Checks:
     # - one batch has `video` shaped `[batch, clip_frames, 3, image_size, image_size]`.
 
-    if not Path(config.video_root).exists():
-        raise ValueError("video_root path does not exist.")
-    if not Path(config.annotation_root).exists():
-        raise ValueError("annotation_root path does not exist.")
+    raise NotImplementedError("Load real UCF101 clips for dense V-JEPA.")
 
-    base_dataset = torchvision.datasets.UCF101(root=config.video_root, annotation_path=config.annotation_root, frames_per_clip=config.clip_frames)
-    if len(base_dataset) > config.max_clips:
-        data = torch.utils.data.Subset(base_dataset, indices=range(0,config.max_clips))
-    else:
-        data = base_dataset
 
-    ds = DenseVJEPAVideoDataset(data, config.image_size)
 
-    gen = torch.Generator().manual_seed(config.random_state)
-    train_ds, val_ds, test_ds = torch.utils.data.random_split(dataset=ds, lengths=[0.6, 0.2, 0.2], generator = gen)
 
-    return {"train": torch.utils.data.DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True),
-            "val": torch.utils.data.DataLoader(dataset=val_ds, batch_size = config.batch_size),
-            "test": torch.utils.data.DataLoader(dataset=test_ds, batch_size = config.batch_size)}    
-    #raise NotImplementedError("Load real UCF101 clips for dense V-JEPA.")
 
 
 def make_dense_target_mask(
@@ -533,54 +518,11 @@ def make_dense_target_mask(
     #   `num_target_blocks * target_block_frames * target_block_side ** 2`
     #   true values. Check with `target_mask.sum(dim=(1, 2))`.
 
-    patches_per_side = int(patches_per_frame ** 0.5)
-    if patches_per_side * patches_per_side != patches_per_frame:
-        raise ValueError("patches_per_frame must form a square patch grid.")
+    raise NotImplementedError("Create dense V-JEPA target patch-block masks.")
 
-    target_mask = torch.zeros(size=(batch_size, clip_frames, patches_per_frame), dtype=torch.bool, device=device)
 
-    max_attempts = num_target_blocks * 100      # 4*100
 
-    for batch_index in range(batch_size):
-        placed_blocks = 0
-        attempts = 0
 
-        while placed_blocks < num_target_blocks:
-            if attempts >= max_attempts:
-                raise RuntimeError("Unable to set number of target blocks within max_attempts.")
-
-            sampled_frame = torch.randint(low=0, high=clip_frames-target_block_frames + 1, size=(), device=device).item() # 0 to 4 - 2 + 1 i.e. 0 to 3(exclusive). thats why +1
-            sampled_patch_row = torch.randint(low=0, high=patches_per_side - target_block_side + 1, size=(), device=device).item() # 6 - 2 + 1 i.e. [0, 5)
-            sampled_patch_col = torch.randint(low=0, high=patches_per_side - target_block_side + 1, size=(), device=device).item() # 6 - 2 + 1 i.e. [0, 5)
-
-            block_positions=[]
-
-            for frame_index in range(sampled_frame, sampled_frame + target_block_frames):
-                for row_index in range(sampled_patch_row, sampled_patch_row + target_block_side):
-                    for col_index in range(sampled_patch_col, sampled_patch_col + target_block_side):
-                        patch_index = row_index * patches_per_side + col_index
-
-                        block_positions.append((frame_index, patch_index))
-
-            attempts+=1
-
-            reject_block = False
-            for frame_index, patch_index in block_positions:
-                if target_mask[batch_index, frame_index, patch_index]:
-                    reject_block = True
-                    break
-
-            if reject_block:
-                continue
-
-            # if there is no overlap then set to True:
-            for frame_index, patch_index in block_positions:
-                target_mask[batch_index, frame_index, patch_index] = True
-
-            placed_blocks+=1
-
-    return target_mask
-    #raise NotImplementedError("Create dense V-JEPA target patch-block masks.")
 
 
 def apply_dense_video_mask(
@@ -637,32 +579,13 @@ def apply_dense_video_mask(
     # - Positions where `target_mask` is `False` should still match `videos`.
     # - `videos` itself should remain unchanged.
 
-    batch, clip_frames, channels, image_height, image_width = videos.shape
-    masked_videos = videos.clone()
+    raise NotImplementedError("Create masked clips for dense V-JEPA visual checks.")
 
-    patch_rows = image_height // patch_size   # should be 6     i.e. 96 // 16
-    patch_cols = image_width // patch_size    # should be 6
     # patch_rows == patch_cols
 
     #target_mask shape is (batch_size, clip_frames, patch_rows * patch_cols)
 
-    for frame_index in range(clip_frames):
-        for row_index in range(patch_rows):
-            for col_index in range(patch_cols):
 
-                patch_index = row_index * patch_rows + col_index
-
-                #Convert the patch location into pixel slice boundaries
-                row_start = row_index * patch_size
-                row_end = row_start + patch_size
-                col_start = col_index * patch_size
-                col_end = col_start + patch_size
-
-                batch_selector = target_mask[:, frame_index, patch_index]
-                masked_videos[batch_selector, frame_index, :, row_start: row_end, col_start: col_end] = mask_value
-
-    return masked_videos
-    #raise NotImplementedError("Create masked clips for dense V-JEPA visual checks.")
 
 
 class TinyDenseVideoTransformerEncoder(nn.Module):
@@ -720,34 +643,13 @@ class TinyDenseVideoTransformerEncoder(nn.Module):
         # - `outputs["final_tokens"].shape` should be `[2, 4, 36, latent_dim]`.
         # - `outputs["intermediate_tokens"].shape` should be `[2, 4, 36, latent_dim]`.
 
-        self.clip_frames = config.clip_frames                   # 4
-        self.patches_per_frame = config.patches_per_frame       # 36
-        self.total_tokens = config.total_tokens                 # 144
-        self.latent_dim = config.latent_dim
+        raise NotImplementedError("Build the tiny dense video transformer encoder.")
 
-        self.patch_embed = nn.Conv2d(in_channels = 3, out_channels = config.latent_dim, kernel_size=config.patch_size, stride=config.patch_size)
 
-        self.pos_embed = nn.Parameter(torch.zeros(size=(1, config.total_tokens, config.latent_dim)))
 
-        self.hidden_token = nn.Parameter(torch.zeros(size=(1, 1, config.latent_dim)))
 
-        self.layers = nn.ModuleList([
-            nn.TransformerEncoderLayer(
-                d_model=config.latent_dim,
-                nhead=config.encoder_num_heads,
-                dim_feedforward=config.encoder_mlp_dim,
-                dropout=0.0,
-                activation="gelu",
-                batch_first=True,
-            )
-            for _ in range(config.encoder_depth)
-        ])
 
-        self.intermediate_layer_index = max(0, config.encoder_depth // 2 - 1)
-        self.intermediate_norm = nn.LayerNorm(config.latent_dim)
-        self.norm = nn.LayerNorm(config.latent_dim)
 
-        # raise NotImplementedError("Build the tiny dense video transformer encoder.")
 
     def forward(self, videos: torch.Tensor, visible_mask: torch.Tensor | None = None) -> dict[str, torch.Tensor]:
         """Encode videos into final and intermediate dense token latents."""
@@ -804,25 +706,10 @@ class TinyDenseVideoTransformerEncoder(nn.Module):
         # fill the hidden target region.
 
         # videos shape is [batch_size, clip_frames, 3, image_height, image_width]
-        batch_size = videos.shape[0]
-        flattened_videos = videos.flatten(start_dim=0, end_dim=1)                   # [batch_size * clip_frames, 3, image_height, image_width]
+        raise NotImplementedError("Run the dense video transformer encoder.")
 
-        patches = self.patch_embed(flattened_videos)                                # [batch_size * clip_frames, latent_dim, patches_per_side, patches_per_side]
-        patches = patches.flatten(start_dim=2)                                      # [batch_size * clip_frames, latent_dim, 36]
-        patches = patches.transpose(1, 2)                                           # [batch_size * clip_frames, 36, latent_dim]
-        patches = patches.reshape(batch_size, self.total_tokens, self.latent_dim)   # [batch_size, 144, latent_dim]
 
         # visible_mask is shape [batch, clip_frames, patches_per_frame]
-        flattened_visible_mask = None
-        if visible_mask is not None:
-            flattened_visible_mask = visible_mask.reshape(batch_size, self.total_tokens)  # [batch, total_tokens]
-            # flattened_visible_mask with unsqueeze becomes [batch, total_tokens, 1]
-            # hidden token is shape (1, 1, config.latent_dim)
-            # patches is [batch_size, 144, latent_dim]
-            # so where visible mask is True, then take the patch tensor value, otherwise use the hidden_token tensor value
-            # mask is True  -> keep the real patch token
-            # mask is False -> insert self.hidden_token
-            patches  = torch.where(flattened_visible_mask.unsqueeze(dim=-1), patches, self.hidden_token)
             # Note:
             # PyTorch broadcasts the hidden token as if the same learned vector were available for every video and every patch position
             # It also broadcasts the condition: flat_visible_mask.unsqueeze(-1): [batch, 144, 1]
@@ -831,42 +718,12 @@ class TinyDenseVideoTransformerEncoder(nn.Module):
             # True  -> keep the whole real patch-token vector
 
 
-        patches = patches + self.pos_embed                                          # [batch_size, 144, latent_dim] + [1, 144, latent_dim]
 
-        intermediate_features = None
-        for layer_index, encoder_layer in enumerate(self.layers):
-            if flattened_visible_mask is None:
-                patches = encoder_layer(patches)
-            else:
-                patches = encoder_layer(
-                    patches,
-                    src_key_padding_mask=~flattened_visible_mask,
-                )
 
-            if layer_index == self.intermediate_layer_index:
-                intermediate_features = patches
 
-        if intermediate_features is None:
-            raise RuntimeError("The intermediate encoder layer was not reached.")
 
-        intermediate_features = self.intermediate_norm(intermediate_features)
-        final_features = self.norm(patches)
 
-        output_shape = (
-            batch_size,
-            self.clip_frames,
-            self.patches_per_frame,
-            self.latent_dim,
-        )
-        intermediate_features = intermediate_features.reshape(output_shape)
-        final_features = final_features.reshape(output_shape)
 
-        return {
-            "final_tokens": final_features,
-            "intermediate_tokens": intermediate_features,
-        }
-
-        # raise NotImplementedError("Run the dense video transformer encoder.")
 
 
 class DenseVJEPAPredictor(nn.Module):
@@ -906,29 +763,13 @@ class DenseVJEPAPredictor(nn.Module):
         # `    batch_first=True,`
         # `)`
 
-        self.clip_frames = config.clip_frames                   # 4
-        self.patches_per_frame = config.patches_per_frame       # 36  i.e 6x6
-        self.total_tokens = config.total_tokens                 # 144
-        self.latent_dim = config.latent_dim
+        raise NotImplementedError("Build the dense V-JEPA predictor.")
 
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, config.latent_dim))
 
-        self.pos_embed = nn.Parameter(torch.zeros(1, config.total_tokens, config.latent_dim))
 
-        encoder_layer = nn.TransformerEncoderLayer(d_model = config.latent_dim,
-                                                    nhead = config.predictor_num_heads,
-                                                    dim_feedforward = config.predictor_mlp_dim,
-                                                    dropout = 0.0,
-                                                    activation = "gelu",
-                                                    batch_first = True)
 
-        self.transformer = nn.TransformerEncoder(encoder_layer = encoder_layer, num_layers = config.predictor_depth)
 
-        self.norm = nn.LayerNorm(config.latent_dim)
-        self.proj = nn.Linear(config.latent_dim, config.latent_dim)
-        self.intermediate_proj = nn.Linear(config.latent_dim, config.latent_dim)
 
-        # raise NotImplementedError("Build the dense V-JEPA predictor.")
 
     def forward(self, context_outputs: dict[str, torch.Tensor], target_mask: torch.Tensor) -> dict[str, torch.Tensor]:
         """Predict final and intermediate dense token latents for the whole clip."""
@@ -959,36 +800,18 @@ class DenseVJEPAPredictor(nn.Module):
         #     `[batch, clip_frames, patches_per_frame, latent_dim]`.
         # 12. Return both tensors in a dictionary.
 
-        context_tokens = context_outputs["final_tokens"]    # [batch, clip_frames, patches_per_frame, latent_dim]
-        batch_size, clip_frames, patches_per_frame, latent_dim = context_tokens.shape
+        raise NotImplementedError("Run the dense V-JEPA predictor.")
 
-        flat_context_tokens = context_tokens.reshape(batch_size, clip_frames * patches_per_frame, latent_dim)  # [batch, total_tokens, latent_dim]
 
-        flat_target_mask = target_mask.flatten(start_dim=1, end_dim=2)  # [batch, total_tokens]
 
         # (1, 1, latent_dim)  -->  (batch_size, 144, latent_dim)
-        mask_tokens = self.mask_token.expand(size=(batch_size, clip_frames * patches_per_frame, latent_dim))  # [batch, total_tokens, latent_dim]
 
-        tokens = torch.where(flat_target_mask.unsqueeze(dim=-1), mask_tokens, flat_context_tokens)  # [batch, total_tokens, latent_dim]
 
-        tokens = tokens + self.pos_embed  # [batch, total_tokens, latent_dim]
 
-        tokens = self.transformer(tokens)  # [batch, total_tokens, latent_dim]
-        tokens = self.norm(tokens)  # [batch, total_tokens, latent_dim]
 
-        final_tokens = self.proj(tokens)  # [batch, total_tokens, latent_dim]
-        intermediate_tokens = self.intermediate_proj(tokens)  # [batch, total_tokens, latent_dim]
 
-        output_shape = (batch_size, clip_frames, patches_per_frame, latent_dim)
-        final_tokens = final_tokens.reshape(output_shape)  # [batch, clip_frames, patches_per_frame, latent_dim]
-        intermediate_tokens = intermediate_tokens.reshape(output_shape)  # [batch, clip_frames, patches_per_frame, latent_dim]
 
-        return {
-            "final_tokens": final_tokens,
-            "intermediate_tokens": intermediate_tokens,
-        }
 
-        # raise NotImplementedError("Run the dense V-JEPA predictor.")
 
 
 def build_dense_vjepa_modules(config: DenseVJEPAConfig) -> tuple[nn.Module, nn.Module, nn.Module]:
@@ -1008,21 +831,11 @@ def build_dense_vjepa_modules(config: DenseVJEPAConfig) -> tuple[nn.Module, nn.M
     # 5. Create `predictor = DenseVJEPAPredictor(config)`.
     # 6. Move all modules to `device`.
 
-    online_encoder = TinyDenseVideoTransformerEncoder(config)
-    target_encoder = TinyDenseVideoTransformerEncoder(config)
-    predictor = DenseVJEPAPredictor(config)
+    raise NotImplementedError("Build V-JEPA 2.1 dense modules.")
 
-    target_encoder.load_state_dict(online_encoder.state_dict())
 
-    for param in target_encoder.parameters():
-        param.requires_grad = False
 
-    online_encoder = online_encoder.to(device)
-    target_encoder = target_encoder.to(device)
-    predictor = predictor.to(device)
 
-    return online_encoder, target_encoder, predictor
-    #raise NotImplementedError("Build V-JEPA 2.1 dense modules.")
 
 
 @torch.no_grad()
@@ -1040,10 +853,8 @@ def update_ema_target_encoder(
     # 2. Update target parameters in place with the formula above.
     # 3. Keep this inside `torch.no_grad()`.
 
-    for target_param, encoder_param in zip(target_encoder.parameters(), online_encoder.parameters()):
-        target_param.data = ema_decay * target_param.data + (1.0 - ema_decay) * encoder_param.data
+    raise NotImplementedError("Update the dense V-JEPA target encoder with EMA.")
 
-    #raise NotImplementedError("Update the dense V-JEPA target encoder with EMA.")
 
 
 def flatten_dense_tokens(token_latents: torch.Tensor) -> torch.Tensor:
@@ -1064,9 +875,7 @@ def flatten_dense_tokens(token_latents: torch.Tensor) -> torch.Tensor:
     # V-JEPA 2.1-style dense loss uses all patch-token positions.
     # This helper gives the loss and retrieval code the simple shape they need.
 
-    batch, clip_frames, patches_per_frame, latent_dim = token_latents.shape
-    return token_latents.reshape(batch, clip_frames * patches_per_frame, latent_dim)  # [batch, total_tokens, latent_dim]
-    #raise NotImplementedError("Flatten dense video tokens.")
+    raise NotImplementedError("Flatten dense video tokens.")
 
 
 def compute_vjepa_2_1_dense_loss(
@@ -1107,12 +916,8 @@ def compute_vjepa_2_1_dense_loss(
     # - both intermediate tensors should have the same shape.
     # - `intermediate_loss_weight=0.5` means the earlier-layer loss counts half as much as final loss.
 
-    final_loss = loss_fn(predicted_outputs["final_tokens"], target_outputs["final_tokens"].detach())
-    intermediate_loss = loss_fn(predicted_outputs["intermediate_tokens"], target_outputs["intermediate_tokens"].detach())
-    loss = final_loss + intermediate_loss_weight * intermediate_loss
+    raise NotImplementedError("Compute V-JEPA 2.1 dense final and intermediate losses.")
 
-    return loss, {"final_loss": final_loss.item(), "intermediate_loss": intermediate_loss.item(),}
-    #raise NotImplementedError("Compute V-JEPA 2.1 dense final and intermediate losses.")
 
 
 def make_patch_error_grid(
@@ -1137,10 +942,8 @@ def make_patch_error_grid(
     # A later helper can reshape one frame of this tensor from `[36]` to
     # `[6, 6]` and draw a heatmap over the frame.
 
-    patch_errors = (predicted_tokens - target_tokens.detach()).pow(2).mean(dim=-1)  # [batch, clip_frames, patches_per_frame]
-    return patch_errors
+    raise NotImplementedError("Create dense patch error values.")
 
-    # raise NotImplementedError("Create dense patch error values.")
 
 
 def train_one_epoch(
@@ -1173,77 +976,12 @@ def train_one_epoch(
     #    - intermediate dense MSE
     #    - all-token cosine similarity on final dense tokens
 
-    online_encoder.train()
-    predictor.train()
-    target_encoder.eval()
+    raise NotImplementedError("Train V-JEPA 2.1 dense features for one epoch.")
 
-    total_loss = 0
-    final_dense_mse = 0
-    intermediate_dense_mse = 0
-    total_cosine_similarity = 0
-    total_samples = 0
 
-    progress = tqdm(loader, desc="train", leave=False) if tqdm is not None else loader
 
-    for step, data in enumerate(progress, start=1):
-        videos = data["video"].to(device)
-        batch_size = videos.shape[0]
 
-        target_mask = make_dense_target_mask(batch_size, config.clip_frames, config.patches_per_frame, 
-                                            config.num_target_blocks, config.target_block_frames, config.target_block_side,
-                                            device)
-        visible_mask = ~target_mask
 
-        context_dict = online_encoder(videos, visible_mask)
-
-        with torch.no_grad():
-            target_dict = target_encoder(videos)
-
-        predicted_dict = predictor(context_dict, target_mask)
-
-        loss, loss_metrics = compute_vjepa_2_1_dense_loss(predicted_dict, target_dict, loss_fn, config.intermediate_loss_weight)
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        update_ema_target_encoder(online_encoder, target_encoder, config.ema_decay)
-        
-        total_samples += batch_size
-        total_loss += loss.item() * batch_size
-        final_dense_mse += loss_metrics["final_loss"] * batch_size
-        intermediate_dense_mse += loss_metrics["intermediate_loss"] * batch_size
-
-        #compute cosine sim
-        target_latents = target_dict["final_tokens"]       # [batch, clip_frames, patches_per_frame, latent_dim]
-        pred_latents = predicted_dict["final_tokens"]         # [batch, clip_frames, patches_per_frame, latent_dim]
-
-        batch, clip_frames, patches_per_frame, latent_dim = target_latents.shape
-
-        target_latents = target_latents.reshape(batch, clip_frames * patches_per_frame, latent_dim) # [batch, 144, latent_dim]
-        pred_latents = pred_latents.reshape(batch, clip_frames * patches_per_frame, latent_dim)     # [batch, 144, latent_dim]
-
-        cosine_similarity = F.cosine_similarity(pred_latents.detach(), target_latents.detach(), dim=-1,)  # [batch, total_tokens]
-
-        mean_cosine_similarity = cosine_similarity.mean()  # one scalar
-        total_cosine_similarity += mean_cosine_similarity.item() * batch_size
-
-        if tqdm is not None:
-            progress.set_postfix(
-                step=f"{step}/{len(loader)}",
-                loss=f"{loss.item():.4f}",
-                dense_mse=f"{loss_metrics['final_loss']:.4f}",
-                cos=f"{mean_cosine_similarity.item():.4f}",
-            )
-
-    return {
-        "loss": total_loss / total_samples,
-        "dense_latent_mse": final_dense_mse / total_samples,
-        "intermediate_dense_latent_mse": intermediate_dense_mse / total_samples,
-        "patch_cosine_similarity": total_cosine_similarity / total_samples,
-    }
-
-    # raise NotImplementedError("Train V-JEPA 2.1 dense features for one epoch.")
 
 
 @torch.no_grad()
@@ -1278,85 +1016,11 @@ def evaluate_dense_vjepa(
     # - average it for dense MSE
     # - keep one batch of errors for the heatmap visual
 
-    online_encoder.eval()
-    target_encoder.eval()
-    predictor.eval()
+    raise NotImplementedError("Evaluate V-JEPA 2.1 dense metrics.")
 
-    total_dense_mse = 0.0
-    total_intermediate_dense_mse = 0.0
-    total_cosine_similarity = 0.0
-    total_samples = 0
-    correct_retrievals = 0
-    total_retrievals = 0
 
-    for data in loader:
-        videos = data["video"].to(device)
-        batch_size = videos.shape[0]
 
-        target_mask = make_dense_target_mask(
-            batch_size,
-            config.clip_frames,
-            config.patches_per_frame,
-            config.num_target_blocks,
-            config.target_block_frames,
-            config.target_block_side,
-            videos.device,
-        )
-        visible_mask = ~target_mask
 
-        context_outputs = online_encoder(videos, visible_mask)
-        target_outputs = target_encoder(videos)
-        predicted_outputs = predictor(context_outputs, target_mask)
-
-        _, loss_metrics = compute_vjepa_2_1_dense_loss(
-            predicted_outputs,
-            target_outputs,
-            loss_fn,
-            config.intermediate_loss_weight,
-        )
-
-        patch_errors = make_patch_error_grid(
-            predicted_outputs["final_tokens"],
-            target_outputs["final_tokens"],
-            config,
-        )  # [batch, clip_frames, patches_per_frame]
-        dense_mse = patch_errors.mean()
-
-        predicted_tokens = flatten_dense_tokens(predicted_outputs["final_tokens"])  # [batch, total_tokens, latent_dim]
-        target_tokens = flatten_dense_tokens(target_outputs["final_tokens"])  # [batch, total_tokens, latent_dim]
-
-        cosine_similarity = F.cosine_similarity(
-            predicted_tokens,
-            target_tokens,
-            dim=-1,
-        ).mean()
-
-        predicted_features = F.normalize(predicted_tokens, dim=-1)  # [batch, total_tokens, latent_dim]
-        target_features = F.normalize(target_tokens, dim=-1)  # [batch, total_tokens, latent_dim]
-        similarity = predicted_features @ target_features.transpose(1, 2)  # [batch, total_tokens, total_tokens]
-
-        retrieved_indices = similarity.argmax(dim=-1)  # [batch, total_tokens]
-        correct_indices = torch.arange(
-            predicted_tokens.shape[1],
-            device=videos.device,
-        ).unsqueeze(0)  # [1, total_tokens]
-
-        correct_retrievals += (retrieved_indices == correct_indices).sum().item()
-        total_retrievals += retrieved_indices.numel()
-
-        total_dense_mse += dense_mse.item() * batch_size
-        total_intermediate_dense_mse += loss_metrics["intermediate_loss"] * batch_size
-        total_cosine_similarity += cosine_similarity.item() * batch_size
-        total_samples += batch_size
-
-    return {
-        "dense_latent_mse": total_dense_mse / total_samples,
-        "intermediate_dense_latent_mse": total_intermediate_dense_mse / total_samples,
-        "patch_cosine_similarity": total_cosine_similarity / total_samples,
-        "patch_retrieval_top1": correct_retrievals / total_retrievals,
-    }
-
-    # raise NotImplementedError("Evaluate V-JEPA 2.1 dense metrics.")
 
 
 def save_dense_vjepa_visuals(
@@ -1372,132 +1036,24 @@ def save_dense_vjepa_visuals(
     # - `training_curve.png`
     # - `patch_error_heatmap.png`
 
-    output_dir = Path(config.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    raise NotImplementedError("Save V-JEPA 2.1 dense visuals.")
 
-    visual_paths: dict[str, str] = {}
-    videos = sample_batch["video"].to(device)  # [batch, clip_frames, 3, image_size, image_size]
 
-    clean_clip_path = output_dir / "clean_clip_strip.png"
-    fig, axes = plt.subplots(
-        1,
-        config.clip_frames,
-        figsize=(2.4 * config.clip_frames, 2.4),
-    )
-    if config.clip_frames == 1:
-        axes = [axes]
 
-    for frame_index in range(config.clip_frames):
-        frame = videos[0, frame_index].detach().cpu().permute(1, 2, 0)  # [image_size, image_size, 3]
-        axes[frame_index].imshow(frame)
-        axes[frame_index].set_title(f"frame {frame_index}")
-        axes[frame_index].axis("off")
 
-    fig.suptitle("Clean video clip")
-    fig.tight_layout()
-    fig.savefig(clean_clip_path, dpi=160)
-    plt.close(fig)
-    visual_paths["clean_clip_strip"] = str(clean_clip_path)
 
-    target_mask = make_dense_target_mask(
-        batch_size=videos.shape[0],
-        clip_frames=config.clip_frames,
-        patches_per_frame=config.patches_per_frame,
-        num_target_blocks=config.num_target_blocks,
-        target_block_frames=config.target_block_frames,
-        target_block_side=config.target_block_side,
-        device=videos.device,
-    )  # [batch, clip_frames, patches_per_frame]
 
-    target_mask_path = output_dir / "target_mask_strip.png"
-    fig, axes = plt.subplots(
-        1,
-        config.clip_frames,
-        figsize=(2.4 * config.clip_frames, 2.4),
-    )
-    if config.clip_frames == 1:
-        axes = [axes]
 
-    for frame_index in range(config.clip_frames):
-        mask_grid = target_mask[0, frame_index].detach().cpu().reshape(
-            config.patches_per_side,
-            config.patches_per_side,
-        )  # [patches_per_side, patches_per_side]
-        axes[frame_index].imshow(mask_grid, cmap="gray_r", vmin=0, vmax=1)
-        axes[frame_index].set_title(f"frame {frame_index}")
-        axes[frame_index].set_xticks([])
-        axes[frame_index].set_yticks([])
 
-    fig.suptitle("Target mask: dark patches are hidden")
-    fig.tight_layout()
-    fig.savefig(target_mask_path, dpi=160)
-    plt.close(fig)
-    visual_paths["target_mask_strip"] = str(target_mask_path)
 
-    training_curve_path = output_dir / "training_curve.png"
-    fig, ax = plt.subplots(figsize=(7, 4))
-    epochs = list(range(1, len(history) + 1))
-    train_values = [
-        item.get("train_dense_latent_mse", item.get("dense_latent_mse"))
-        for item in history
-    ]
-    val_values = [item.get("val_dense_latent_mse") for item in history]
 
-    if any(value is not None for value in train_values):
-        ax.plot(epochs, train_values, marker="o", label="train dense MSE")
-    if any(value is not None for value in val_values):
-        ax.plot(epochs, val_values, marker="o", label="validation dense MSE")
 
-    ax.set_title("Dense patch prediction error")
-    ax.set_xlabel("epoch")
-    ax.set_ylabel("MSE")
-    ax.grid(True, alpha=0.3)
-    if ax.lines:
-        ax.legend()
-    fig.tight_layout()
-    fig.savefig(training_curve_path, dpi=160)
-    plt.close(fig)
-    visual_paths["training_curve"] = str(training_curve_path)
 
-    patch_error_path = output_dir / "patch_error_heatmap.png"
-    error_grids = patch_errors[0].detach().cpu().reshape(
-        config.clip_frames,
-        config.patches_per_side,
-        config.patches_per_side,
-    )  # [clip_frames, patches_per_side, patches_per_side]
-    max_error = max(float(error_grids.max().item()), 1e-8)
 
-    fig, axes = plt.subplots(
-        1,
-        config.clip_frames,
-        figsize=(2.8 * config.clip_frames, 2.6),
-    )
-    if config.clip_frames == 1:
-        axes = [axes]
 
-    heatmap = None
-    for frame_index in range(config.clip_frames):
-        heatmap = axes[frame_index].imshow(
-            error_grids[frame_index],
-            cmap="magma",
-            vmin=0,
-            vmax=max_error,
-        )
-        axes[frame_index].set_title(f"frame {frame_index}")
-        axes[frame_index].set_xlabel("patch column")
-        axes[frame_index].set_ylabel("patch row")
 
-    fig.suptitle("Dense prediction MSE by patch")
-    if heatmap is not None:
-        fig.colorbar(heatmap, ax=axes, label="MSE")
-    fig.subplots_adjust(top=0.80, right=0.88, wspace=0.35)
-    fig.savefig(patch_error_path, dpi=160)
-    plt.close(fig)
-    visual_paths["patch_error_heatmap"] = str(patch_error_path)
 
-    return visual_paths
 
-    # raise NotImplementedError("Save V-JEPA 2.1 dense visuals.")
 
 
 def run_dense_vjepa_experiment(config: DenseVJEPAConfig) -> dict[str, object]:
@@ -1521,137 +1077,17 @@ def run_dense_vjepa_experiment(config: DenseVJEPAConfig) -> dict[str, object]:
     # 5. Evaluate validation and test metrics.
     # 6. Save visuals.
 
-    set_seed(config.random_state)
-    loaders = load_dense_vjepa_dataloaders(config)
-    online_encoder, target_encoder, predictor = build_dense_vjepa_modules(config)
+    raise NotImplementedError("Run V-JEPA 2.1 dense training, evaluation, and visuals.")
 
-    optimizer = torch.optim.AdamW(
-        list(online_encoder.parameters()) + list(predictor.parameters()),
-        lr=config.learning_rate,
-        weight_decay=config.weight_decay,
-    )
-    loss_fn = nn.MSELoss()
 
-    history: list[dict[str, float]] = []
-    final_train_metrics: dict[str, float] = {}
-    final_val_metrics: dict[str, float] = {}
 
-    for epoch in range(1, config.epochs + 1):
-        final_train_metrics = train_one_epoch(
-            online_encoder,
-            target_encoder,
-            predictor,
-            loaders["train"],
-            optimizer,
-            loss_fn,
-            config,
-        )
-        final_val_metrics = evaluate_dense_vjepa(
-            online_encoder,
-            target_encoder,
-            predictor,
-            loaders["val"],
-            loss_fn,
-            config,
-        )
 
-        history.append(
-            {
-                "train_dense_latent_mse": final_train_metrics["dense_latent_mse"],
-                "train_intermediate_dense_latent_mse": final_train_metrics["intermediate_dense_latent_mse"],
-                "train_patch_cosine_similarity": final_train_metrics["patch_cosine_similarity"],
-                "val_dense_latent_mse": final_val_metrics["dense_latent_mse"],
-                "val_intermediate_dense_latent_mse": final_val_metrics["intermediate_dense_latent_mse"],
-                "val_patch_cosine_similarity": final_val_metrics["patch_cosine_similarity"],
-                "val_patch_retrieval_top1": final_val_metrics["patch_retrieval_top1"],
-            }
-        )
 
-        print(f"\nepoch {epoch}/{config.epochs}")
-        print(
-            f"  train | combined loss {final_train_metrics['loss']:.4f} | "
-            f"dense MSE {final_train_metrics['dense_latent_mse']:.4f} | "
-            f"intermediate MSE {final_train_metrics['intermediate_dense_latent_mse']:.4f} | "
-            f"patch cosine {final_train_metrics['patch_cosine_similarity']:.4f}"
-        )
-        print(
-            f"  val   | dense MSE {final_val_metrics['dense_latent_mse']:.4f} | "
-            f"intermediate MSE {final_val_metrics['intermediate_dense_latent_mse']:.4f} | "
-            f"patch cosine {final_val_metrics['patch_cosine_similarity']:.4f} | "
-            f"retrieval top-1 {100.0 * final_val_metrics['patch_retrieval_top1']:.2f}%"
-        )
 
-    test_metrics = evaluate_dense_vjepa(
-        online_encoder,
-        target_encoder,
-        predictor,
-        loaders["test"],
-        loss_fn,
-        config,
-    )
 
-    sample_batch = next(iter(loaders["test"]))
-    sample_videos = sample_batch["video"].to(device)
-    sample_target_mask = make_dense_target_mask(
-        batch_size=sample_videos.shape[0],
-        clip_frames=config.clip_frames,
-        patches_per_frame=config.patches_per_frame,
-        num_target_blocks=config.num_target_blocks,
-        target_block_frames=config.target_block_frames,
-        target_block_side=config.target_block_side,
-        device=sample_videos.device,
-    )
-    sample_visible_mask = ~sample_target_mask
 
-    online_encoder.eval()
-    target_encoder.eval()
-    predictor.eval()
-    with torch.no_grad():
-        sample_context_outputs = online_encoder(sample_videos, sample_visible_mask)
-        sample_target_outputs = target_encoder(sample_videos)
-        sample_predicted_outputs = predictor(sample_context_outputs, sample_target_mask)
-        patch_errors = make_patch_error_grid(
-            sample_predicted_outputs["final_tokens"],
-            sample_target_outputs["final_tokens"],
-            config,
-        )
 
-    visual_paths = save_dense_vjepa_visuals(
-        history,
-        sample_batch,
-        patch_errors,
-        config,
-    )
 
-    random_retrieval_top1 = 1.0 / config.total_tokens
-    print("\nFinal V-JEPA 2.1-style metrics")
-    print(f"train dense MSE: {final_train_metrics['dense_latent_mse']:.4f} (lower is better)")
-    print(f"validation dense MSE: {final_val_metrics['dense_latent_mse']:.4f} (lower is better)")
-    print(f"test dense MSE: {test_metrics['dense_latent_mse']:.4f} (lower is better)")
-    print(
-        f"test intermediate dense MSE: "
-        f"{test_metrics['intermediate_dense_latent_mse']:.4f} (lower is better)"
-    )
-    print(f"test patch cosine similarity: {test_metrics['patch_cosine_similarity']:.4f} (higher is better)")
-    print(
-        f"test patch retrieval top-1: {100.0 * test_metrics['patch_retrieval_top1']:.2f}% "
-        f"(higher is better; random is about {100.0 * random_retrieval_top1:.2f}%)"
-    )
-    print(f"visuals saved in: {config.output_dir}")
-
-    return {
-        "train_dense_latent_mse": final_train_metrics["dense_latent_mse"],
-        "train_intermediate_dense_latent_mse": final_train_metrics["intermediate_dense_latent_mse"],
-        "val_dense_latent_mse": final_val_metrics["dense_latent_mse"],
-        "val_intermediate_dense_latent_mse": final_val_metrics["intermediate_dense_latent_mse"],
-        "test_dense_latent_mse": test_metrics["dense_latent_mse"],
-        "test_intermediate_dense_latent_mse": test_metrics["intermediate_dense_latent_mse"],
-        "test_patch_cosine_similarity": test_metrics["patch_cosine_similarity"],
-        "test_patch_retrieval_top1": test_metrics["patch_retrieval_top1"],
-        "visual_paths": visual_paths,
-    }
-
-    # raise NotImplementedError("Run V-JEPA 2.1 dense training, evaluation, and visuals.")
 
 
 def report_task_progress(task_name: str, task_fn, *args):

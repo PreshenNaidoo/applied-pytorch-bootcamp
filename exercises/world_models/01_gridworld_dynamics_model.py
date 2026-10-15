@@ -334,18 +334,11 @@ def encode_state_action(state: torch.Tensor, action: int, config: GridworldDynam
     # - The output should contain the original six state numbers.
     # - The last four values should contain exactly one `1.0`.
 
-    if state.shape != (config.state_dim,):                                                  # `state` should be shape [state_dim], with defaults `[6]`.
-        raise ValueError("Incorrect input state dimension.")
+    raise NotImplementedError("Encode one state-action pair.")
 
-    if not 0 <= action < config.num_actions:
-        raise ValueError("Invalid input action.")
 
-    action_one_hot = torch.zeros(config.num_actions, dtype=torch.float32, device=device)  # shape is [num_actions], with defaults `[4]`.
-    action_one_hot[action] = 1.0                                                          
 
-    return torch.cat([state.float(), action_one_hot], dim=0)  # shape is [state_dim + num_actions], with defaults `[10]`.
     
-    #raise NotImplementedError("Encode one state-action pair.")
 
 
 def collect_logged_episodes(config: GridworldDynamicsConfig) -> list[list[LoggedGridStep]]:
@@ -370,16 +363,10 @@ def collect_logged_episodes(config: GridworldDynamicsConfig) -> list[list[Logged
     # Keeping episode boundaries here matters. The dataset builder must split
     # episodes before it turns them into individual transition rows.
     
-    grid_config = VisualGridWorldConfig(image_size = config.image_size,      # default: 28
-                                        num_episodes=config.num_episodes,   # default: 256
-                                        max_steps=config.max_steps,         # default: 18
-                                        random_state=config.random_state)   # default: 42
+    raise NotImplementedError("Collect complete logged episodes from common.embodied_gridworld.")
 
-    episodes = collect_visual_gridworld_episodes(grid_config)
     # If no episode ends early, this is 256 episodes * 18 steps = 4608 rows.
 
-    return episodes
-    #raise NotImplementedError("Collect complete logged episodes from common.embodied_gridworld.")
 
 
 def build_dynamics_dataset(config: GridworldDynamicsConfig) -> DynamicsDatasetSplits:
@@ -408,21 +395,12 @@ def build_dynamics_dataset(config: GridworldDynamicsConfig) -> DynamicsDatasetSp
     # - No episode may appear in both groups.
     # - Validation data should not be used for training.
 
-    episodes = collect_logged_episodes(config)
+    raise NotImplementedError("Build train and validation tensors.")
 
-    gen = torch.Generator().manual_seed(config.random_state)
-    shuffled_indices = torch.randperm(n=len(episodes), generator = gen)
 
-    num_val = int(len(episodes) * config.val_fraction)
 
-    val_indices = shuffled_indices[:num_val]
-    train_indices = shuffled_indices[num_val:]
 
-    val_episodes = [episodes[index.item()] for index in val_indices]
-    train_episodes = [episodes[index.item()] for index in train_indices]
 
-    train_flat_episodes = flatten_logged_episodes(train_episodes)
-    val_flat_episodes = flatten_logged_episodes(val_episodes)
 
     # Now each step is one row like:
     # {
@@ -440,64 +418,11 @@ def build_dynamics_dataset(config: GridworldDynamicsConfig) -> DynamicsDatasetSp
     # train_costs: torch.Tensor
     # train_dones: torch.Tensor
 
-    train_inputs_list = []
-    train_next_states_list = []
-    train_rewards_list = []
-    train_costs_list = []
-    train_dones_list = []
 
-    for step in train_flat_episodes:
-        
-        current_state = step["state"].to(device=device, dtype=torch.float32)
-        action = int(step["action"])
-        inputs = encode_state_action(current_state, action, config)
 
-        next_state = step["next_state"].to(device=device, dtype=torch.float32)
-        reward = torch.tensor([step["reward"]], dtype=torch.float, device=device)
-        cost = torch.tensor([step["cost"]], dtype=torch.float, device=device)
-        done = torch.tensor([float(step["done"])], dtype=torch.float, device=device)
 
-        train_inputs_list.append(inputs)
-        train_next_states_list.append(next_state)
-        train_rewards_list.append(reward)
-        train_costs_list.append(cost)
-        train_dones_list.append(done)
 
-    val_inputs_list = []
-    val_next_states_list = []
-    val_rewards_list = []
-    val_costs_list = []
-    val_dones_list = []
 
-    for step in val_flat_episodes:
-        
-        current_state = step["state"].to(device=device, dtype=torch.float32)
-        action = int(step["action"])
-        inputs = encode_state_action(current_state, action, config)
-
-        next_state = step["next_state"].to(device=device, dtype=torch.float32)
-        reward = torch.tensor([step["reward"]], dtype=torch.float, device=device)
-        cost = torch.tensor([step["cost"]], dtype=torch.float, device=device)
-        done = torch.tensor([float(step["done"])], dtype=torch.float, device=device)
-
-        val_inputs_list.append(inputs)
-        val_next_states_list.append(next_state)
-        val_rewards_list.append(reward)
-        val_costs_list.append(cost)
-        val_dones_list.append(done)
-
-    return DynamicsDatasetSplits(train_inputs=torch.stack(train_inputs_list),
-                                train_next_states=torch.stack(train_next_states_list),
-                                train_rewards=torch.stack(train_rewards_list),
-                                train_costs=torch.stack(train_costs_list),
-                                train_dones=torch.stack(train_dones_list),  
-                                val_inputs=torch.stack(val_inputs_list),
-                                val_next_states=torch.stack(val_next_states_list),
-                                val_rewards=torch.stack(val_rewards_list),
-                                val_costs=torch.stack(val_costs_list),
-                                val_dones=torch.stack(val_dones_list))
-
-    #raise NotImplementedError("Build train and validation tensors.")
 
 
 def binary_precision_recall_f1(
@@ -540,37 +465,19 @@ def binary_precision_recall_f1(
     # Check:
     # - A model that never finds a real event should have recall `0.0`.
 
-    pred_events = event_scores >= threshold
-    target_events = event_targets == 1.0
+    raise NotImplementedError("Compute precision, recall, and F1 for a binary event.")
 
-    true_pos = (pred_events & target_events).sum()
-    false_pos = (pred_events & ~target_events).sum()
-    false_neg = (~pred_events & target_events).sum()
 
     # & means both are true
     # ~ means not true
     # .sum() counts how many True values there are
     # .item() turns a one-value tensor into a normal Python number
 
-    tp = true_pos.item()
-    fp = false_pos.item()
-    fn = false_neg.item()
 
-    precision = 0.0
-    if tp + fp > 0:
-        precision = tp / (tp + fp)
 
-    recall = 0.0
-    if tp + fn > 0:
-        recall = tp / (tp + fn)
 
-    f1 = 0.0
-    if precision + recall > 0.0:
-        f1 = (2 * precision * recall) / (precision + recall)
 
-    return {"precision": precision, "recall": recall, "f1": f1}
 
-    #raise NotImplementedError("Compute precision, recall, and F1 for a binary event.")
 
 
 class GridworldDynamicsModel(nn.Module):
@@ -594,19 +501,10 @@ class GridworldDynamicsModel(nn.Module):
         # - Done is a raw logit for `binary_cross_entropy_with_logits`.
         super().__init__()
 
-        self.input_dim = config.state_dim + config.num_actions  #(6+4) = shape = [10]
+        raise NotImplementedError("Build the grid-world dynamics model.")
 
-        self.trunk = nn.Sequential(nn.Linear(in_features=self.input_dim, out_features=config.hidden_dim),
-                                    nn.ReLU(inplace=True),
-                                    nn.Linear(config.hidden_dim, out_features=config.hidden_dim),
-                                    nn.ReLU(inplace=True))
 
-        self.next_state_head = nn.Linear(in_features=config.hidden_dim, out_features=config.state_dim)
-        self.reward_head = nn.Linear(in_features = config.hidden_dim, out_features=1)
-        self.cost_head = nn.Linear(in_features = config.hidden_dim, out_features=1)
-        self.done_head = nn.Linear(in_features=config.hidden_dim, out_features=1)
 
-        #raise NotImplementedError("Build the grid-world dynamics model.")
 
     def forward(self, inputs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Return next state, reward, cost amount, and done logit."""
@@ -616,16 +514,10 @@ class GridworldDynamicsModel(nn.Module):
         # Output order:
         # `(next_state, reward, cost, done_logit)`.
 
-        features = self.trunk(inputs)
+        raise NotImplementedError("Run the grid-world dynamics model.")
 
-        next_state = self.next_state_head(features)
-        reward= self.reward_head(features)
-        cost = self.cost_head(features)
-        done_logit = self.done_head(features)
 
-        return next_state, reward, cost, done_logit
 
-        #raise NotImplementedError("Run the grid-world dynamics model.")
 
 
 def compute_dynamics_loss(
@@ -648,22 +540,10 @@ def compute_dynamics_loss(
     # `predictions[0]` and `targets[0]` are shaped `[batch_size, 6]`.
     # `mse_loss` uses the mean by default, so it averages over all 6 state
     # values for every row in the batch.
-    next_state_loss = nn.functional.mse_loss(predictions[0], targets[0])
-    reward_loss = nn.functional.mse_loss(predictions[1], targets[1])
-    cost_loss = nn.functional.mse_loss(predictions[2], targets[2])
-    done_loss = nn.functional.binary_cross_entropy_with_logits(predictions[3], targets[3])
+    raise NotImplementedError("Compute dynamics-model loss.")
 
-    loss = next_state_loss + reward_loss + cost_loss + done_loss
 
-    loss_parts = {
-        "next_state_loss": next_state_loss.item(),
-        "reward_loss": reward_loss.item(),
-        "cost_loss": cost_loss.item(),
-        "done_loss": done_loss.item(),
-    }
 
-    return loss, loss_parts
-    #raise NotImplementedError("Compute dynamics-model loss.")
 
 
 def train_one_epoch(model: GridworldDynamicsModel, loader: DataLoader, optimizer: torch.optim.Optimizer) -> float:
@@ -691,37 +571,11 @@ def train_one_epoch(model: GridworldDynamicsModel, loader: DataLoader, optimizer
     # 9. Call `optimizer.step()`.
     # 10. Return mean loss weighted by batch size.
 
-    model.train()
+    raise NotImplementedError("Train one dynamics-model epoch.")
 
-    total_loss = 0
-    total_samples = 0
 
-    for inputs, next_states, rewards, costs, dones in loader:
-        inputs = inputs.to(device)                          # shape is [batch_size, state_dim + num_actions] i.e. [batch_size, 10]
 
-        next_states = next_states.to(device)                # shape is [batch_size, state_dim] i.e. [batch_size, 6]
-        rewards = rewards.to(device)                        # shape is [batch_size, 1]
-        costs = costs.to(device)                            # shape is [batch_size, 1]
-        dones = dones.to(device)                            # shape is [batch_size, 1]
 
-        pred_next_state, pred_reward, pred_cost, pred_done_logit = model(inputs)
-
-        optimizer.zero_grad()
-
-        loss, loss_parts = compute_dynamics_loss(predictions = (pred_next_state, pred_reward, pred_cost, pred_done_logit),
-                                                targets = (next_states, rewards, costs, dones))
-
-        loss.backward()
-        optimizer.step()
-
-        batch_size = dones.shape[0]
-
-        total_loss += loss.item() * batch_size
-        total_samples += batch_size
-
-    return total_loss / total_samples
-
-    #raise NotImplementedError("Train one dynamics-model epoch.")
 
 @torch.no_grad()
 def evaluate_dynamics_model(
@@ -805,82 +659,16 @@ def evaluate_dynamics_model(
     #
     # Check:
     # - This function should not call `backward()` or `step()`.
-    model.eval()
+    raise NotImplementedError("Evaluate dynamics model on validation data.")
 
-    pred_next_state_batches = []
-    pred_reward_batches = []
-    pred_cost_batches = []
-    done_logit_batches = []
-    next_state_batches = []
-    reward_batches = []
-    cost_batches = []
-    done_batches = []
 
-    for inputs, next_states, rewards, costs, dones in loader:
-        inputs = inputs.to(device)            # `[batch_size, state_dim + num_actions]`, default `[batch_size, 10]`
-        next_states = next_states.to(device)  # `[batch_size, state_dim]`, default `[batch_size, 6]`
-        rewards = rewards.to(device)          # `[batch_size, 1]`
-        costs = costs.to(device)              # `[batch_size, 1]`
-        dones = dones.to(device)              # `[batch_size, 1]`
 
-        pred_next_states, pred_rewards, pred_costs, done_logits = model(inputs)
-        # `pred_next_states`: `[batch_size, state_dim]`, default `[batch_size, 6]`
-        # `pred_rewards`, `pred_costs`, and `done_logits`: `[batch_size, 1]`
 
-        pred_next_state_batches.append(pred_next_states)
-        pred_reward_batches.append(pred_rewards)
-        pred_cost_batches.append(pred_costs)
-        done_logit_batches.append(done_logits)
-        next_state_batches.append(next_states)
-        reward_batches.append(rewards)
-        cost_batches.append(costs)
-        done_batches.append(dones)
 
-    if not pred_next_state_batches:
-        raise ValueError("Validation loader produced no batches.")
 
-    pred_next_states = torch.cat(pred_next_state_batches, dim=0)  # `[num_val_rows, state_dim]`, default `[num_val_rows, 6]`
-    pred_rewards = torch.cat(pred_reward_batches, dim=0)          # `[num_val_rows, 1]`
-    pred_costs = torch.cat(pred_cost_batches, dim=0)              # `[num_val_rows, 1]`
-    done_logits = torch.cat(done_logit_batches, dim=0)            # `[num_val_rows, 1]`
-    val_next_states = torch.cat(next_state_batches, dim=0)        # `[num_val_rows, state_dim]`, default `[num_val_rows, 6]`
-    val_rewards = torch.cat(reward_batches, dim=0)                # `[num_val_rows, 1]`
-    val_costs = torch.cat(cost_batches, dim=0)                    # `[num_val_rows, 1]`
-    val_dones = torch.cat(done_batches, dim=0)                    # `[num_val_rows, 1]`
 
-    val_next_state_mse = nn.functional.mse_loss(pred_next_states, val_next_states).item()  # scalar float
-    val_reward_mse = nn.functional.mse_loss(pred_rewards, val_rewards).item()              # scalar float
-    val_cost_mse = nn.functional.mse_loss(pred_costs, val_costs).item()                    # scalar float
 
-    done_probs = torch.sigmoid(done_logits)           # `[num_val_rows, 1]`
-    done_preds = (done_probs >= 0.5).float()          # `[num_val_rows, 1]`
-    val_done_accuracy = (done_preds == val_dones).float().mean().item()  # scalar float
 
-    cost_event_metrics = binary_precision_recall_f1(
-        event_scores=pred_costs,
-        event_targets=(val_costs > 0.0).float(),
-        threshold=config.cost_event_threshold,
-    )
-    done_event_metrics = binary_precision_recall_f1(
-        event_scores=done_probs,
-        event_targets=val_dones,
-        threshold=0.5,
-    )
-
-    return {
-        "val_next_state_mse": val_next_state_mse,
-        "val_reward_mse": val_reward_mse,
-        "val_cost_mse": val_cost_mse,
-        "val_done_accuracy": val_done_accuracy,
-        "val_cost_precision": cost_event_metrics["precision"],
-        "val_cost_recall": cost_event_metrics["recall"],
-        "val_cost_f1": cost_event_metrics["f1"],
-        "val_done_precision": done_event_metrics["precision"],
-        "val_done_recall": done_event_metrics["recall"],
-        "val_done_f1": done_event_metrics["f1"],
-    }
-
-    #raise NotImplementedError("Evaluate dynamics model on validation data.")
 
 
 def save_training_curves(
@@ -902,38 +690,16 @@ def save_training_curves(
     #
     # Method:
     # Use Matplotlib with `matplotlib.use("Agg")`.
-    import matplotlib
+    raise NotImplementedError("Save training curve plot.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = config.output_dir / "training_curves.png"
 
-    epochs = list(range(1, len(train_losses) + 1))  # one x-axis value per saved epoch
 
-    fig, ax1 = plt.subplots(figsize=(8, 5))
-    ax1.plot(epochs, train_losses, label="train loss", color="tab:blue")  # x and y are both length `num_epochs`
-    ax1.set_xlabel("epoch")
-    ax1.set_ylabel("train loss")
-    ax1.grid(True, alpha=0.3)
 
-    ax2 = ax1.twinx()
-    ax2.plot(epochs, val_next_state_mses, label="val next-state MSE", color="tab:orange")  # same length as `epochs`
-    ax2.set_ylabel("val next-state MSE")
 
-    lines = ax1.get_lines() + ax2.get_lines()
-    labels = [line.get_label() for line in lines]
-    ax1.legend(lines, labels, loc="best")
-    ax1.set_title("Grid-world dynamics training")
 
-    fig.tight_layout()
-    fig.savefig(output_path, dpi=150)
-    plt.close(fig)
 
-    return str(output_path)
 
-    #raise NotImplementedError("Save training curve plot.")
 
 
 def save_prediction_plot(
@@ -947,42 +713,16 @@ def save_prediction_plot(
     #
     # Method:
     # Plot true next-state values on the x-axis and predicted values on the y-axis.
-    import matplotlib
+    raise NotImplementedError("Save next-state prediction plot.")
 
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
 
-    model.eval()
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = config.output_dir / "next_state_predictions.png"
 
-    with torch.no_grad():
-        val_inputs = splits["val_inputs"].to(device)  # `[num_val_rows, state_dim + num_actions]`, default `[num_val_rows, 10]`
-        true_next_states = splits["val_next_states"].to(device)  # `[num_val_rows, state_dim]`, default `[num_val_rows, 6]`
-        pred_next_states, _, _, _ = model(val_inputs)  # `[num_val_rows, state_dim]`, default `[num_val_rows, 6]`
 
-    true_values = true_next_states.detach().cpu().flatten()  # `[num_val_rows * state_dim]`
-    pred_values = pred_next_states.detach().cpu().flatten()  # `[num_val_rows * state_dim]`
 
-    min_value = min(true_values.min().item(), pred_values.min().item())
-    max_value = max(true_values.max().item(), pred_values.max().item())
 
-    fig, ax = plt.subplots(figsize=(6, 6))
-    ax.scatter(true_values, pred_values, alpha=0.35, s=12)
-    ax.plot([min_value, max_value], [min_value, max_value], color="black", linestyle="--", label="perfect prediction")
-    ax.set_xlabel("true next-state value")
-    ax.set_ylabel("predicted next-state value")
-    ax.set_title("Next-state predictions")
-    ax.grid(True, alpha=0.3)
-    ax.legend(loc="best")
 
-    fig.tight_layout()
-    fig.savefig(output_path, dpi=150)
-    plt.close(fig)
 
-    return str(output_path)
 
-    #raise NotImplementedError("Save next-state prediction plot.")
 
 
 
@@ -1005,94 +745,18 @@ def train_dynamics_model(config: GridworldDynamicsConfig) -> DynamicsMetrics:
     # 8. Train and evaluate for `config.epochs`.
     # 9. Save both visual files.
     # 10. Return `DynamicsMetrics`.
-    set_seed(config.random_state)
+    raise NotImplementedError("Train and evaluate the grid-world dynamics model.")
 
-    splits = build_dynamics_dataset(config)
 
-    train_ds = TensorDataset(
-        splits["train_inputs"],
-        splits["train_next_states"],
-        splits["train_rewards"],
-        splits["train_costs"],
-        splits["train_dones"],
-    )
-    val_ds = TensorDataset(
-        splits["val_inputs"],
-        splits["val_next_states"],
-        splits["val_rewards"],
-        splits["val_costs"],
-        splits["val_dones"],
-    )
 
-    train_loader = DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True)
-    val_loader = DataLoader(dataset=val_ds, batch_size=config.batch_size, shuffle=False)
 
-    model = GridworldDynamicsModel(config).to(device)
-    optimizer = torch.optim.AdamW(params=model.parameters(), lr=config.learning_rate)
 
-    train_losses: list[float] = []
-    val_next_state_mses: list[float] = []
-    final_metrics: dict[str, float] | None = None
 
-    for epoch in range(1, config.epochs + 1):
-        train_loss = train_one_epoch(model, train_loader, optimizer)
-        metrics = evaluate_dynamics_model(model, val_loader, config)
 
-        train_losses.append(train_loss)
-        val_next_state_mses.append(metrics["val_next_state_mse"])
-        final_metrics = metrics
 
-        print(
-            f"epoch {epoch:02d}/{config.epochs} | "
-            f"train_loss={train_loss:.4f} | "
-            f"val_next_state_mse={metrics['val_next_state_mse']:.4f} | "
-            f"val_reward_mse={metrics['val_reward_mse']:.4f} | "
-            f"val_cost_mse={metrics['val_cost_mse']:.4f} | "
-            f"val_done_accuracy={metrics['val_done_accuracy']:.4f} | "
-            f"val_cost_f1={metrics['val_cost_f1']:.4f} | "
-            f"val_done_f1={metrics['val_done_f1']:.4f}"
-        )
 
-    if final_metrics is None:
-        raise ValueError("Training ran for zero epochs.")
 
-    training_curve_path = save_training_curves(train_losses, val_next_state_mses, config)
-    prediction_plot_path = save_prediction_plot(model, splits, config)
 
-    print(
-        "final metrics | "
-        f"train_loss={train_losses[-1]:.4f} | "
-        f"val_next_state_mse={final_metrics['val_next_state_mse']:.4f} | "
-        f"val_reward_mse={final_metrics['val_reward_mse']:.4f} | "
-        f"val_cost_mse={final_metrics['val_cost_mse']:.4f} | "
-        f"val_done_accuracy={final_metrics['val_done_accuracy']:.4f} | "
-        f"val_cost_precision={final_metrics['val_cost_precision']:.4f} | "
-        f"val_cost_recall={final_metrics['val_cost_recall']:.4f} | "
-        f"val_cost_f1={final_metrics['val_cost_f1']:.4f} | "
-        f"val_done_precision={final_metrics['val_done_precision']:.4f} | "
-        f"val_done_recall={final_metrics['val_done_recall']:.4f} | "
-        f"val_done_f1={final_metrics['val_done_f1']:.4f}"
-    )
-    print(f"saved training curves: {training_curve_path}")
-    print(f"saved prediction plot: {prediction_plot_path}")
-
-    return DynamicsMetrics(
-        final_train_loss=train_losses[-1],
-        val_next_state_mse=final_metrics["val_next_state_mse"],
-        val_reward_mse=final_metrics["val_reward_mse"],
-        val_cost_mse=final_metrics["val_cost_mse"],
-        val_done_accuracy=final_metrics["val_done_accuracy"],
-        val_cost_precision=final_metrics["val_cost_precision"],
-        val_cost_recall=final_metrics["val_cost_recall"],
-        val_cost_f1=final_metrics["val_cost_f1"],
-        val_done_precision=final_metrics["val_done_precision"],
-        val_done_recall=final_metrics["val_done_recall"],
-        val_done_f1=final_metrics["val_done_f1"],
-        training_curve_path=training_curve_path,
-        prediction_plot_path=prediction_plot_path,
-    )
-
-    #raise NotImplementedError("Train and evaluate the grid-world dynamics model.")
 
 
 def explain_first_world_model() -> str:

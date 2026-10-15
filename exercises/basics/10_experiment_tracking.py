@@ -180,7 +180,6 @@ class ExperimentTrackingConfig:
     epochs: int = 5
     random_state: int = 42
     output_dir: str = str(BOOTCAMP_ROOT / "outputs" / "experiment_tracking")
-        #raise NotImplementedError("Return raw logits from the classifier.")
 
 
 def describe_tracking_plan(config: ExperimentTrackingConfig) -> dict[str, object]:
@@ -222,17 +221,10 @@ def load_dataloaders(config: ExperimentTrackingConfig) -> dict[str, DataLoader]:
     # - each example is just one row of numbers
     # - this keeps the exercise focused on experiment tracking
 
-    data = load_wine()
-    features = torch.tensor(data.data[: config.num_samples], dtype=torch.float32)
-    labels = torch.tensor(data.target[: config.num_samples], dtype=torch.long)
+    raise NotImplementedError("Return dataloaders for the tracked experiment.")
 
-    data_ds = torch.utils.data.TensorDataset(features, labels)
 
-    train_ds, val_ds, test_ds = torch.utils.data.random_split(dataset=data_ds, lengths=(0.6, 0.2, 0.2))
 
-    return {"train": torch.utils.data.DataLoader(dataset=train_ds, batch_size=config.batch_size, shuffle=True),
-            "val": torch.utils.data.DataLoader(dataset=val_ds, batch_size=config.batch_size),
-            "test": torch.utils.data.DataLoader(dataset=test_ds, batch_size=config.batch_size)}
 
 
 
@@ -249,21 +241,14 @@ class TrackingMLP(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, num_classes: int) -> None:
         super().__init__()
 
-        self.input = nn.Linear(in_features=input_dim, out_features=hidden_dim)
-        self.hidden = nn.Linear(in_features=hidden_dim, out_features=hidden_dim//2)
-        self.classification_head = nn.Linear(in_features=hidden_dim//2, out_features=num_classes)
+        raise NotImplementedError("Build a small MLP classifier.")
 
-        #raise NotImplementedError("Build a small MLP classifier.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return raw class logits."""
 
-        x = F.relu(self.input(x))
-        x = F.relu(self.hidden(x))
-        logits = self.classification_head(x)
+        raise NotImplementedError("Return raw logits from the classifier.")
 
-        return logits
-    #raise NotImplementedError("Return dataloaders for the tracked experiment.")
 
 
 # Build the simple training objects for one run.
@@ -273,14 +258,9 @@ class TrackingMLP(nn.Module):
 # - optimizer
 def build_training_objects(config: ExperimentTrackingConfig) -> tuple[nn.Module, nn.Module, torch.optim.Optimizer]:
     """Return model, loss function, and optimizer."""
-    model = TrackingMLP(input_dim=config.num_features, hidden_dim=config.hidden_dim, num_classes=config.num_classes)
-    model = model.to(device)
+    raise NotImplementedError("Return model, CrossEntropyLoss, and optimizer.")
 
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(lr=config.learning_rate, params=model.parameters())
 
-    return model, loss_fn, optimizer
-    #raise NotImplementedError("Return model, CrossEntropyLoss, and optimizer.")
 
 
 # Train for one epoch and return the key numbers.
@@ -296,32 +276,11 @@ def train_one_epoch(
 ) -> dict[str, float]:
     """Run one full training epoch."""
 
-    model.train()
+    raise NotImplementedError("Return mean train loss and accuracy.")
 
-    losses, accs = [], []
 
-    for features, labels in loader:
-        features = features.to(device)
-        labels = labels.to(device)
 
-        optimizer.zero_grad()
 
-        logits = model(features)
-        loss = loss_fn(logits, labels)
-        loss.backward()
-        optimizer.step()
-
-        losses.append(loss.item())
-
-        preds = logits.argmax(dim=-1).long()
-        correct = (preds == labels).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss": mean_loss, "accuracy": mean_acc}
-    #raise NotImplementedError("Return mean train loss and accuracy.")
 
 
 # Measure validation or test performance.
@@ -331,27 +290,11 @@ def train_one_epoch(
 @torch.no_grad()
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> dict[str, float]:
     """Run one full evaluation pass."""
-    model.eval()
+    raise NotImplementedError("Return mean evaluation loss and accuracy.")
 
-    losses, accs = [], []
 
-    for feature, labels in loader:
-        features = feature.to(device)
-        labels = labels.to(device)
 
-        logits = model(features)
-        loss = loss_fn(logits, labels)
-        losses.append(loss.item())
 
-        preds = logits.argmax(dim=-1).long()
-        correct = (preds == labels).float()
-        accs.append(correct.mean().item())
-
-    mean_loss = torch.tensor(losses).mean().item()
-    mean_acc = torch.tensor(accs).mean().item()
-
-    return {"loss": mean_loss, "accuracy": mean_acc}
-    #raise NotImplementedError("Return mean evaluation loss and accuracy.")
 
 
 # Save one run log to disk.
@@ -370,21 +313,11 @@ def save_run_log(
     # - how did training move each epoch?
     # - what was the final result?
 
-    save_path = Path(config.output_dir) / f"{config.run_name}.json"
-    save_path.parent.mkdir(parents=True, exist_ok=True)
+    raise NotImplementedError("Save the run log as JSON or CSV and return the path.")
 
-    log_data = {
-        "config": asdict(config),
-        "epoch_metrics": epoch_metrics,
-        "final_summary": final_summary,
-    }
 
-    with save_path.open("w", encoding="utf-8") as f:
-        json.dump(log_data, f, indent=2)
 
-    return str(save_path)
 
-    #raise NotImplementedError("Save the run log as JSON or CSV and return the path.")
 
 
 # Run one full tracked experiment from start to finish.
@@ -395,42 +328,13 @@ def save_run_log(
 def run_one_experiment(config: ExperimentTrackingConfig) -> dict[str, object]:
     """Train one run and save its tracked results."""
 
-    loaders = load_dataloaders(config)
-    model, loss_fn, optimizer = build_training_objects(config)
+    raise NotImplementedError("Run one tracked experiment from start to finish.")
 
-    epoch_metrics = []
 
-    for epoch in range(1, config.epochs + 1):
-        train_metrics = train_one_epoch(model, loaders["train"], loss_fn, optimizer)
-        val_metrics = evaluate(model, loaders["val"], loss_fn)
-
-        epoch_metrics.append({
-            "epoch": epoch,
-            "train_loss": train_metrics["loss"],
-            "train_accuracy": train_metrics["accuracy"],
-            "val_loss": val_metrics["loss"],
-            "val_accuracy": val_metrics["accuracy"],
-        })
-
-        print(f"Epoch {epoch} -> loss: {train_metrics['loss']:.5f}, acc: {train_metrics['accuracy']:.5f}, val_loss: {val_metrics['loss']:.5f}, val_acc: {val_metrics['accuracy']:.4f}")
     
 
-    final_summary = {
-        "final_train_loss": epoch_metrics[-1]["train_loss"],
-        "final_train_accuracy": epoch_metrics[-1]["train_accuracy"],
-        "final_val_loss": epoch_metrics[-1]["val_loss"],
-        "final_val_accuracy": epoch_metrics[-1]["val_accuracy"],
-        "best_val_accuracy": max(row["val_accuracy"] for row in epoch_metrics),
-    }
 
-    log_path = save_run_log(config, epoch_metrics, final_summary)
 
-    return {
-        "config": asdict(config),
-        "log_path": log_path,
-        "final_metrics": final_summary,
-    }
-    #raise NotImplementedError("Run one tracked experiment from start to finish.")
 
 
 def compare_runs(run_results: list[dict[str, object]]) -> dict[str, object]:
@@ -441,81 +345,23 @@ def compare_runs(run_results: list[dict[str, object]]) -> dict[str, object]:
     # - by how much
     # - one short guess about why
 
-    run_a = run_results[0]
-    run_b = run_results[1]
+    raise NotImplementedError("Compare runs using validation accuracy and a plain-language note.")
 
-    acc_a = float(run_a["final_metrics"]["best_val_accuracy"])
-    acc_b = float(run_b["final_metrics"]["best_val_accuracy"])
 
-    name_a = str(run_a["config"]["run_name"])
-    name_b = str(run_b["config"]["run_name"])
 
-    lr_a = run_a["config"]["learning_rate"]
-    lr_b = run_b["config"]["learning_rate"]
 
-    if acc_a >= acc_b:
-        best_run_name = name_a
-        winner_acc = acc_a
-        loser_name = name_b
-        loser_acc = acc_b
-    else:
-        best_run_name = name_b
-        winner_acc = acc_b
-        loser_name = name_a
-        loser_acc = acc_a
 
-    comparison_note = (
-        f"{best_run_name} did better. "
-        f"The changed setting was learning_rate ({lr_a} vs {lr_b}). "
-        f"Best validation accuracy was {winner_acc:.4f} vs {loser_acc:.4f}, "
-        f"for a gap of {winner_acc - loser_acc:.4f}. "
-        f"One simple guess is that the better learning rate matched the dataset better."
-    )
 
-    return {
-        "best_run_name": best_run_name,
-        "comparison_note": comparison_note,
-        "run_results": run_results,
-    }
-    #raise NotImplementedError("Compare runs using validation accuracy and a plain-language note.")
 
 
 def run_training(config: ExperimentTrackingConfig) -> dict[str, object]:
     """Run two small experiments and compare them."""
 
-    run_a_config = ExperimentTrackingConfig(
-        run_name="baseline_lr_1e_3",
-        num_samples=config.num_samples,
-        num_features=config.num_features,
-        num_classes=config.num_classes,
-        hidden_dim=config.hidden_dim,
-        batch_size=config.batch_size,
-        learning_rate=1e-3,
-        epochs=config.epochs,
-        random_state=config.random_state,
-        output_dir=config.output_dir,
-    )
+    raise NotImplementedError("Run the experiment tracking workflow.")
 
-    run_b_config = ExperimentTrackingConfig(
-        run_name="compare_lr_1e_4",
-        num_samples=config.num_samples,
-        num_features=config.num_features,
-        num_classes=config.num_classes,
-        hidden_dim=config.hidden_dim,
-        batch_size=config.batch_size,
-        learning_rate=1e-4,
-        epochs=config.epochs,
-        random_state=config.random_state,
-        output_dir=config.output_dir,
-    )
 
-    run_a_result = run_one_experiment(run_a_config)
-    run_b_result = run_one_experiment(run_b_config)
 
-    run_results = [run_a_result, run_b_result]
-    return compare_runs(run_results)
 
-    #raise NotImplementedError("Run the experiment tracking workflow.")
 
 
 def check_metrics(metrics: dict[str, object]) -> bool:

@@ -292,18 +292,11 @@ def collect_logged_image_episodes(config: LatentWorldModelConfig) -> list[list[L
     # Checks:
     # - Do not create random images.
     # - `step["image"]` and `step["next_image"]` should come from environment logs.
-    _ = (VisualGridWorldConfig, collect_visual_gridworld_episodes)
+    raise NotImplementedError("Collect complete logged grid-world image episodes.")
 
-    grid_config = VisualGridWorldConfig(image_size=config.image_size, 
-                                        num_episodes=config.num_episodes, 
-                                        max_steps=config.max_steps, 
-                                        random_state=config.random_state)
 
-    episodes = collect_visual_gridworld_episodes(grid_config)
 
-    return episodes
     
-    #raise NotImplementedError("Collect complete logged grid-world image episodes.")
 
 
 def one_hot_action(action: int, config: LatentWorldModelConfig) -> torch.Tensor:
@@ -323,13 +316,8 @@ def one_hot_action(action: int, config: LatentWorldModelConfig) -> torch.Tensor:
     # Check:
     # - The returned vector should sum to `1.0`.
 
-    if not 0 <= action < config.num_actions:
-        raise ValueError("Inavlid action")
+    raise NotImplementedError("One-hot encode one grid-world action.")
 
-    encoded = torch.zeros(config.num_actions, dtype=torch.float)
-    encoded[action] = 1.0
-    return encoded
-    #raise NotImplementedError("One-hot encode one grid-world action.")
 
 
 def build_image_world_model_splits(config: LatentWorldModelConfig) -> ImageWorldModelSplits:
@@ -351,38 +339,15 @@ def build_image_world_model_splits(config: LatentWorldModelConfig) -> ImageWorld
     # - `frames.shape[1:]` should be `[3, image_size, image_size]`.
     # - Action rows should sum to `1.0`.
 
-    episodes = collect_logged_image_episodes(config)
+    raise NotImplementedError("Build latent image world-model train and validation tensors.")
 
-    num_val = int(len(episodes) * config.val_fraction)
 
-    shuffled_indices = torch.randperm(n=len(episodes), generator = torch.Generator().manual_seed(config.random_state))
 
-    val_eps = [episodes[shuffled_indices[index]] for index in range(0, num_val)]
-    train_eps = [episodes[shuffled_indices[index]] for index in range(num_val, len(episodes))]
 
-    val_flat_eps = flatten_logged_episodes(val_eps) #[step for episode in val_eps for step in episode]
-    train_flat_eps = flatten_logged_episodes(train_eps) #[step for episode in train_eps for step in episode]
 
-    def build_tensors(steps: list[LoggedGridStep]) -> list[torch.tensor]:
 
-        images = []
-        actions = []
-        next_images = []
 
-        for step in steps:
-            images.append(step["image"])
-            actions.append(one_hot_action(step["action"], config))
-            next_images.append(step["next_image"])
 
-        return torch.stack(images, dim=0), torch.stack(actions, dim=0), torch.stack(next_images, dim=0)
-
-    train_tensors = build_tensors(train_flat_eps)
-    val_tensors = build_tensors(val_flat_eps)
-
-    return ImageWorldModelSplits(train_frames=train_tensors[0], train_actions=train_tensors[1], train_next_frames=train_tensors[2],
-                                val_frames=val_tensors[0], val_actions=val_tensors[1], val_next_frames=val_tensors[2])
-
-    #raise NotImplementedError("Build latent image world-model train and validation tensors.")
 
 
 class LatentWorldModel(nn.Module):
@@ -411,25 +376,12 @@ class LatentWorldModel(nn.Module):
         # Image pixels are between `0.0` and `1.0`, so sigmoid keeps decoded pixels in that range.
         super().__init__()
 
-        self.config = config
+        raise NotImplementedError("Build the latent image world model.")
 
-        self.flat_image_dim = config.image_channels * config.image_size * config.image_size
 
-        self.encoder = nn.Sequential(nn.Flatten(), 
-                                    nn.Linear(in_features=self.flat_image_dim, out_features=config.hidden_dim),
-                                    nn.ReLU(inplace=True),
-                                    nn.Linear(in_features=config.hidden_dim, out_features=config.latent_dim))
 
-        self.dynamics = nn.Sequential(nn.Linear(in_features=config.latent_dim + config.num_actions, out_features=config.hidden_dim),
-                                        nn.ReLU(inplace=True),
-                                        nn.Linear(in_features=config.hidden_dim, out_features=config.latent_dim))
 
-        self.decoder = nn.Sequential(nn.Linear(in_features=config.latent_dim, out_features=config.hidden_dim),
-                                    nn.ReLU(inplace=True),
-                                    nn.Linear(in_features=config.hidden_dim, out_features=self.flat_image_dim),
-                                    nn.Sigmoid())
 
-        #raise NotImplementedError("Build the latent image world model.")
 
     def encode(self, frames: torch.Tensor) -> torch.Tensor:
         """Return latent vectors for frames."""
@@ -443,11 +395,8 @@ class LatentWorldModel(nn.Module):
         # 1. Check that `frames` has 4 dimensions.
         # 2. Return `self.encoder(frames)`.
 
-        if len(frames.shape) != 4:
-            raise ValueError("Shape of frames is incorrect.")
+        raise NotImplementedError("Encode image frames into latents.")
 
-        return self.encoder(frames)
-        # raise NotImplementedError("Encode image frames into latents.")
 
     def predict_next_latent(self, latents: torch.Tensor, actions: torch.Tensor) -> torch.Tensor:
         """Predict next latent vectors from current latents and actions."""
@@ -463,9 +412,7 @@ class LatentWorldModel(nn.Module):
         # 2. Build `dynamics_input = torch.cat([latents, actions], dim=-1)`.
         # 3. Return `self.dynamics(dynamics_input)`.
 
-        dynamics_input = torch.cat([latents, actions], dim=-1)
-        return self.dynamics(dynamics_input)
-        # raise NotImplementedError("Predict next image latent.")
+        raise NotImplementedError("Predict next image latent.")
 
     def decode(self, latents: torch.Tensor) -> torch.Tensor:
         """Decode latents into image frames."""
@@ -481,10 +428,7 @@ class LatentWorldModel(nn.Module):
         #    `flat.view(latents.shape[0], self.config.image_channels, self.config.image_size, self.config.image_size)`.
         # 3. Return the frames.
 
-        flat = self.decoder(latents)
-        frames = flat.view(latents.shape[0], self.config.image_channels, self.config.image_size, self.config.image_size)
-        return frames
-        #raise NotImplementedError("Decode image latents into frames.")
+        raise NotImplementedError("Decode image latents into frames.")
 
     def forward(self, frames: torch.Tensor, actions: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Return reconstruction, predicted next latent, and predicted next frame."""
@@ -495,15 +439,10 @@ class LatentWorldModel(nn.Module):
         # 4. Decode predicted next latents into predicted next frames.
         # 5. Return `(reconstructed_frames, predicted_next_latents, predicted_next_frames)`.
 
-        encoded_current_frames = self.encode(frames)
-        reconstructed_current_frames = self.decode(encoded_current_frames)
+        raise NotImplementedError("Run the latent image world model.")
 
-        predicted_next_latents = self.predict_next_latent(encoded_current_frames, actions)
-        predicted_next_frames = self.decode(predicted_next_latents)
 
-        return reconstructed_current_frames, predicted_next_latents, predicted_next_frames
 
-        #raise NotImplementedError("Run the latent image world model.")
 
 
 def compute_latent_world_model_loss(
@@ -530,26 +469,14 @@ def compute_latent_world_model_loss(
     # Check:
     # - The next-frame loss must compare predicted next frames to `next_frames`.
 
-    reconstructed_current_frames, predicted_next_latents, predicted_next_frames = model(frames, actions)
+    raise NotImplementedError("Compute latent image world-model loss.")
     
-    reconstruction_mse = nn.functional.mse_loss(reconstructed_current_frames, frames)
 
-    next_latents = model.encode(next_frames)
 
-    latent_pred_mse = nn.functional.mse_loss(predicted_next_latents, next_latents.detach())
-    next_frame_mse = nn.functional.mse_loss(predicted_next_frames, next_frames)
 
-    loss = reconstruction_mse + latent_pred_mse + next_frame_mse
 
-    loss_parts = {
-        "reconstruction_mse": float(reconstruction_mse.detach().cpu().item()),
-        "latent_prediction_mse": float(latent_pred_mse.detach().cpu().item()),
-        "next_frame_mse": float(next_frame_mse.detach().cpu().item()),
-    }
 
-    return loss, loss_parts
 
-    #raise NotImplementedError("Compute latent image world-model loss.")
 
 
 def train_one_epoch(model: LatentWorldModel, loader: DataLoader, optimizer: torch.optim.Optimizer) -> float:
@@ -562,28 +489,10 @@ def train_one_epoch(model: LatentWorldModel, loader: DataLoader, optimizer: torc
     # 5. Clear gradients, backpropagate, and step the optimizer.
     # 6. Return mean loss weighted by batch size.
 
-    model.train()
+    raise NotImplementedError("Train one latent image world-model epoch.")
 
-    total_loss = 0
-    num_samples = 0
 
-    for frames, actions, next_frames in loader:
-        frames = frames.to(device)
-        actions = actions.to(device)
-        next_frames = next_frames.to(device)
 
-        optimizer.zero_grad()
-
-        loss, loss_parts = compute_latent_world_model_loss(model, frames, actions, next_frames)
-        loss.backward()
-        optimizer.step()
-
-        batch_size = frames.shape[0]
-        num_samples+=batch_size
-        total_loss += loss.item() * batch_size
-
-    return total_loss/num_samples
-    #raise NotImplementedError("Train one latent image world-model epoch.")
 
 @torch.no_grad()
 def evaluate_latent_world_model(model: LatentWorldModel, splits: ImageWorldModelSplits) -> dict[str, float]:
@@ -600,21 +509,11 @@ def evaluate_latent_world_model(model: LatentWorldModel, splits: ImageWorldModel
     #
     # Check:
     # - This function should not call `backward()` or `optimizer.step()`.
-    model.eval()
+    raise NotImplementedError("Evaluate latent image world-model validation metrics.")
 
-    frames = splits["val_frames"].to(device)
-    actions = splits["val_actions"].to(device)
-    next_frames = splits["val_next_frames"].to(device)
 
-    _, loss_parts = compute_latent_world_model_loss(model, frames, actions, next_frames)
 
-    return {
-        "val_reconstruction_mse": loss_parts["reconstruction_mse"],
-        "val_latent_prediction_mse": loss_parts["latent_prediction_mse"],
-        "val_next_frame_mse": loss_parts["next_frame_mse"],
-    }
 
-    #raise NotImplementedError("Evaluate latent image world-model validation metrics.")
 
 
 def build_action_branch_batch(
@@ -669,36 +568,11 @@ def build_action_branch_batch(
     # - Reset to the same original scene before every action branch.
     # - Do not feed one action's next state into the next action branch.    
 
-    grid_config = VisualGridWorldConfig(image_size=config.image_size, 
-                                        num_episodes=config.num_episodes, 
-                                        max_steps=config.max_steps, 
-                                        random_state=config.random_state + 20000)
+    raise NotImplementedError("Build held-out counterfactual action branches.")
 
-    rng = random.Random(config.random_state + 20_000)
 
-    current_frames = []
-    actions = []
-    next_frames = []
 
-    for scene_index in range(config.action_branch_scenes):
-        scene = make_grid_scene(grid_config, rng)
-        agent = scene[0]
-        goals = scene[1]
-        hazards = scene[2]
-        walls = scene[3]
 
-        rendered_curr_frame = render_grid_image(agent, goals, hazards, walls, grid_config)
-
-        for action_id in range(config.num_actions):
-            next_agent, reward, cost, done = step_grid_world(agent, action_id, goals, hazards, walls, grid_config)
-            next_rendered_frame = render_grid_image(next_agent, goals, hazards, walls, grid_config)
-
-            current_frames.append(rendered_curr_frame)
-            actions.append(one_hot_action(action_id, config))
-            next_frames.append(next_rendered_frame)
-
-    return torch.stack(current_frames, dim=0), torch.stack(actions, dim=0), torch.stack(next_frames, dim=0)
-    #raise NotImplementedError("Build held-out counterfactual action branches.")
 
 
 def measure_action_branch_quality(
@@ -797,101 +671,27 @@ def measure_action_branch_quality(
     # - A very large ratio means it reacts too strongly, so MSE must still be checked.
     # - Skip a scene when its true pair distance is zero.
 
-    mse = torch.pow(predicted_next_frames - true_next_frames, 2).mean().item()
+    raise NotImplementedError("Measure action-branch accuracy and sensitivity.")
 
     # true_next_frames.shape == [batch_size, 3, H, W]
     # current_frames.shape == [batch_size, 3, H, W]
 
     # amax returns the largest value.
     # argmax returns the index position of the largest value.
-    change_mask = (true_next_frames - current_frames).abs().amax(dim=1, keepdim=True) > 1e-6 # [batch_size, 1, H, W]  True or false mask indicating change or not
     # true_next_frames - current_frames -> [batch_size, 3, H, W]
     # .abs()                            -> [batch_size, 3, H, W]
     # .amax(dim=1, keepdim=True)        -> [batch_size, 1, H, W]
     # > 1e-6                            -> [batch_size, 1, H, W]
 
-    squared_error = (predicted_next_frames - true_next_frames).pow(2)           # [batch_size, 3, H, W]
-    changed_pixel_mses = []
 
-    for row_index in range(squared_error.shape[0]):
-        row_mask = change_mask[row_index].expand_as(squared_error[row_index])   # [3, H, W]
-        if not row_mask.any():
-            continue
-        # Keep only the squared errors for pixels that truly changed, then average them.
-        changed_pixel_mses.append(squared_error[row_index][row_mask].mean())    # scalar
 
-    if changed_pixel_mses:
-        changed_pixel_mse = torch.stack(changed_pixel_mses).mean().item()       # scalar float
-    else:
-        changed_pixel_mse = 0.0
 
-    batch_size, channels, height, width = predicted_next_frames.shape
-    num_scenes = batch_size // config.num_actions
 
-    reshaped_pred_next_frames = predicted_next_frames.reshape(num_scenes, config.num_actions, channels * height * width)
-    reshaped_true_next_frames = true_next_frames.reshape(num_scenes, config.num_actions, channels * height * width)
 
     # this is computed per scene:
-    total_predicted_pair_distance = 0
-    total_true_pair_distance = 0
-    for scene_index in range(reshaped_pred_next_frames.shape[0]): #i.e. num_scenes
-        scene_predictions = reshaped_pred_next_frames[scene_index]
-        scene_targets = reshaped_true_next_frames[scene_index]
 
-        # torch.pdist(x) computes the distance between every pair of rows in a 2D tensor.
-        # Example:
-        # x = torch.tensor([  [0.0, 0.0],
-        #                     [3.0, 4.0],
-        #                     [6.0, 8.0], ])
-        # torch.pdist(x)
-        #
-        # this compares:
-        # row 0 vs row 1
-        # row 0 vs row 2
-        # row 1 vs row 2
-        # 
-        # the result is [5.0, 10.0, 5.0]
-        # because
-        # distance between [0, 0] and [3, 4] = 5
-        # distance between [0, 0] and [6, 8] = 10
-        # distance between [3, 4] and [6, 8] = 5
-        #
-        # In this exercise, one scene has one predicted next frame for each action:
-        # up prediction
-        # down prediction
-        # left prediction
-        # right prediction
-        # After flattening each image into a long vector, torch.pdist(...) measures how different those action branches are from each other.
-        # So it helps answer:
-        # Does the model predict different futures for different actions?
-        # In this exercise, the model should predict different next frames for different actions, when the current frame is the same.
-        # If the model ignores the action, then all four predictions may look almost the same. That would be a problem 
-        # because it means the model has not learned the action-conditioned part of the world.
 
-        pred_pair_dist = torch.pdist(scene_predictions)
-        true_pair_dist = torch.pdist(scene_targets)
 
-        mean_true_pair_distance = true_pair_dist.mean().item()
-        if mean_true_pair_distance == 0.0:
-            # Skip scenes where the real actions all lead to the same frame.
-            # There is no true branch separation to compare against.
-            # Example: the agent is boxed in by walls or grid edges. 
-            # If every action hits a wall or boundary, the agent does 
-            # not move, so every action gives the same next frame.
-            continue
-
-        total_predicted_pair_distance += pred_pair_dist.mean().item()
-        total_true_pair_distance += mean_true_pair_distance
-
-    sensitivity_ratio = (
-        total_predicted_pair_distance / total_true_pair_distance
-        if total_true_pair_distance > 0.0
-        else 0.0
-    )
-
-    return {"action_branch_mse": mse, "action_branch_changed_pixel_mse": changed_pixel_mse, "action_branch_sensitivity_ratio": sensitivity_ratio}
-
-    #raise NotImplementedError("Measure action-branch accuracy and sensitivity.")
 
 
 @torch.no_grad()
@@ -911,23 +711,11 @@ def evaluate_action_branches(
     # Check:
     # - A low ordinary validation loss is not enough. This metric checks that
     #   the action changes the prediction in the correct way.
-    model.eval()
+    raise NotImplementedError("Evaluate counterfactual action-conditioned predictions.")
 
-    current_frames, actions, true_next_frames = build_action_branch_batch(config)
-    current_frames = current_frames.to(device)
-    actions = actions.to(device)
-    true_next_frames = true_next_frames.to(device)
 
-    _, _, predicted_next_frames = model(current_frames, actions)
 
-    return measure_action_branch_quality(
-        current_frames=current_frames,
-        predicted_next_frames=predicted_next_frames,
-        true_next_frames=true_next_frames,
-        config=config,
-    )
 
-    #raise NotImplementedError("Evaluate counterfactual action-conditioned predictions.")
 
 
 def save_training_curves(train_losses: list[float], val_next_frame_mses: list[float], config: LatentWorldModelConfig) -> str:
@@ -938,23 +726,9 @@ def save_training_curves(train_losses: list[float], val_next_frame_mses: list[fl
     # Method:
     # Use Matplotlib with `matplotlib.use("Agg")`.
     # Plot train loss and validation next-frame MSE by epoch.
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    path = config.output_dir / "training_curves.png"
+    raise NotImplementedError("Save latent image training curves.")
 
-    epochs = range(1, len(train_losses) + 1)
-    fig, ax = plt.subplots(figsize=(7, 4))
-    ax.plot(epochs, train_losses, label="train loss")
-    ax.plot(epochs, val_next_frame_mses, label="val next-frame MSE")
-    ax.set_xlabel("epoch")
-    ax.set_ylabel("MSE")
-    ax.set_title("Latent image world-model training")
-    ax.legend()
-    fig.tight_layout()
-    fig.savefig(path)
-    plt.close(fig)
-    return str(path)
 
-    #raise NotImplementedError("Save latent image training curves.")
 
 
 def save_reconstruction_preview(model: LatentWorldModel, splits: ImageWorldModelSplits, config: LatentWorldModelConfig) -> str:
@@ -969,34 +743,13 @@ def save_reconstruction_preview(model: LatentWorldModel, splits: ImageWorldModel
     #
     # Check:
     # - The preview should show whether the latent keeps useful visual information.
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    path = config.output_dir / "reconstruction_preview.png"
+    raise NotImplementedError("Save reconstruction preview.")
 
-    model.eval()
-    num_examples = min(6, splits["val_frames"].shape[0])
-    frames = splits["val_frames"][:num_examples].to(device)
 
-    with torch.no_grad():
-        reconstructed_frames, _, _ = model(frames, torch.zeros(num_examples, config.num_actions, device=device))
 
-    originals = frames.detach().cpu()
-    reconstructions = reconstructed_frames.detach().cpu()
 
-    fig, axes = plt.subplots(2, num_examples, figsize=(2 * num_examples, 4))
-    for index in range(num_examples):
-        axes[0, index].imshow(originals[index].permute(1, 2, 0).clamp(0, 1))
-        axes[0, index].set_title("original")
-        axes[0, index].axis("off")
-        axes[1, index].imshow(reconstructions[index].permute(1, 2, 0).clamp(0, 1))
-        axes[1, index].set_title("rebuilt")
-        axes[1, index].axis("off")
 
-    fig.tight_layout()
-    fig.savefig(path)
-    plt.close(fig)
-    return str(path)
 
-    #raise NotImplementedError("Save reconstruction preview.")
 
 
 def save_next_frame_prediction_preview(model: LatentWorldModel, splits: ImageWorldModelSplits, config: LatentWorldModelConfig) -> str:
@@ -1011,36 +764,13 @@ def save_next_frame_prediction_preview(model: LatentWorldModel, splits: ImageWor
     #
     # Check:
     # - The preview should compare predicted next frame to true next frame, not current frame.
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    path = config.output_dir / "next_frame_prediction_preview.png"
+    raise NotImplementedError("Save next-frame prediction preview.")
 
-    model.eval()
-    num_examples = min(6, splits["val_frames"].shape[0])
-    frames = splits["val_frames"][:num_examples].to(device)
-    actions = splits["val_actions"][:num_examples].to(device)
-    true_next_frames = splits["val_next_frames"][:num_examples].to(device)
 
-    with torch.no_grad():
-        _, _, predicted_next_frames = model(frames, actions)
 
-    targets = true_next_frames.detach().cpu()
-    predictions = predicted_next_frames.detach().cpu()
 
-    fig, axes = plt.subplots(2, num_examples, figsize=(2 * num_examples, 4))
-    for index in range(num_examples):
-        axes[0, index].imshow(targets[index].permute(1, 2, 0).clamp(0, 1))
-        axes[0, index].set_title("true next")
-        axes[0, index].axis("off")
-        axes[1, index].imshow(predictions[index].permute(1, 2, 0).clamp(0, 1))
-        axes[1, index].set_title("pred next")
-        axes[1, index].axis("off")
 
-    fig.tight_layout()
-    fig.savefig(path)
-    plt.close(fig)
-    return str(path)
 
-    #raise NotImplementedError("Save next-frame prediction preview.")
 
 
 def save_action_branch_preview(model: LatentWorldModel, config: LatentWorldModelConfig) -> str:
@@ -1054,37 +784,13 @@ def save_action_branch_preview(model: LatentWorldModel, config: LatentWorldModel
     # 3. Make one column per action.
     # 4. Show predicted next frames in one row and real next frames below them.
     # 5. Put the action id in each title, then save and close the figure.
-    config.output_dir.mkdir(parents=True, exist_ok=True)
-    path = config.output_dir / "action_branch_preview.png"
+    raise NotImplementedError("Save counterfactual action-branch preview.")
 
-    model.eval()
-    current_frames, actions, true_next_frames = build_action_branch_batch(config)
-    num_actions = config.num_actions
-    current_frames = current_frames[:num_actions].to(device)
-    actions = actions[:num_actions].to(device)
-    true_next_frames = true_next_frames[:num_actions].to(device)
 
-    with torch.no_grad():
-        _, _, predicted_next_frames = model(current_frames, actions)
 
-    predictions = predicted_next_frames.detach().cpu()
-    targets = true_next_frames.detach().cpu()
 
-    fig, axes = plt.subplots(2, num_actions, figsize=(2 * num_actions, 4))
-    for action_id in range(num_actions):
-        axes[0, action_id].imshow(predictions[action_id].permute(1, 2, 0).clamp(0, 1))
-        axes[0, action_id].set_title(f"pred action {action_id}")
-        axes[0, action_id].axis("off")
-        axes[1, action_id].imshow(targets[action_id].permute(1, 2, 0).clamp(0, 1))
-        axes[1, action_id].set_title(f"true action {action_id}")
-        axes[1, action_id].axis("off")
 
-    fig.tight_layout()
-    fig.savefig(path)
-    plt.close(fig)
-    return str(path)
 
-    #raise NotImplementedError("Save counterfactual action-branch preview.")
 
 
 def train_latent_world_model(config: LatentWorldModelConfig) -> LatentImageMetrics:
@@ -1107,77 +813,18 @@ def train_latent_world_model(config: LatentWorldModelConfig) -> LatentImageMetri
     # Checks:
     # - Return validation metrics, not only training loss.
     # - Return paths for all saved visuals.
-    set_seed(config.random_state)
-    config.output_dir.mkdir(parents=True, exist_ok=True)
+    raise NotImplementedError("Train and evaluate the latent image world model.")
 
-    splits = build_image_world_model_splits(config)
-    train_dataset = TensorDataset(splits["train_frames"], splits["train_actions"], splits["train_next_frames"])
-    train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
 
-    model = LatentWorldModel(config).to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
-    train_losses: list[float] = []
-    val_next_frame_mses: list[float] = []
-    latest_val_metrics: dict[str, float] = {}
 
-    print("epoch | train_loss | val_recon_mse | val_latent_mse | val_next_frame_mse")
-    print("------|------------|---------------|----------------|-------------------")
 
-    for epoch in range(1, config.epochs + 1):
-        train_loss = train_one_epoch(model, train_loader, optimizer)
-        val_metrics = evaluate_latent_world_model(model, splits)
 
-        train_losses.append(train_loss)
-        val_next_frame_mses.append(val_metrics["val_next_frame_mse"])
-        latest_val_metrics = val_metrics
 
-        print(
-            f"{epoch:5d} | "
-            f"{train_loss:10.6f} | "
-            f"{val_metrics['val_reconstruction_mse']:13.6f} | "
-            f"{val_metrics['val_latent_prediction_mse']:14.6f} | "
-            f"{val_metrics['val_next_frame_mse']:17.6f}"
-        )
 
-    action_branch_metrics = evaluate_action_branches(model, config)
 
-    training_curve_path = save_training_curves(train_losses, val_next_frame_mses, config)
-    reconstruction_preview_path = save_reconstruction_preview(model, splits, config)
-    next_frame_preview_path = save_next_frame_prediction_preview(model, splits, config)
-    action_branch_preview_path = save_action_branch_preview(model, config)
 
-    final_metrics: LatentImageMetrics = {
-        "final_train_loss": train_losses[-1],
-        "val_reconstruction_mse": latest_val_metrics["val_reconstruction_mse"],
-        "val_latent_prediction_mse": latest_val_metrics["val_latent_prediction_mse"],
-        "val_next_frame_mse": latest_val_metrics["val_next_frame_mse"],
-        "heldout_action_branch_mse": action_branch_metrics["action_branch_mse"],
-        "heldout_action_branch_changed_pixel_mse": action_branch_metrics["action_branch_changed_pixel_mse"],
-        "heldout_action_branch_sensitivity_ratio": action_branch_metrics["action_branch_sensitivity_ratio"],
-        "training_curve_path": training_curve_path,
-        "reconstruction_preview_path": reconstruction_preview_path,
-        "next_frame_preview_path": next_frame_preview_path,
-        "action_branch_preview_path": action_branch_preview_path,
-    }
 
-    print("\nfinal metrics")
-    print("-------------")
-    print(f"final_train_loss: {final_metrics['final_train_loss']:.6f}")
-    print(f"val_reconstruction_mse: {final_metrics['val_reconstruction_mse']:.6f}")
-    print(f"val_latent_prediction_mse: {final_metrics['val_latent_prediction_mse']:.6f}")
-    print(f"val_next_frame_mse: {final_metrics['val_next_frame_mse']:.6f}")
-    print(f"heldout_action_branch_mse: {final_metrics['heldout_action_branch_mse']:.6f}")
-    print(f"heldout_action_branch_changed_pixel_mse: {final_metrics['heldout_action_branch_changed_pixel_mse']:.6f}")
-    print(f"heldout_action_branch_sensitivity_ratio: {final_metrics['heldout_action_branch_sensitivity_ratio']:.6f}")
-    print(f"training_curve_path: {final_metrics['training_curve_path']}")
-    print(f"reconstruction_preview_path: {final_metrics['reconstruction_preview_path']}")
-    print(f"next_frame_preview_path: {final_metrics['next_frame_preview_path']}")
-    print(f"action_branch_preview_path: {final_metrics['action_branch_preview_path']}")
-
-    return final_metrics
-
-    #raise NotImplementedError("Train and evaluate the latent image world model.")
 
 
 def explain_latent_image_world_model() -> str:
