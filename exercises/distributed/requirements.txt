@@ -1,0 +1,5 @@
+# Install a CUDA build of PyTorch that matches the machines first when needed.
+# PyTorch 2.8 is the first version this folder targets for the public FSDP2 API.
+torch>=2.8
+torchvision>=0.23
+ray[train]>=2.55.1
